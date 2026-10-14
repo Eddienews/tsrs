@@ -1,0 +1,68 @@
+import { locale } from './i18n'
+import { KNOWN_MODELS } from './providers'
+import type { Message, ModelInfo, Settings, Usage } from './types'
+
+// Share of the context window above which the user is warned.
+export const CONTEXT_WARNING = 0.8
+
+export function modelInfo(settings: Settings, providerId: string, model: string): ModelInfo {
+  const reported = settings.providers[providerId]?.modelInfo?.[model] ?? {}
+  const known = KNOWN_MODELS[model] ?? {}
+  return {
+    context: reported.context ?? known.context,
+    inputPrice: reported.inputPrice ?? known.inputPrice,
+    outputPrice: reported.outputPrice ?? known.outputPrice,
+    // Only applies to the built-in prices it was listed with.
+    longPrompt:
+      reported.inputPrice === undefined && reported.outputPrice === undefined
+        ? known.longPrompt
+        : undefined,
+  }
+}
+
+export function costOf(usage: Usage, info: ModelInfo): number | undefined {
+  if (usage.cost !== undefined) return usage.cost
+  if (info.inputPrice === undefined || info.outputPrice === undefined) return undefined
+  const long = info.longPrompt && usage.input > info.longPrompt.above ? info.longPrompt : undefined
+  const inputPrice = long?.inputPrice ?? info.inputPrice
+  const outputPrice = long?.outputPrice ?? info.outputPrice
+  return (usage.input * inputPrice + usage.output * outputPrice) / 1_000_000
+}
+
+export interface Totals {
+  tokens: number
+  // Undefined when no message in the conversation has a known cost.
+  cost?: number
+}
+
+export function totals(messages: Message[]): Totals {
+  let tokens = 0
+  let cost: number | undefined
+  for (const { usage } of messages) {
+    if (!usage) continue
+    tokens += usage.input + usage.output
+    if (usage.cost !== undefined) cost = (cost ?? 0) + usage.cost
+  }
+  return { tokens, cost }
+}
+
+// Fraction of the context window the next request will start from, judged by
+// the latest reply; undefined when either number is unknown.
+export function contextUse(messages: Message[], info: ModelInfo): number | undefined {
+  const last = messages.findLast((m) => m.usage)?.usage
+  if (!last || !info.context) return undefined
+  return (last.context ?? last.input + last.output) / info.context
+}
+
+export function formatTokens(count: number): string {
+  return count.toLocaleString(locale())
+}
+
+export function formatCost(cost: number): string {
+  return cost.toLocaleString(locale(), {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: cost < 1 ? 4 : 2,
+    maximumFractionDigits: cost < 1 ? 4 : 2,
+  })
+}
