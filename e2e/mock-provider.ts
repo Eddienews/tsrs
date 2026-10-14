@@ -100,6 +100,11 @@ export async function startMockProvider(): Promise<MockProvider> {
     failNext: (status, headers = {}) => {
       failure = { status, headers }
     },
-    close: () => new Promise((resolve) => server.close(() => resolve())),
+    // Kept-alive browser connections would hold close() open until they time out.
+    close: () =>
+      new Promise((resolve) => {
+        server.close(() => resolve())
+        server.closeAllConnections()
+      }),
   }
 }
