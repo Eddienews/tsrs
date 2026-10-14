@@ -1,5 +1,5 @@
 import { Pin } from 'lucide-react'
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -25,19 +25,27 @@ import MessageView from './MessageView'
 import ParamsPanel from './ParamsPanel'
 import { forget } from './mcp'
 import { artifactName, lastPreviewable, withPreviewHint, type Artifact } from './preview'
+import { CANVAS_NOTE, CANVAS_TOOLS, newCanvas, runCanvasTool, undo, withCanvas } from './canvas'
+import { extractText } from './extract'
 import { imageSource } from './images'
+import { chunk, search, withReferences } from './knowledge'
 import { MEMORY_TOOLS, runMemoryTool, withMemories } from './memory'
 import { connection, getProvider } from './providers'
 import Sidebar from './Sidebar'
 import {
   SETTINGS_KEY,
   deleteChat,
+  deleteDoc,
   deleteEverything,
   loadChats,
+  loadDocs,
+  loadHandle,
   loadMetas,
   loadSettings,
   loadThread,
   saveChats,
+  saveDoc,
+  saveHandle,
   saveMeta,
   saveSettings,
   saveThread,
@@ -51,14 +59,20 @@ import {
   type RequestMessage,
 } from './stream'
 import { SUMMARY_PROMPT, sinceSummary, withSummary } from './summary'
+import { mergeLibrary, runSync, type SyncLocal } from './sync'
+import { canPickFolder, folderStore, mayUse, pickFolder } from './syncFolder'
 import { gatherTools, localTools, mergeTools, type ToolSet } from './tools'
 import type {
   Attachment,
+  Canvas,
   ChatMeta,
   ChatParams,
   Folder,
+  KnowledgeBase,
+  KnowledgeDoc,
   Message,
   Persona,
+  Reference,
   PersonaTools,
   Settings,
   ToolPart,
@@ -74,6 +88,7 @@ import {
 // Loaded after startup, to keep the first download small. They are all
 // fetched once the app is idle, so they open at once and work offline.
 const chunks = {
+  CanvasPanel: () => import('./CanvasPanel'),
   CommandPalette: () => import('./CommandPalette'),
   CompareDialog: () => import('./CompareDialog'),
   LibraryDialog: () => import('./LibraryDialog'),
@@ -84,6 +99,7 @@ const chunks = {
   UnlockDialog: () => import('./UnlockDialog'),
   UsageView: () => import('./UsageView'),
 }
+const CanvasPanel = lazy(chunks.CanvasPanel)
 const CommandPalette = lazy(chunks.CommandPalette)
 const CompareDialog = lazy(chunks.CompareDialog)
 const LibraryDialog = lazy(chunks.LibraryDialog)
@@ -162,12 +178,42 @@ function toolsFor(settings: Settings, persona: Persona | undefined): PersonaTool
   )
 }
 
+// Knowledge base passages go with the question they were found for.
+function withKnowledge(messages: RequestMessage[], references: Reference[]): RequestMessage[] {
+  const last = messages.at(-1)
+  if (!references.length || last?.role !== 'user') return messages
+  return [...messages.slice(0, -1), { ...last, content: withReferences(last.content, references) }]
+}
+
+// The canvas text goes with the latest question.
+function withCanvasText(messages: RequestMessage[], canvas: Canvas | undefined): RequestMessage[] {
+  const last = messages.at(-1)
+  if (!canvas || last?.role !== 'user') return messages
+  return [...messages.slice(0, -1), { ...last, content: withCanvas(last.content, canvas) }]
+}
+
 // An agent's files go with the first message of every request.
 function withFiles(messages: RequestMessage[], persona: Persona | undefined): RequestMessage[] {
   const files = persona?.files ?? []
   if (!files.length || !messages.length) return messages
   const [first, ...rest] = messages
   return [{ ...first, attachments: [...files, ...(first.attachments ?? [])] }, ...rest]
+}
+
+// The knowledge bases a conversation searches: its own and its agent's.
+function basesFor(settings: Settings, params: ChatParams | undefined, persona?: Persona): string[] {
+  const wanted = new Set([...(params?.knowledge ?? []), ...(persona?.knowledge ?? [])])
+  return settings.knowledgeBases.filter((b) => wanted.has(b.id)).map((b) => b.id)
+}
+
+// The question's words plus the one before, so that a follow-up such as
+// "and the second one?" still finds what the conversation is about.
+function knowledgeQuery(history: Message[]): string {
+  return history
+    .filter((m) => m.role === 'user')
+    .slice(-2)
+    .map((m) => m.content)
+    .join('\n')
 }
 
 // A question about part of a reply, answered beside the conversation.
@@ -213,8 +259,9 @@ function withText(message: Message, text: string): Message {
 }
 
 // Secrets kept in the vault: provider keys by provider id, MCP tokens by
-// server id under a prefix.
+// server id under a prefix, and the sync password.
 const MCP_SECRET = 'mcp:'
+const SYNC_SECRET = 'sync:password'
 
 function withoutKeys(settings: Settings): Settings {
   return {
@@ -223,6 +270,7 @@ function withoutKeys(settings: Settings): Settings {
       Object.entries(settings.providers).map(([id, p]) => [id, { ...p, apiKey: '' }]),
     ),
     mcpServers: settings.mcpServers.map((server) => ({ ...server, token: '' })),
+    sync: { ...settings.sync, password: '' },
   }
 }
 
@@ -232,6 +280,7 @@ function keysOf(settings: Settings): Record<string, string> {
       .filter(([, p]) => p.apiKey)
       .map(([id, p]) => [id, p.apiKey]),
     ...settings.mcpServers.filter((s) => s.token).map((s) => [MCP_SECRET + s.id, s.token]),
+    ...(settings.sync.password ? [[SYNC_SECRET, settings.sync.password]] : []),
   ])
 }
 
@@ -245,7 +294,25 @@ function withKeys(settings: Settings, keys: Record<string, string>): Settings {
       ...server,
       token: keys[MCP_SECRET + server.id] ?? '',
     })),
+    sync: { ...settings.sync, password: keys[SYNC_SECRET] ?? '' },
   }
+}
+
+// Deletions older than this are forgotten; a device offline for longer may
+// bring a deleted chat back.
+const TOMBSTONE_DAYS = 180
+// How long after a change the folder is synced, and how often anyway.
+const SYNC_DELAY = 10_000
+const SYNC_EVERY = 120_000
+
+export interface SyncStatus {
+  state: 'idle' | 'syncing' | 'done' | 'permission' | 'error'
+  message?: string
+}
+
+function library(settings: Settings) {
+  const { folders, personas, prompts, memories, knowledgeBases } = settings
+  return { folders, personas, prompts, memories, knowledgeBases }
 }
 
 export default function App() {
@@ -291,6 +358,11 @@ export default function App() {
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const [artifactId, setArtifactId] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState(false)
+  const [showCanvas, setShowCanvas] = useState(false)
+  // The canvas of the conversation that has not been created yet.
+  const [draftCanvas, setDraftCanvas] = useState<Canvas | undefined>()
+  // Pending writes of a canvas being typed in, by chat id.
+  const canvasSaves = useRef(new Map<string, ReturnType<typeof setTimeout>>())
   const artifactCount = useRef(0)
   // MCP servers that could not be reached for the last reply.
   const [toolProblems, setToolProblems] = useState<string[]>([])
@@ -305,6 +377,14 @@ export default function App() {
   // The next message asks for an image instead of a reply.
   const [imageMode, setImageMode] = useState(false)
   const [aside, setAside] = useState<Aside | null>(null)
+  // Knowledge base documents, all kept in memory to search them.
+  const [docs, setDocs] = useState<KnowledgeDoc[]>([])
+  const docsRef = useRef<KnowledgeDoc[]>([])
+  const [syncFolder, setSyncFolder] = useState<FileSystemDirectoryHandle | null>(null)
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>({ state: 'idle' })
+  const syncing = useRef(false)
+  // The library as last written by a sync, which is not a local change.
+  const syncedLibrary = useRef('')
   const [asideBusy, setAsideBusy] = useState(false)
   const asideAbort = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -317,6 +397,7 @@ export default function App() {
   // Undefined while the active conversation's messages are being read.
   const messages = activeId ? threads[activeId] : undefined
   const params = active ? (active.params ?? {}) : draftParams
+  const canvas = active ? active.canvas : draftCanvas
   const persona = settings.personas.find((p) => p.id === params.personaId)
   const painter = imageSource(settings, locked)
   const blocked = imageMode
@@ -336,6 +417,55 @@ export default function App() {
     setMetas(next)
   }
 
+  function commitDocs(next: KnowledgeDoc[]) {
+    docsRef.current = next
+    setDocs(next)
+  }
+
+  // Remembers a deletion so that syncing deletes the item on other devices.
+  function tombstone(key: string) {
+    setSettings((s) => ({ ...s, sync: { ...s.sync, deleted: { ...s.sync.deleted, [key]: Date.now() } } }))
+  }
+
+  async function addDocs(baseId: string, files: File[]): Promise<string[]> {
+    const problems: string[] = []
+    for (const file of files) {
+      try {
+        const text = await extractText(file)
+        const chunks = chunk(text)
+        if (!chunks.length) throw new Error(t('"{name}" está vazio.', { name: file.name }))
+        const doc: KnowledgeDoc = {
+          id: crypto.randomUUID(),
+          baseId,
+          name: file.name,
+          addedAt: Date.now(),
+          size: text.length,
+          chunks,
+        }
+        await saveDoc(doc)
+        commitDocs([...docsRef.current, doc])
+      } catch (err) {
+        problems.push(err instanceof Error ? err.message : String(err))
+      }
+    }
+    return problems
+  }
+
+  async function removeDoc(id: string) {
+    commitDocs(docsRef.current.filter((d) => d.id !== id))
+    tombstone(`doc:${id}`)
+    await deleteDoc(id)
+  }
+
+  function removeBase(base: KnowledgeBase) {
+    const question = t('Excluir a base "{name}" e os documentos dela?', {
+      name: base.name || t('Sem nome'),
+    })
+    if (!confirm(question)) return
+    for (const doc of docsRef.current.filter((d) => d.baseId === base.id)) removeDoc(doc.id)
+    setSettings((s) => ({ ...s, knowledgeBases: s.knowledgeBases.filter((b) => b.id !== base.id) }))
+  }
+
   function commitThreads(next: Record<string, Message[]>) {
     threadsRef.current = next
     setThreads(next)
@@ -346,9 +476,46 @@ export default function App() {
   }
 
   function updateChat(id: string, fields: Partial<ChatMeta>) {
-    commitMetas(metasRef.current.map((c) => (c.id === id ? { ...c, ...fields } : c)))
+    const changedAt = Date.now()
+    commitMetas(metasRef.current.map((c) => (c.id === id ? { ...c, ...fields, changedAt } : c)))
     const meta = findMeta(id)
     if (meta) saveMeta(meta)
+  }
+
+  // Typing in the canvas updates it at once and writes it a moment later.
+  function setCanvas(next: Canvas | undefined, { now = false } = {}) {
+    if (!activeId || !findMeta(activeId)) return setDraftCanvas(next)
+    const id = activeId
+    const changedAt = Date.now()
+    commitMetas(metasRef.current.map((c) => (c.id === id ? { ...c, canvas: next, changedAt } : c)))
+    clearTimeout(canvasSaves.current.get(id))
+    const save = () => {
+      canvasSaves.current.delete(id)
+      const meta = findMeta(id)
+      if (meta) saveMeta(meta)
+    }
+    if (now) save()
+    else canvasSaves.current.set(id, setTimeout(save, 500))
+  }
+
+  function toggleCanvas() {
+    if (showCanvas) return setShowCanvas(false)
+    if (!canvas) setCanvas(newCanvas(t('Sem título')), { now: true })
+    setShowPreview(false)
+    setShowCanvas(true)
+  }
+
+  function discardCanvas() {
+    if (canvas?.content && !confirm(t('Descartar o canvas desta conversa?'))) return
+    setCanvas(undefined, { now: true })
+    setShowCanvas(false)
+  }
+
+  // A request about the canvas, sent to the chat as a message.
+  function askCanvas(request: string, selection: string) {
+    const quoted = selection ? `> ${selection.replace(/\n/g, '\n> ')}\n\n` : ''
+    const text = selection ? `${t('Sobre este trecho do canvas:')}\n\n${quoted}${request}` : request
+    send(text)
   }
 
   function patchThread(id: string, patch: (messages: Message[]) => Message[]) {
@@ -359,11 +526,15 @@ export default function App() {
   function persistThread(id: string) {
     const thread = threadsRef.current[id]
     // A conversation deleted mid-stream must not be written back.
-    if (thread && findMeta(id)) saveThread(id, thread)
+    if (!thread || !findMeta(id)) return
+    saveThread(id, thread)
+    updateChat(id, {})
   }
 
   useEffect(() => {
     loadMetas().then(commitMetas)
+    loadDocs().then(commitDocs)
+    loadHandle<FileSystemDirectoryHandle>('sync').then((folder) => folder && setSyncFolder(folder))
     const timer = setTimeout(
       () => Object.values(chunks).forEach((load) => load().catch(() => {})),
       PREFETCH_DELAY,
@@ -413,6 +584,139 @@ export default function App() {
   }, [messages])
 
   useEffect(() => applyAppearance(settings.appearance), [settings.appearance])
+
+  // Edits to the library get a time, which decides what syncing keeps. The
+  // text is compared, not the objects: settings adopted from another tab are
+  // new objects with the same content.
+  const libraryText = useMemo(
+    () => JSON.stringify(library(settings)),
+    [settings.folders, settings.personas, settings.prompts, settings.memories, settings.knowledgeBases],
+  )
+  const seenLibrary = useRef(libraryText)
+  useEffect(() => {
+    if (libraryText === seenLibrary.current) return
+    seenLibrary.current = libraryText
+    if (libraryText === syncedLibrary.current) return
+    setSettings((s) => ({ ...s, libraryChangedAt: Date.now() }))
+  }, [libraryText])
+
+  // The app's side of a sync, read from the latest state.
+  function syncLocal(): SyncLocal {
+    const current = settingsRef.current
+    return {
+      chats: metasRef.current.map((c) => ({ id: c.id, changedAt: c.changedAt ?? c.updatedAt })),
+      deleted: current.sync.deleted,
+      libraryChangedAt: current.libraryChangedAt,
+      docIds: docsRef.current.map((d) => d.id),
+      async readChat(id) {
+        const meta = findMeta(id)!
+        return { ...meta, messages: threadsRef.current[id] ?? (await loadThread(id)) }
+      },
+      async writeChat({ messages, ...meta }) {
+        await Promise.all([saveMeta(meta), saveThread(meta.id, messages)])
+        const others = metasRef.current.filter((c) => c.id !== meta.id)
+        commitMetas([...others, meta].sort((x, y) => y.updatedAt - x.updatedAt))
+        if (threadsRef.current[meta.id]) {
+          commitThreads({ ...threadsRef.current, [meta.id]: messages })
+        }
+      },
+      async removeChat(id) {
+        if (latest.current.activeId === id) setActiveId(null)
+        commitMetas(metasRef.current.filter((c) => c.id !== id))
+        const { [id]: _removed, ...rest } = threadsRef.current
+        commitThreads(rest)
+        await deleteChat(id)
+      },
+      library: () => library(settingsRef.current),
+      setLibrary(incoming, changedAt, merge) {
+        const next = merge ? mergeLibrary(incoming, library(settingsRef.current)) : incoming
+        syncedLibrary.current = JSON.stringify(library({ ...settingsRef.current, ...next }))
+        settingsRef.current = { ...settingsRef.current, ...next, libraryChangedAt: changedAt }
+        setSettings((s) => ({ ...s, ...next, libraryChangedAt: changedAt }))
+      },
+      readDoc: async (id) => docsRef.current.find((d) => d.id === id)!,
+      async writeDoc(doc) {
+        await saveDoc(doc)
+        commitDocs([...docsRef.current.filter((d) => d.id !== doc.id), doc])
+      },
+      async removeDoc(id) {
+        commitDocs(docsRef.current.filter((d) => d.id !== id))
+        await deleteDoc(id)
+      },
+    }
+  }
+
+  // `ask` lets the browser ask for access to the folder, after a click.
+  async function syncNow(ask = false) {
+    const folder = syncFolder
+    // Mid-reply the chat is incomplete; while locked, the password is unknown.
+    if (!folder || syncing.current || streaming || locked) return
+    if (!(await mayUse(folder, ask).catch(() => false))) {
+      return setSyncStatus({ state: 'permission' })
+    }
+    syncing.current = true
+    setSyncStatus({ state: 'syncing' })
+    try {
+      const report = await runSync(folderStore(folder), syncLocal(), settingsRef.current.sync.password)
+      const now = Date.now()
+      const cutoff = now - TOMBSTONE_DAYS * 86_400_000
+      setSettings((s) => ({
+        ...s,
+        sync: {
+          ...s.sync,
+          lastSync: now,
+          deleted: Object.fromEntries(Object.entries(s.sync.deleted).filter(([, at]) => at > cutoff)),
+        },
+      }))
+      setSyncStatus({
+        state: 'done',
+        message: t('{sent} enviados, {received} recebidos, {removed} apagados.', { ...report }),
+      })
+    } catch (err) {
+      setSyncStatus({ state: 'error', message: err instanceof Error ? err.message : String(err) })
+    } finally {
+      syncing.current = false
+    }
+  }
+
+  async function connectSync() {
+    try {
+      const folder = await pickFolder()
+      await saveHandle('sync', folder)
+      setSyncFolder(folder)
+      setSettings((s) => ({ ...s, sync: { ...s.sync, folder: folder.name } }))
+    } catch (err) {
+      // Closing the picker is not an error.
+      if (err instanceof DOMException && err.name === 'AbortError') return
+      setSyncStatus({ state: 'error', message: err instanceof Error ? err.message : String(err) })
+    }
+  }
+
+  async function disconnectSync() {
+    await saveHandle('sync', null)
+    setSyncFolder(null)
+    setSyncStatus({ state: 'idle' })
+    setSettings((s) => ({ ...s, sync: { ...s.sync, folder: '', lastSync: undefined } }))
+  }
+
+  // Syncs on connecting, a moment after each change, on returning to the
+  // tab, and every few minutes; never while a reply streams.
+  useEffect(() => {
+    if (!syncFolder || streaming || locked) return
+    const timer = setTimeout(() => latest.current.syncNow(), SYNC_DELAY)
+    return () => clearTimeout(timer)
+  }, [syncFolder, streaming, locked, metas, docs, settings.libraryChangedAt, settings.sync.deleted])
+  useEffect(() => {
+    if (!syncFolder) return
+    latest.current.syncNow()
+    const timer = setInterval(() => latest.current.syncNow(), SYNC_EVERY)
+    const onFocus = () => latest.current.syncNow()
+    window.addEventListener('focus', onFocus)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [syncFolder])
 
   async function enableVault(password: string) {
     const salt = newSalt()
@@ -471,12 +775,14 @@ export default function App() {
     }
     if (!open) setArtifacts((list) => [...list, artifact])
     setArtifactId(artifact.id)
+    setShowCanvas(false)
     setShowPreview(true)
   }
 
   // Opening an empty panel shows the conversation's latest previewable block.
   function togglePreview() {
     if (showPreview) return setShowPreview(false)
+    setShowCanvas(false)
     const block = artifacts.length
       ? null
       : (messages ?? [])
@@ -541,6 +847,14 @@ export default function App() {
     if (problem && targets) alert(problem.text)
     if (streaming || problem) return
     const now = Date.now()
+    const agentOf = settings.personas.find((p) => p.id === base.params?.personaId)
+    const bases = image ? [] : basesFor(settings, base.params, agentOf)
+    const references: Reference[] = bases.length
+      ? search(
+          docsRef.current.filter((d) => bases.includes(d.baseId)),
+          knowledgeQuery(history),
+        ).map(({ name, text }) => ({ name, text }))
+      : []
     const replies: Message[] = usings.map((using) => ({
       id: crypto.randomUUID(),
       role: 'assistant',
@@ -548,13 +862,19 @@ export default function App() {
       createdAt: now,
       ...using,
       ...(image ? { imagePrompt: history.at(-1)?.content ?? '' } : {}),
+      ...(references.length ? { references } : {}),
     }))
     const [first, ...others] = replies
     const alts = [...(branch?.alts ?? []), ...others.map((reply) => [reply])]
     const current: Message = alts.length
       ? { ...first, alts, altIndex: branch?.altIndex ?? 0 }
       : first
-    const meta: ChatMeta = { ...base, updatedAt: now, ...(targets || image ? {} : usings[0]) }
+    const meta: ChatMeta = {
+      ...base,
+      updatedAt: now,
+      changedAt: now,
+      ...(targets || image ? {} : usings[0]),
+    }
     commitMetas([meta, ...metasRef.current.filter((c) => c.id !== meta.id)])
     commitThreads({ ...threadsRef.current, [meta.id]: [...history, current] })
     saveMeta(meta)
@@ -575,6 +895,9 @@ export default function App() {
     let system = meta.params?.system?.trim() || settings.systemPrompt
     if (settings.memory) system = withMemories(system, settings.memories)
     system = withSummary(system, recent.summary)
+    // Comparing models would let each of them change the same canvas.
+    const sharedCanvas = !image && !targets ? meta.canvas : undefined
+    if (sharedCanvas) system = `${system ? `${system}\n\n` : ''}${CANVAS_NOTE}`
     let toolset: ToolSet | null = null
 
     async function paint(reply: Message, using: Target): Promise<boolean> {
@@ -618,7 +941,10 @@ export default function App() {
           ...connection(settings, via.id),
           model: using.model,
           system: settings.previewHint ? withPreviewHint(system, t('Abrir preview')) : system,
-          messages: withFiles(toRequest(recent.messages), agent),
+          messages: withFiles(
+            withCanvasText(withKnowledge(toRequest(recent.messages), references), sharedCanvas),
+            agent,
+          ),
           // An effort level chosen for another provider may not exist in this one.
           params: {
             ...meta.params,
@@ -698,6 +1024,7 @@ export default function App() {
           (s) => s.url && tools.mcpServers.includes(s.id),
         )
         toolset = mergeTools([
+          ...(sharedCanvas ? [canvasTools(meta.id)] : []),
           ...(settings.memory ? [memoryTools()] : []),
           ...(servers.length ? [await gatherTools(servers)] : []),
         ])
@@ -724,6 +1051,23 @@ export default function App() {
     if (completed && !targets && !image && settings.autoTitle && history.length === 1) {
       titleChat(meta.id, connection(settings, usings[0].providerId))
     }
+  }
+
+  // Writing and editing the chat's canvas, which opens to show the change.
+  function canvasTools(chatId: string): ToolSet {
+    return localTools(CANVAS_TOOLS, t('Canvas'), (call) => {
+      const current = findMeta(chatId)?.canvas
+      if (!current) return { content: 'The canvas was closed.', isError: true }
+      const { canvas: next, result } = runCanvasTool(current, call)
+      if (next !== current) {
+        updateChat(chatId, { canvas: next })
+        if (chatId === latest.current.activeId) {
+          setShowPreview(false)
+          setShowCanvas(true)
+        }
+      }
+      return result
+    })
   }
 
   // Saving and deleting memories, run without asking: the list is in the library.
@@ -888,10 +1232,13 @@ export default function App() {
     }
   }
 
-  function send() {
-    const text = draft.trim()
-    if ((!text && !attachments.length) || streaming || blocked) return
-    if (imageMode && !text) return
+  // Sends the draft, or `request` (from the canvas) leaving the draft alone.
+  function send(request?: string) {
+    const typed = request === undefined
+    const text = (request ?? draft).trim()
+    const files = typed ? attachments : []
+    if ((!text && !files.length) || streaming || blocked) return
+    if (imageMode && typed && !text) return
     const existing = findMeta(activeId)
     const history = existing ? threadsRef.current[existing.id] : []
     if (!history) return // still loading
@@ -901,22 +1248,28 @@ export default function App() {
       role: 'user',
       content: text,
       createdAt: now,
-      ...(attachments.length ? { attachments } : {}),
+      ...(files.length ? { attachments: files } : {}),
     }
     const base: ChatMeta = existing ?? {
       id: crypto.randomUUID(),
-      title: text.slice(0, TITLE_LENGTH) || attachments[0]?.name || t('Nova conversa'),
+      title: text.slice(0, TITLE_LENGTH) || files[0]?.name || t('Nova conversa'),
       createdAt: now,
       updatedAt: now,
       providerId: provider.id,
       model: settings.model,
       params: draftParams,
+      ...(draftCanvas ? { canvas: draftCanvas } : {}),
     }
-    setDraft('')
-    setAttachments([])
-    setAttachError('')
-    if (!existing) setDraftParams({})
-    if (imageMode && painter) {
+    if (typed) {
+      setDraft('')
+      setAttachments([])
+      setAttachError('')
+    }
+    if (!existing) {
+      setDraftParams({})
+      setDraftCanvas(undefined)
+    }
+    if (imageMode && typed && painter) {
       setImageMode(false)
       generate(base, [...history, user], { image: painter })
     } else {
@@ -1025,6 +1378,8 @@ export default function App() {
     forkChat,
     togglePin,
     openAside,
+    activeId,
+    syncNow,
   }
   const latest = useRef(actions)
   latest.current = actions
@@ -1084,6 +1439,7 @@ export default function App() {
       setActiveId(null)
     }
     commitMetas(metasRef.current.filter((c) => c.id !== chat.id))
+    tombstone(chat.id)
     const { [chat.id]: _removed, ...rest } = threadsRef.current
     commitThreads(rest)
     await deleteChat(chat.id)
@@ -1129,18 +1485,24 @@ export default function App() {
     const date = new Date().toISOString().slice(0, 10)
     download(
       `tsrs-backup-${date}.json`,
-      buildBackup(await loadChats(), {
+      buildBackup({
+        chats: await loadChats(),
         folders: settings.folders,
         personas: settings.personas,
         prompts: settings.prompts,
         memories: settings.memories,
+        knowledgeBases: settings.knowledgeBases,
+        docs: docsRef.current,
       }),
       'application/json',
     )
   }
 
   async function importBackup(file: File): Promise<string> {
-    const { chats: incoming, ...library } = parseBackup(await file.text())
+    const { chats: incoming, docs: incomingDocs, ...library } = parseBackup(await file.text())
+    const newDocs = incomingDocs.filter((d) => !docsRef.current.some((x) => x.id === d.id))
+    await Promise.all(newDocs.map(saveDoc))
+    commitDocs([...docsRef.current, ...newDocs])
     const current = new Map(metasRef.current.map((c) => [c.id, c]))
     // On conflict the most recently updated copy wins.
     const fresh = incoming.filter((c) => {
@@ -1167,6 +1529,7 @@ export default function App() {
       personas: merge(s.personas, library.personas),
       prompts: merge(s.prompts, library.prompts),
       memories: merge(s.memories, library.memories),
+      knowledgeBases: merge(s.knowledgeBases, library.knowledgeBases),
     }))
     return t('{imported} de {total} conversas importadas.', {
       imported: fresh.length,
@@ -1184,7 +1547,8 @@ export default function App() {
     (tools.webSearch && provider.webTools ? 1 : 0) +
     (tools.webFetch && provider.webTools === 'anthropic' ? 1 : 0) +
     settings.mcpServers.filter((s) => s.url && tools.mcpServers.includes(s.id)).length +
-    (settings.memory ? 1 : 0)
+    (settings.memory ? 1 : 0) +
+    basesFor(settings, params, persona).length
   const starters = persona?.starters?.filter((s) => s.trim()).length
     ? persona.starters.filter((s) => s.trim())
     : [
@@ -1220,12 +1584,14 @@ export default function App() {
   )
 
   const chat = showUsage ? (
-    <UsageView
-      load={loadChats}
-      onBack={() => setShowUsage(false)}
-      showMenu={isMobile}
-      onMenu={() => setShowDrawer(true)}
-    />
+    <Suspense fallback={null}>
+      <UsageView
+        load={loadChats}
+        onBack={() => setShowUsage(false)}
+        showMenu={isMobile}
+        onMenu={() => setShowDrawer(true)}
+      />
+    </Suspense>
   ) : (
     <main
       className="main flex h-full min-w-0 flex-col bg-background"
@@ -1251,6 +1617,8 @@ export default function App() {
         activeTools={activeTools}
         paramsOpen={showParams}
         previewOpen={showPreview}
+        canvasOpen={showCanvas && !!canvas}
+        onToggleCanvas={toggleCanvas}
         showMenu={isMobile}
         onMenu={() => setShowDrawer(true)}
         onModel={selectModel}
@@ -1346,7 +1714,7 @@ export default function App() {
       <Composer
         value={draft}
         onChange={setDraft}
-        onSend={send}
+        onSend={() => send()}
         onStop={() => abortRef.current?.abort()}
         streaming={streaming}
         blocked={!!blocked}
@@ -1402,21 +1770,39 @@ export default function App() {
     </main>
   )
 
-  const preview = (
-    <PreviewPanel
-      artifacts={artifacts}
-      activeId={artifactId}
-      onActivate={setArtifactId}
-      onCloseTab={closeArtifact}
-      onOpenUrl={(url) => showArtifact('url', url, new URL(url).host)}
-      onClose={() => setShowPreview(false)}
-    />
+  // The panel beside the chat: the canvas or the preview, one at a time.
+  const sideOpen = (showCanvas && !!canvas) || showPreview
+  const side = (
+    // Only this panel waits while its code loads, not the whole layout.
+    <Suspense fallback={null}>
+      {showCanvas && canvas ? (
+        <CanvasPanel
+          canvas={canvas}
+          busy={streaming}
+          blocked={blocker(settings, locked)?.text}
+          onChange={(next) => setCanvas(next)}
+          onUndo={() => setCanvas(undo(canvas), { now: true })}
+          onAsk={askCanvas}
+          onPreview={(lang, code) => showArtifact(lang, code)}
+          onDiscard={discardCanvas}
+          onClose={() => setShowCanvas(false)}
+        />
+      ) : (
+        <PreviewPanel
+          artifacts={artifacts}
+          activeId={artifactId}
+          onActivate={setArtifactId}
+          onCloseTab={closeArtifact}
+          onOpenUrl={(url) => showArtifact('url', url, new URL(url).host)}
+          onClose={() => setShowPreview(false)}
+        />
+      )}
+    </Suspense>
   )
 
   return (
     <TooltipProvider delayDuration={300}>
       <div className="app h-dvh w-full overflow-hidden">
-        <Suspense fallback={null}>
         {isMobile ? (
           <>
             <Sheet open={showDrawer} onOpenChange={setShowDrawer}>
@@ -1427,7 +1813,7 @@ export default function App() {
               </SheetContent>
             </Sheet>
             {chat}
-            {showPreview && <div className="fixed inset-0 z-40">{preview}</div>}
+            {sideOpen && <div className="fixed inset-0 z-40">{side}</div>}
           </>
         ) : (
           <ResizablePanelGroup orientation="horizontal">
@@ -1438,23 +1824,23 @@ export default function App() {
             <ResizablePanel id="chat" minSize="30%">
               {chat}
             </ResizablePanel>
-            {showPreview && (
+            {sideOpen && (
               <>
                 <ResizableHandle withHandle />
                 <ResizablePanel id="preview" defaultSize="40%" minSize="25%">
-                  {preview}
+                  {side}
                 </ResizablePanel>
               </>
             )}
           </ResizablePanelGroup>
         )}
-        </Suspense>
       </div>
 
       <Suspense fallback={null}>
       {showParams && (
         <ParamsPanel
           provider={provider}
+          bases={settings.knowledgeBases}
           params={params}
           onChange={(next) =>
             active ? updateChat(active.id, { params: next }) : setDraftParams(next)
@@ -1475,6 +1861,14 @@ export default function App() {
           onExport={exportBackup}
           onImport={importBackup}
           onDeleteEverything={eraseEverything}
+          sync={{
+            supported: canPickFolder(),
+            connected: !!syncFolder,
+            status: syncStatus,
+            onConnect: connectSync,
+            onDisconnect: disconnectSync,
+            onSyncNow: () => syncNow(true),
+          }}
           onClose={() => setShowSettings(false)}
         />
       )}
@@ -1482,6 +1876,10 @@ export default function App() {
         <LibraryDialog
           settings={settings}
           onChange={setSettings}
+          docs={docs}
+          onAddDocs={addDocs}
+          onDeleteDoc={removeDoc}
+          onDeleteBase={removeBase}
           onClose={() => setShowLibrary(false)}
         />
       )}

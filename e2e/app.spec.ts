@@ -787,6 +787,138 @@ test('an agent brings its own tools, files and starters', async ({ page }) => {
   expect(messages[3].content).toBe('de novo')
 })
 
+test('answers from a knowledge base', async ({ page }) => {
+  await connect(page)
+  await page.getByRole('button', { name: 'Biblioteca' }).click()
+  await page.getByRole('tab', { name: 'Conhecimento' }).click()
+  await page.getByRole('button', { name: 'Nova base' }).click()
+  await page.getByLabel('Nome da base').fill('Manual')
+  await page.getByLabel('Adicionar documentos').setInputFiles([
+    {
+      name: 'ferias.md',
+      mimeType: 'text/markdown',
+      buffer: Buffer.from('# Férias\n\nCada pessoa tem 30 dias de férias por ano.\n\nO reembolso sai em 10 dias.'),
+    },
+    { name: 'foto.png', mimeType: 'image/png', buffer: Buffer.from([0x89, 0x50, 0x00, 0x00]) },
+    {
+      name: 'prazo.pdf',
+      mimeType: 'application/pdf',
+      buffer: await readFile('e2e/fixtures/prazo.pdf'),
+    },
+  ])
+  await expect(page.locator('.knowledge-base')).toContainText('ferias.md')
+  await expect(page.locator('.knowledge-base')).toContainText('prazo.pdf')
+  await expect(page.getByRole('alert')).toContainText('"foto.png" não é PDF nem texto.')
+  await page.getByLabel('Testar uma busca').fill('quantos dias de férias')
+  await expect(page.locator('.search-hit').first()).toContainText('30 dias de férias')
+  await page.getByLabel('Testar uma busca').fill('prazo de entrega')
+  await expect(page.locator('.search-hit').first()).toContainText('Prazo de entrega: 15 dias uteis.')
+  await page.getByLabel('Testar uma busca').fill('quantos dias de férias')
+  await page.getByTitle('Fechar').click()
+
+  await page.locator('.toolbar').getByRole('button', { name: 'Parâmetros' }).click()
+  await page.getByRole('checkbox', { name: 'Manual' }).check()
+  await page.keyboard.press('Escape')
+  await send(page, 'Quantos dias de férias eu tenho?')
+  const question = provider.chats[0].body.messages.at(-1).content
+  expect(question).toMatch(/^Quantos dias de férias eu tenho\?\n\n<knowledge>/)
+  expect(question).toContain('document="ferias.md"')
+  expect(question).toContain('30 dias de férias por ano')
+  await reply(page).locator('.references button').click()
+  await expect(reply(page).locator('.references')).toContainText('30 dias de férias por ano')
+})
+
+test('writes in the canvas with the model and by hand', async ({ page }) => {
+  await connect(page)
+  await page.getByRole('button', { name: 'Canvas', exact: true }).click()
+  const canvas = page.locator('.canvas')
+  await expect(canvas.getByLabel('Título do canvas')).toHaveValue('Sem título')
+  await send(page, 'use a ferramenta para escrever um plano')
+  await expect(canvas.getByLabel('Texto do canvas')).toHaveValue('# Plano\n\nPasso 1')
+  await expect(canvas.getByLabel('Título do canvas')).toHaveValue('Plano')
+  const first = provider.chats[0].body
+  expect(first.tools[0].function.name).toBe('canvas_write')
+  expect(first.messages[0].content).toContain('The user has a canvas open')
+  expect(first.messages.at(-1).content).toContain('<canvas title="Sem título" language="markdown">\n(empty)\n</canvas>')
+
+  // The user edits by hand, and the next request carries the edit.
+  await canvas.getByLabel('Texto do canvas').fill('# Plano\n\nPasso 1\nPasso 2')
+  await canvas.getByLabel('Texto do canvas').evaluate((field: HTMLTextAreaElement) =>
+    field.setSelectionRange(field.value.indexOf('Passo 2'), field.value.length),
+  )
+  await canvas.getByLabel('Pedir uma mudança').fill('detalhe')
+  await canvas.getByLabel('Pedir uma mudança').press('Enter')
+  await expect(page.locator('.message.user').last()).toContainText('Sobre este trecho do canvas:')
+  await expect(page.getByRole('button', { name: 'Enviar' })).toBeVisible()
+  const sent = provider.chats.at(-1)!.body.messages.at(-1).content
+  expect(sent).toMatch(/^Sobre este trecho do canvas:\n\n> Passo 2\n\ndetalhe\n\n<canvas title="Plano"/)
+  expect(sent).toContain('Passo 1\nPasso 2\n</canvas>')
+
+  await canvas.getByRole('button', { name: 'Desfazer a última mudança' }).click()
+  await expect(canvas.getByLabel('Texto do canvas')).toHaveValue('')
+  // The canvas belongs to the chat and survives a reload.
+  await canvas.getByLabel('Texto do canvas').fill('Guardado')
+  await page.waitForTimeout(700)
+  await page.reload()
+  await chatRow(page, 'Saudação inicial').click()
+  await page.getByRole('button', { name: 'Canvas', exact: true }).click()
+  await expect(page.locator('.canvas').getByLabel('Texto do canvas')).toHaveValue('Guardado')
+})
+
+test('syncs through a folder and restores everything after a wipe', async ({ page }) => {
+  // The origin's private file system stands in for a folder picked by the user.
+  await page.addInitScript(() => {
+    ;(window as any).showDirectoryPicker = async () =>
+      (await navigator.storage.getDirectory()).getDirectoryHandle('sync', { create: true })
+  })
+  await connect(page)
+  await send(page, 'para sincronizar')
+  await expect(chatRow(page, 'Saudação inicial')).toBeVisible()
+  await page.getByRole('button', { name: 'Biblioteca' }).click()
+  await page.getByRole('tab', { name: 'Prompts salvos' }).click()
+  await page.getByRole('button', { name: 'Novo prompt' }).click()
+  await page.getByLabel('Título').fill('Guardado na pasta')
+  await page.getByTitle('Fechar').click()
+
+  await openSettings(page, 'Sincronização')
+  await page.getByLabel('Senha da sincronização (opcional)').fill('segredo')
+  await page.getByRole('button', { name: 'Escolher pasta' }).click()
+  await expect(page.getByText('Pasta: sync')).toBeVisible()
+  await page.getByRole('button', { name: 'Sincronizar agora' }).click()
+  await expect(page.locator('.sync-status')).toHaveText(/0 recebidos, 0 apagados|Última sincronização/)
+  const files: string[] = await page.evaluate(async () => {
+    const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('sync')
+    const names: string[] = []
+    for await (const entry of (dir as any).values()) names.push(entry.name)
+    return names.sort()
+  })
+  expect(files).toEqual([
+    expect.stringMatching(/^chat~[\w-]+~\d+\.json$/),
+    expect.stringMatching(/^library~\d+\.json$/),
+    'tsrs-sync.json',
+  ])
+  await closeSettings(page)
+
+  page.on('dialog', (dialog) => dialog.accept())
+  await openSettings(page, 'Dados')
+  await page.getByRole('button', { name: 'Apagar tudo' }).click()
+  await expect(composer(page)).toBeVisible()
+  await expect(page.locator('.chat-item')).toHaveCount(0)
+
+  await openSettings(page, 'Sincronização')
+  await page.getByLabel('Senha da sincronização (opcional)').fill('errada')
+  await page.getByRole('button', { name: 'Escolher pasta' }).click()
+  await expect(page.locator('.sync-status')).toHaveText('Senha da sincronização incorreta.')
+  await page.getByLabel('Senha da sincronização (opcional)').fill('segredo')
+  await page.getByRole('button', { name: 'Sincronizar agora' }).click()
+  await expect(page.locator('.sync-status')).toHaveText('0 enviados, 2 recebidos, 0 apagados.')
+  await closeSettings(page)
+  await chatRow(page, 'Saudação inicial').click()
+  await expect(reply(page)).toContainText('Resposta 1.')
+  await page.getByRole('button', { name: 'Prompts', exact: true }).click()
+  await expect(page.locator('.menu')).toContainText('Guardado na pasta')
+})
+
 test.describe('English interface', () => {
   test.use({ locale: 'en-US' })
 

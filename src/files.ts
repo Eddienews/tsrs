@@ -1,5 +1,14 @@
 import { locale, t } from './i18n'
-import type { Attachment, Chat, Folder, Memory, Persona, SavedPrompt } from './types'
+import type {
+  Attachment,
+  Chat,
+  Folder,
+  KnowledgeBase,
+  KnowledgeDoc,
+  Memory,
+  Persona,
+  SavedPrompt,
+} from './types'
 
 export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 
@@ -70,12 +79,19 @@ export interface Library {
   personas: Persona[]
   prompts: SavedPrompt[]
   memories: Memory[]
+  knowledgeBases: KnowledgeBase[]
 }
 
-// Backups hold conversations and the library; API keys never leave the browser.
-export function buildBackup(chats: Chat[], library: Library): string {
+export interface Backup extends Library {
+  chats: Chat[]
+  docs: KnowledgeDoc[]
+}
+
+// Backups hold conversations, the library and knowledge base documents; API
+// keys never leave the browser.
+export function buildBackup(backup: Backup): string {
   return JSON.stringify(
-    { app: BACKUP_APP, version: BACKUP_VERSION, exportedAt: Date.now(), ...library, chats },
+    { app: BACKUP_APP, version: BACKUP_VERSION, exportedAt: Date.now(), ...backup },
     null,
     2,
   )
@@ -87,7 +103,7 @@ function list<T>(value: unknown, field: keyof T): T[] {
   )
 }
 
-export function parseBackup(text: string): Library & { chats: Chat[] } {
+export function parseBackup(text: string): Backup {
   let data: any
   try {
     data = JSON.parse(text)
@@ -109,5 +125,7 @@ export function parseBackup(text: string): Library & { chats: Chat[] } {
     personas: list<Persona>(data.personas, 'system'),
     prompts: list<SavedPrompt>(data.prompts, 'text'),
     memories: list<Memory>(data.memories, 'text'),
+    knowledgeBases: list<KnowledgeBase>(data.knowledgeBases, 'name'),
+    docs: list<KnowledgeDoc>(data.docs, 'baseId').filter((d) => Array.isArray(d.chunks)),
   }
 }

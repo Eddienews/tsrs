@@ -1,18 +1,21 @@
 import { defaultAppearance } from './appearance'
 import { detectLanguage } from './i18n'
 import { PROVIDERS } from './providers'
-import type { Chat, ChatMeta, Message, Settings } from './types'
+import type { Chat, ChatMeta, KnowledgeDoc, Message, Settings } from './types'
 
 // Settings are small and read synchronously at startup: localStorage.
 // Conversations live in IndexedDB, split in two stores so the sidebar can list
 // them without reading any message: `meta` (one small record per chat) and
-// `threads` (the messages, read when a chat is opened).
+// `threads` (the messages, read when a chat is opened). Knowledge base
+// documents live in `docs`, and `handles` keeps the sync folder's handle.
 
 export const SETTINGS_KEY = 'tsrs:settings'
 const DB_NAME = 'tsrs'
-const DB_VERSION = 2
+const DB_VERSION = 3
 const META = 'meta'
 const THREADS = 'threads'
+const DOCS = 'docs'
+const HANDLES = 'handles'
 // Version 1 kept whole conversations in a single store.
 const LEGACY_CHATS = 'chats'
 
@@ -52,6 +55,9 @@ export function defaultSettings(): Settings {
     imageProvider: 'auto',
     imageModel: '',
     proxyUrl: 'http://localhost:8787',
+    knowledgeBases: [],
+    libraryChangedAt: 0,
+    sync: { folder: '', password: '', deleted: {} },
   }
 }
 
@@ -83,6 +89,11 @@ function db(): Promise<IDBDatabase> {
     open.onupgradeneeded = (event) => {
       const database = open.result
       const upgrade = open.transaction!
+      if (event.oldVersion < 3) {
+        database.createObjectStore(DOCS, { keyPath: 'id' }).createIndex('baseId', 'baseId')
+        database.createObjectStore(HANDLES)
+      }
+      if (event.oldVersion >= 2) return
       const meta = database.createObjectStore(META, { keyPath: 'id' })
       const threads = database.createObjectStore(THREADS, { keyPath: 'id' })
       if (event.oldVersion === 1) {
@@ -168,6 +179,27 @@ export async function deleteChat(id: string): Promise<void> {
     run(META, 'readwrite', (s) => s.delete(id)),
     run(THREADS, 'readwrite', (s) => s.delete(id)),
   ])
+}
+
+export function loadDocs(): Promise<KnowledgeDoc[]> {
+  return run<KnowledgeDoc[]>(DOCS, 'readonly', (s) => s.getAll())
+}
+
+export async function saveDoc(doc: KnowledgeDoc): Promise<void> {
+  await run(DOCS, 'readwrite', (s) => s.put(doc))
+}
+
+export async function deleteDoc(id: string): Promise<void> {
+  await run(DOCS, 'readwrite', (s) => s.delete(id))
+}
+
+export async function loadHandle<T>(name: string): Promise<T | undefined> {
+  return run<T | undefined>(HANDLES, 'readonly', (s) => s.get(name))
+}
+
+export async function saveHandle(name: string, handle: unknown): Promise<void> {
+  if (handle) await run(HANDLES, 'readwrite', (s) => s.put(handle, name))
+  else await run(HANDLES, 'readwrite', (s) => s.delete(name))
 }
 
 // Whole conversations, for backups.

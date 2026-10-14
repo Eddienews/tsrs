@@ -21,15 +21,17 @@ const chat: Chat = {
 }
 
 describe('backup', () => {
-  it('round-trips chats and folders', () => {
-    const folders = [{ id: 'f1', name: 'Trabalho' }]
-    const library = {
-      folders,
+  it('round-trips chats, the library and knowledge documents', () => {
+    const backup = {
+      chats: [chat],
+      folders: [{ id: 'f1', name: 'Trabalho' }],
       personas: [{ id: 'p', name: 'Revisor', system: 'Revise.' }],
       prompts: [{ id: 's', title: 'Resumo', text: 'Resuma:' }],
       memories: [{ id: 'm', text: 'Usa Linux', createdAt: 1 }],
+      knowledgeBases: [{ id: 'k', name: 'Manuais' }],
+      docs: [{ id: 'd', baseId: 'k', name: 'a.md', addedAt: 1, size: 5, chunks: ['Texto'] }],
     }
-    expect(parseBackup(buildBackup([chat], library))).toEqual({ chats: [chat], ...library })
+    expect(parseBackup(buildBackup(backup))).toEqual(backup)
   })
 
   it('rejects files that are not a TSRS backup', () => {
@@ -46,6 +48,8 @@ describe('backup', () => {
       personas: [],
       prompts: [],
       memories: [],
+      knowledgeBases: [],
+      docs: [],
     })
   })
 })

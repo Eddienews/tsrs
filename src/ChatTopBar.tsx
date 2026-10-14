@@ -2,6 +2,7 @@ import {
   AlertTriangle,
   ChevronDown,
   Menu,
+  NotebookPen,
   PanelRight,
   SlidersHorizontal,
   UserRound,
@@ -44,6 +45,7 @@ interface Props {
   activeTools: number
   paramsOpen: boolean
   previewOpen: boolean
+  canvasOpen: boolean
   showMenu: boolean
   onMenu: () => void
   onModel: (providerId: string, model: string) => void
@@ -51,6 +53,7 @@ interface Props {
   onTools: () => void
   onParams: () => void
   onTogglePreview: () => void
+  onToggleCanvas: () => void
 }
 
 function ModelPicker({ settings, onModel }: Pick<Props, 'settings' | 'onModel'>) {
@@ -236,6 +239,17 @@ export default function ChatTopBar(p: Props) {
           onClick={p.onParams}
         >
           <SlidersHorizontal className="size-4" />
+        </Button>
+        <Button
+          variant={p.canvasOpen ? 'secondary' : 'ghost'}
+          size="icon"
+          className="size-8"
+          aria-label={t('Canvas')}
+          title={t('Canvas')}
+          aria-pressed={p.canvasOpen}
+          onClick={p.onToggleCanvas}
+        >
+          <NotebookPen className="size-4" />
         </Button>
         <Button
           variant={p.previewOpen ? 'secondary' : 'ghost'}

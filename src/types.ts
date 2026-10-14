@@ -47,6 +47,13 @@ export interface Source {
   title?: string
 }
 
+// A passage of a knowledge base document sent with the question.
+export interface Reference {
+  // Name of the document.
+  name: string
+  text: string
+}
+
 export type Part = { type: 'text'; text: string } | ToolPart
 
 export interface Message {
@@ -70,6 +77,8 @@ export interface Message {
   model?: string
   // Pages the provider cited for this reply (Perplexity, OpenRouter's web search).
   sources?: Source[]
+  // Knowledge base passages sent with the question this reply answers.
+  references?: Reference[]
   // Kept at the top of the conversation for quick access.
   pinned?: boolean
   // A summary of everything before it, which replaces those messages in later
@@ -93,6 +102,18 @@ export interface ChatParams {
   effort?: string
   // Persona the system prompt was taken from, for display only.
   personaId?: string
+  // Knowledge bases searched for every question.
+  knowledge?: string[]
+}
+
+// A document or piece of code written together with the model, beside a chat.
+export interface Canvas {
+  title: string
+  // Language of the code, or 'markdown' for a document.
+  lang: string
+  content: string
+  // Earlier contents, most recent last, so a change can be undone.
+  previous?: string[]
 }
 
 // Everything about a conversation except its messages; the sidebar needs only
@@ -107,6 +128,10 @@ export interface ChatMeta {
   pinned?: boolean
   folderId?: string
   params?: ChatParams
+  canvas?: Canvas
+  // Last change of any kind (rename, pin, a new message), for syncing;
+  // `updatedAt` only moves with new messages, to keep the list order.
+  changedAt?: number
 }
 
 export interface Chat extends ChatMeta {
@@ -134,6 +159,24 @@ export interface Persona {
   files?: Attachment[]
   // Suggestions shown on an empty conversation.
   starters?: string[]
+  // Knowledge bases searched in its conversations.
+  knowledge?: string[]
+}
+
+export interface KnowledgeBase {
+  id: string
+  name: string
+}
+
+// A file added to a knowledge base, kept as the text passages it is searched by.
+export interface KnowledgeDoc {
+  id: string
+  baseId: string
+  name: string
+  addedAt: number
+  // Characters of text extracted from the file.
+  size: number
+  chunks: string[]
 }
 
 // A fact about the user the model chose, or was asked, to remember.
@@ -242,6 +285,19 @@ export interface Appearance {
   density: 'compact' | 'comfortable'
 }
 
+// Syncing through a folder that a sync service (Dropbox, Drive, Syncthing…)
+// copies between devices.
+export interface SyncSettings {
+  // Name of the chosen folder; the handle itself is kept in IndexedDB.
+  folder: string
+  // Encrypts what is written to the folder; held like an API key.
+  password: string
+  lastSync?: number
+  // Chats and documents deleted here, by id ('doc:' prefix for documents),
+  // with when, so other devices delete them too.
+  deleted: Record<string, number>
+}
+
 export interface Settings {
   language: 'pt' | 'en'
   appearance: Appearance
@@ -279,6 +335,11 @@ export interface Settings {
   imageModel: string
   // Address of the local proxy (npm run proxy) for providers without CORS.
   proxyUrl: string
+  knowledgeBases: KnowledgeBase[]
+  // When the folders, personas, prompts, memories or knowledge bases last
+  // changed, for syncing.
+  libraryChangedAt: number
+  sync: SyncSettings
   // Present when the API keys are password-protected; the keys are then
   // stored only inside it.
   vault?: Vault

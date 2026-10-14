@@ -6,7 +6,12 @@ import type { Vault } from './types'
 const ITERATIONS = 600_000
 
 function encode(bytes: Uint8Array): string {
-  return btoa(String.fromCharCode(...bytes))
+  // In slices: spreading a large array into one call overflows the stack.
+  let binary = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  }
+  return btoa(binary)
 }
 
 function decode(text: string): Uint8Array<ArrayBuffer> {
@@ -56,4 +61,18 @@ export async function unseal(key: CryptoKey, vault: Vault): Promise<Record<strin
     decode(vault.data),
   )
   return JSON.parse(new TextDecoder().decode(data))
+}
+
+// Any text, sealed as JSON with its own IV; for files in the sync folder.
+export async function encryptText(key: CryptoKey, text: string): Promise<string> {
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(text))
+  return JSON.stringify({ iv: encode(iv), data: encode(new Uint8Array(data)) })
+}
+
+// Rejects when the key is wrong or the text was not sealed with encryptText.
+export async function decryptText(key: CryptoKey, sealed: string): Promise<string> {
+  const { iv, data } = JSON.parse(sealed)
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: decode(iv) }, key, decode(data))
+  return new TextDecoder().decode(plain)
 }

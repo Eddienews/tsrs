@@ -17,6 +17,7 @@ import { t } from './i18n'
 import Markdown from './Markdown'
 import {
   PREVIEW_SOURCE,
+  fenced,
   isMarkdown,
   isScript,
   normalizeUrl,
@@ -46,12 +47,6 @@ interface Props {
 }
 
 // A fence longer than any run of backticks in the code, so it cannot end early.
-function fenced(lang: string, code: string): string {
-  const longest = Math.max(2, ...(code.match(/`+/g) ?? []).map((run) => run.length))
-  const fence = '`'.repeat(longest + 1)
-  return `${fence}${lang}\n${code}\n${fence}`
-}
-
 // Generated code must never run with this app's origin, where the API keys
 // live: the new tab only hosts a sandboxed frame.
 function openSandboxed(title: string, html: string) {
