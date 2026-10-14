@@ -10,5 +10,8 @@ export default defineConfig({
   },
   test: {
     include: ['src/**/*.test.ts'],
+    // The cached transform of i18n.test.ts keeps an old list of source files
+    // (import.meta.glob), so a new file's strings looked unused.
+    fsModuleCache: false,
   },
 })

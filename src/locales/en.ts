@@ -257,6 +257,27 @@ export const en: Record<string, string> = {
   Entrada: 'Input',
   Resultado: 'Result',
 
+  // Usage screen
+  Uso: 'Usage',
+  Conversa: 'Chat',
+  Período: 'Period',
+  '{count} dias': '{count} days',
+  '{count} tokens': '{count} tokens',
+  Tokens: 'Tokens',
+  tokens: 'tokens',
+  'Custo estimado': 'Estimated cost',
+  Respostas: 'Replies',
+  'Média por dia': 'Average per day',
+  '{count} respostas sem preço conhecido': '{count} replies with no known price',
+  'Nenhuma resposta neste período.': 'No replies in this period.',
+  'Tokens por dia': 'Tokens per day',
+  'Por modelo': 'By model',
+  Custo: 'Cost',
+  'O custo é uma estimativa feita neste navegador. Os títulos gerados automaticamente não entram na conta, e respostas apagadas deixam de ser contadas.':
+    'The cost is an estimate made in this browser. Automatically generated titles are not counted, and deleted replies stop being counted.',
+  '{count} respostas antigas, de antes de as mensagens terem data, aparecem no dia da última atividade da conversa.':
+    '{count} older replies, from before messages had a date, appear on the day of their chat’s last activity.',
+
   // Preview panel
   'Avisar o modelo sobre o preview': 'Tell the model about the preview',
   'Acrescenta ao prompt de sistema uma nota dizendo que blocos de código HTML, SVG, JavaScript e Markdown podem ser abertos no preview.':

@@ -317,6 +317,28 @@ test('the note about the preview can be turned off', async ({ page }) => {
   expect(provider.chats[0].body.messages).toEqual([{ role: 'user', content: 'sem nota' }])
 })
 
+test('sums up usage per day and per model', async ({ page }) => {
+  await connect(page)
+  await send(page, 'primeira')
+  await reply(page).hover()
+  await page.getByRole('button', { name: 'Regenerar' }).click()
+  await expect(reply(page)).toContainText('Resposta 2.')
+
+  await page.getByRole('button', { name: 'Uso', exact: true }).click()
+  const view = page.locator('.usage-view')
+  // Both versions of the reply were paid for: 2 × (850 + 50).
+  await expect(view).toContainText('1.800')
+  await expect(view.locator('.by-model')).toContainText('mock-a')
+  await expect(view.locator('.by-model')).toContainText('Custom')
+  await expect(view).toContainText('2 respostas sem preço conhecido')
+  await view.getByRole('radio', { name: '7 dias' }).click()
+  await expect(view.getByRole('listitem')).toHaveCount(7)
+
+  await page.getByRole('button', { name: 'Conversa', exact: true }).click()
+  await expect(view).toHaveCount(0)
+  await expect(composer(page)).toBeVisible()
+})
+
 test('explains a failure and retries', async ({ page }) => {
   await connect(page)
   provider.failNext(429, { 'retry-after': '7', 'Access-Control-Expose-Headers': 'retry-after' })

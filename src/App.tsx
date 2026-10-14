@@ -55,6 +55,7 @@ import type {
   ToolPart,
 } from './types'
 import UnlockDialog from './UnlockDialog'
+import UsageView from './UsageView'
 import {
   CONTEXT_WARNING,
   contextUse,
@@ -205,6 +206,7 @@ export default function App() {
   const [showLibrary, setShowLibrary] = useState(false)
   const [showTools, setShowTools] = useState(false)
   const [showPalette, setShowPalette] = useState(false)
+  const [showUsage, setShowUsage] = useState(false)
   // The conversation list, when it is a drawer on a narrow screen.
   const [showDrawer, setShowDrawer] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -399,12 +401,14 @@ export default function App() {
     else if (action === 'tools') setShowTools(true)
     else if (action === 'library') setShowLibrary(true)
     else if (action === 'settings') setShowSettings(true)
+    else if (action === 'usage') setShowUsage(true)
     else if (action === 'theme') toggleTheme()
     else lock()
   }
 
   async function selectChat(id: string | null) {
     setShowDrawer(false)
+    setShowUsage(false)
     setActiveId(id)
     setVersionsAt(null)
     const meta = findMeta(id)
@@ -436,6 +440,7 @@ export default function App() {
       id: crypto.randomUUID(),
       role: 'assistant',
       content: '',
+      createdAt: Date.now(),
       ...using,
       ...branch,
     }
@@ -581,6 +586,7 @@ export default function App() {
       id: crypto.randomUUID(),
       role: 'user',
       content: text,
+      createdAt: now,
       ...(attachments.length ? { attachments } : {}),
     }
     const base: ChatMeta = existing ?? {
@@ -605,7 +611,7 @@ export default function App() {
     const index = thread?.findIndex((m) => m.id === id) ?? -1
     if (!meta || !thread || index < 0) return
     setVersionsAt(null)
-    const edited = { ...thread[index], id: crypto.randomUUID(), content: text }
+    const edited = { ...thread[index], id: crypto.randomUUID(), content: text, createdAt: Date.now() }
     generate(meta, [...thread.slice(0, index), { ...edited, ...branchAt(thread, index) }])
   }
 
@@ -789,7 +795,7 @@ export default function App() {
     <Sidebar
       chats={metas}
       folders={settings.folders}
-      activeId={activeId}
+      activeId={showUsage ? null : activeId}
       theme={settings.appearance.theme}
       onSelect={selectChat}
       onUpdateChat={updateChat}
@@ -802,13 +808,21 @@ export default function App() {
         setShowDrawer(false)
         if (what === 'library') setShowLibrary(true)
         else if (what === 'tools') setShowTools(true)
+        else if (what === 'usage') setShowUsage(true)
         else setShowSettings(true)
       }}
       onToggleTheme={toggleTheme}
     />
   )
 
-  const chat = (
+  const chat = showUsage ? (
+    <UsageView
+      load={loadChats}
+      onBack={() => setShowUsage(false)}
+      showMenu={isMobile}
+      onMenu={() => setShowDrawer(true)}
+    />
+  ) : (
     <main
       className="main flex h-full min-w-0 flex-col bg-background"
       onDragOver={(e) => {

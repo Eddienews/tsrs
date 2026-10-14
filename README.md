@@ -52,6 +52,8 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
   (conversas, pastas, personas e prompts; sem as chaves de API).
 - Tokens e custo estimado por resposta e por conversa, com aviso quando o
   contexto do modelo está quase cheio.
+- Tela de uso: tokens, custo e respostas por dia e por modelo, nos últimos 7,
+  30 ou 90 dias (inclui as versões anteriores das respostas).
 - Proteção opcional das chaves de API por senha (PBKDF2 + AES-GCM).
 - Instalável como aplicativo (PWA); o build de produção abre sem conexão.
 - Erros explicados (chave inválida, limite de uso, falha de rede ou CORS), com
@@ -80,6 +82,8 @@ cabeçalhos (com `{apiKey}` como placeholder) e o formato da API (`openai` ou
 | `src/tools.ts`           | Ferramentas oferecidas ao modelo em cada requisição         |
 | `src/ToolsDialog.tsx`    | Ferramentas web e servidores MCP                            |
 | `src/usage.ts`           | Contagem de tokens, custo e uso do contexto                 |
+| `src/report.ts`          | Totais de uso por dia e por modelo                          |
+| `src/UsageView.tsx`      | Tela de uso                                                 |
 | `src/branches.ts`        | Versões de uma conversa (edições e regenerações)            |
 | `src/files.ts`           | Leitura de anexos, exportação Markdown e backup             |
 | `src/i18n.ts`            | Idioma da interface e tradução dos textos (`t()`)           |
