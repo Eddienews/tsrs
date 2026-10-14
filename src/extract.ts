@@ -11,18 +11,22 @@ async function pdfText(file: File): Promise<string> {
     import('pdfjs-dist/build/pdf.worker.min.mjs?url'),
   ])
   pdfjs.GlobalWorkerOptions.workerSrc = worker
-  const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise
+  const task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) })
   const pages: string[] = []
-  for (let n = 1; n <= pdf.numPages; n++) {
-    const content = await (await pdf.getPage(n)).getTextContent()
-    let page = ''
-    for (const item of content.items) {
-      if (!('str' in item)) continue
-      page += item.str + (item.hasEOL ? '\n' : ' ')
+  try {
+    const pdf = await task.promise
+    for (let n = 1; n <= pdf.numPages; n++) {
+      const content = await (await pdf.getPage(n)).getTextContent()
+      let page = ''
+      for (const item of content.items) {
+        if (!('str' in item)) continue
+        page += item.str + (item.hasEOL ? '\n' : ' ')
+      }
+      pages.push(page.replace(/[ \t]+\n/g, '\n').trim())
     }
-    pages.push(page.replace(/[ \t]+\n/g, '\n').trim())
+  } finally {
+    await task.destroy()
   }
-  await pdf.destroy()
   // A blank line between pages keeps a page's text out of the next passage.
   return pages.filter(Boolean).join('\n\n')
 }

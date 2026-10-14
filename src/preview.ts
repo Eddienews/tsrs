@@ -219,6 +219,20 @@ export function normalizeUrl(text: string): string | null {
   }
 }
 
+// Sandbox of a page opened by address. A page of the app's own origin loses
+// its origin: with it, the page could read the app's storage and the API keys.
+export function urlSandbox(url: string, origin: string): string {
+  let same = true
+  try {
+    same = new URL(url).origin === origin
+  } catch {
+    // An address that does not parse gets the strict sandbox.
+  }
+  return same
+    ? 'allow-scripts allow-forms allow-popups'
+    : 'allow-scripts allow-same-origin allow-forms allow-popups'
+}
+
 // Appended to the system prompt so the model knows the reader can render code,
 // instead of telling them to save a file or use another site. `button` is the
 // name of the button in the interface's language.
