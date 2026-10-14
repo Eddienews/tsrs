@@ -1,8 +1,23 @@
 import { useRef, useState } from 'react'
+import { Download, Eye, EyeOff, Lock, RefreshCw, Upload } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { cn } from '@/lib/utils'
 import { LANGUAGES, t, type Language } from './i18n'
 import { PROVIDERS } from './providers'
 import { listModels } from './stream'
-import type { Provider, ProviderSettings, Settings } from './types'
+import type { Appearance, Provider, ProviderSettings, Settings } from './types'
 
 interface Props {
   settings: Settings
@@ -20,11 +35,90 @@ interface Props {
   onClose: () => void
 }
 
+type Section = 'providers' | 'general' | 'appearance' | 'security' | 'data' | 'shortcuts'
+
+const SECTIONS: Section[] = ['providers', 'general', 'appearance', 'security', 'data', 'shortcuts']
+
+// Looked up at render time so the names follow the language being switched in this dialog.
+function sectionName(section: Section): string {
+  switch (section) {
+    case 'providers':
+      return t('Provedores')
+    case 'general':
+      return t('Geral')
+    case 'appearance':
+      return t('Aparência')
+    case 'security':
+      return t('Segurança')
+    case 'data':
+      return t('Dados')
+    case 'shortcuts':
+      return t('Atalhos')
+  }
+}
+
+const hint = 'text-xs text-muted-foreground'
+const badge = 'rounded border px-1.5 py-0.5 text-[11px] text-muted-foreground'
+
+function Choice<T extends string>(props: {
+  label: string
+  value: T
+  options: { id: T; name: string }[]
+  onChange: (value: T) => void
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="text-sm font-medium">{props.label}</div>
+      <ToggleGroup
+        type="single"
+        variant="outline"
+        aria-label={props.label}
+        className="flex-wrap justify-start"
+        value={props.value}
+        // Radix reports '' when the active item is clicked again; a choice is always required.
+        onValueChange={(value) => value && props.onChange(value as T)}
+      >
+        {props.options.map((option) => (
+          <ToggleGroupItem key={option.id} value={option.id} className="px-4">
+            {option.name}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+    </div>
+  )
+}
+
+function EyeButton(props: {
+  visible: boolean
+  show: string
+  hide: string
+  disabled?: boolean
+  className?: string
+  onToggle: () => void
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className={cn('size-8', props.className)}
+      disabled={props.disabled}
+      aria-label={props.visible ? props.hide : props.show}
+      onClick={props.onToggle}
+    >
+      {props.visible ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+    </Button>
+  )
+}
+
 export default function SettingsDialog(props: Props) {
   const { settings, locked, onChange, onExport, onImport, onClose } = props
+  const [section, setSection] = useState<Section>('providers')
   const [password, setPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
   const [visible, setVisible] = useState(false)
+  // Providers whose API key is currently shown in clear text.
+  const [shownKeys, setShownKeys] = useState<string[]>([])
   // Per-provider status line for the "load models" action.
   const [status, setStatus] = useState<Record<string, string>>({})
   const [dataStatus, setDataStatus] = useState('')
@@ -37,13 +131,20 @@ export default function SettingsDialog(props: Props) {
     }))
   }
 
+  function setAppearance(fields: Partial<Appearance>) {
+    onChange((s) => ({ ...s, appearance: { ...s.appearance, ...fields } }))
+  }
+
   async function loadModels(provider: Provider) {
     const conn = settings.providers[provider.id]
     setStatus((s) => ({ ...s, [provider.id]: t('Carregando…') }))
     try {
       const list = await listModels({ provider, baseUrl: conn.baseUrl, apiKey: conn.apiKey })
       patch(provider.id, { models: list.ids, modelInfo: list.info })
-      setStatus((s) => ({ ...s, [provider.id]: t('{count} modelos carregados.', { count: list.ids.length }) }))
+      setStatus((s) => ({
+        ...s,
+        [provider.id]: t('{count} modelos carregados.', { count: list.ids.length }),
+      }))
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       setStatus((s) => ({ ...s, [provider.id]: t('Falhou: {message}', { message }) }))
@@ -60,195 +161,372 @@ export default function SettingsDialog(props: Props) {
     }
   }
 
+  const shortcuts: [string, string][] = [
+    ['Ctrl/⌘+K', t('Paleta de comandos')],
+    ['Ctrl/⌘+.', t('Abrir ou fechar o preview')],
+    ['Alt+N', t('Nova conversa')],
+    ['Enter', t('Enviar mensagem')],
+    ['Shift+Enter', t('Quebrar a linha')],
+  ]
+
   return (
-    <div className="overlay" onClick={onClose}>
-      <div className="dialog" onClick={(e) => e.stopPropagation()}>
-        <header>
-          <h2>{t('Configurações')}</h2>
-          <button className="icon" title={t('Fechar')} onClick={onClose}>
-            ×
-          </button>
-        </header>
-
-        <label>
-          {t('Idioma')}
-          <select
-            value={settings.language}
-            onChange={(e) => onChange((s) => ({ ...s, language: e.target.value as Language }))}
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="dialog flex h-[85vh] max-w-3xl flex-col gap-0 p-0 sm:max-w-3xl">
+        <DialogHeader className="border-b px-5 py-3">
+          <DialogTitle>{t('Configurações')}</DialogTitle>
+          <DialogDescription>{t('Guardadas apenas neste navegador.')}</DialogDescription>
+        </DialogHeader>
+        <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
+          <nav
+            aria-label={t('Seções')}
+            className="flex shrink-0 gap-1 overflow-x-auto border-b p-2 sm:w-44 sm:flex-col sm:border-r sm:border-b-0"
           >
-            {LANGUAGES.map((language) => (
-              <option key={language.id} value={language.id}>
-                {language.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label>
-          {t('Prompt de sistema global')}
-          <textarea
-            rows={3}
-            placeholder={t('Opcional. Usado nas conversas sem prompt próprio.')}
-            value={settings.systemPrompt}
-            onChange={(e) => onChange((s) => ({ ...s, systemPrompt: e.target.value }))}
-          />
-        </label>
-
-        <h3>{t('Títulos')}</h3>
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={settings.autoTitle}
-            onChange={(e) => onChange((s) => ({ ...s, autoTitle: e.target.checked }))}
-          />
-          {t('Gerar o título da conversa automaticamente')}
-        </label>
-        {settings.autoTitle && (
-          <label>
-            {t('Modelo para títulos')}
-            <input
-              placeholder={t('Vazio usa o modelo da conversa. Um modelo barato do mesmo provedor serve.')}
-              value={settings.titleModel}
-              onChange={(e) => onChange((s) => ({ ...s, titleModel: e.target.value.trim() }))}
-            />
-          </label>
-        )}
-
-        <h3>{t('Provedores')}</h3>
-        {PROVIDERS.map((provider) => {
-          const conn = settings.providers[provider.id]
-          return (
-            <details key={provider.id} open={provider.id === settings.providerId}>
-              <summary>
-                {provider.name}
-                {conn.apiKey && <span className="badge">{t('chave salva')}</span>}
-                {locked && <span className="badge">{t('bloqueada')}</span>}
-              </summary>
-              <label>
-                {provider.keyRequired ? t('Chave de API') : t('Chave de API (opcional)')}
-                <input
-                  type="password"
-                  autoComplete="off"
-                  disabled={locked}
-                  placeholder={locked ? t('Desbloqueie as chaves para ver ou alterar') : ''}
-                  value={conn.apiKey}
-                  onChange={(e) => patch(provider.id, { apiKey: e.target.value.trim() })}
-                />
-              </label>
-              <label>
-                {t('URL base')}
-                <input
-                  type="url"
-                  placeholder={t('https://exemplo.com/v1')}
-                  value={conn.baseUrl}
-                  onChange={(e) => patch(provider.id, { baseUrl: e.target.value.trim() })}
-                />
-              </label>
-              <div className="row">
-                <button onClick={() => loadModels(provider)}>{t('Carregar modelos')}</button>
-                <span className="hint">
-                  {status[provider.id] ?? t('{count} modelos na lista.', { count: conn.models.length })}
-                </span>
-              </div>
-            </details>
-          )
-        })}
-
-        <h3>{t('Segurança das chaves')}</h3>
-        {!settings.vault && (
-          <>
-            <p className="hint">
-              {t(
-                'Sem proteção, as chaves ficam no localStorage deste navegador em texto puro. Com uma senha, elas são gravadas criptografadas e pedidas uma vez a cada abertura do app.',
-              )}
-            </p>
-            <div className="row">
-              <input
-                type={visible ? 'text' : 'password'}
-                autoComplete="new-password"
-                placeholder={t('Senha')}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-              <input
-                type={visible ? 'text' : 'password'}
-                autoComplete="new-password"
-                placeholder={t('Repita a senha')}
-                value={confirmation}
-                onChange={(e) => setConfirmation(e.target.value)}
-              />
+            {SECTIONS.map((id) => (
               <button
-                disabled={!password || password !== confirmation}
-                onClick={async () => {
-                  await props.onEnableVault(password)
-                  setPassword('')
-                  setConfirmation('')
-                }}
+                key={id}
+                type="button"
+                aria-current={section === id ? 'page' : undefined}
+                onClick={() => setSection(id)}
+                className={cn(
+                  'shrink-0 cursor-pointer rounded px-2.5 py-1.5 text-left text-sm hover:bg-accent',
+                  section === id && 'bg-accent font-medium',
+                )}
               >
-                {t('Proteger')}
+                {sectionName(id)}
               </button>
-            </div>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={visible}
-                onChange={(e) => setVisible(e.target.checked)}
-              />
-              {t('Mostrar senha')}
-            </label>
-          </>
-        )}
-        {settings.vault && !locked && (
-          <div className="row">
-            <span className="hint grow">{t('Chaves protegidas por senha e desbloqueadas.')}</span>
-            <button onClick={props.onLock}>{t('Bloquear agora')}</button>
-            <button onClick={props.onDisableVault}>{t('Remover proteção')}</button>
-          </div>
-        )}
-        {locked && (
-          <div className="row">
-            <span className="hint grow">{t('Chaves protegidas por senha e bloqueadas.')}</span>
-            <button onClick={props.onUnlock}>{t('Desbloquear')}</button>
-            <button
-              className="danger"
-              onClick={() => {
-                if (confirm(t('Apagar todas as chaves salvas e remover a senha?'))) {
-                  props.onResetVault()
-                }
-              }}
-            >
-              {t('Esqueci a senha')}
-            </button>
-          </div>
-        )}
-        <p className="hint">
-          {t(
-            'A senha não pode ser recuperada. As chaves só são enviadas ao provedor correspondente.',
-          )}
-        </p>
+            ))}
+          </nav>
 
-        <h3>{t('Dados')}</h3>
-        <div className="row">
-          <button onClick={onExport}>{t('Exportar backup')}</button>
-          <button onClick={() => importRef.current?.click()}>{t('Importar backup')}</button>
-          <input
-            ref={importRef}
-            type="file"
-            accept="application/json,.json"
-            hidden
-            onChange={(e) => {
-              importFile(e.target.files?.[0])
-              e.target.value = ''
-            }}
-          />
-        </div>
-        <p className="hint">
-          {dataStatus ||
-            t(
-              'O backup contém conversas, pastas, personas e prompts. Chaves de API não são exportadas.',
+          <div className="min-w-0 flex-1 space-y-4 overflow-y-auto p-5">
+            {section === 'providers' &&
+              PROVIDERS.map((provider) => {
+                const conn = settings.providers[provider.id]
+                const shown = shownKeys.includes(provider.id)
+                return (
+                  <div
+                    key={provider.id}
+                    data-provider={provider.id}
+                    className="space-y-3 rounded-md border p-3"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium">{provider.name}</span>
+                      {conn.apiKey && <span className={badge}>{t('chave salva')}</span>}
+                      {locked && <span className={badge}>{t('bloqueada')}</span>}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`key-${provider.id}`}>
+                        {provider.keyRequired ? t('Chave de API') : t('Chave de API (opcional)')}
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id={`key-${provider.id}`}
+                          type={shown ? 'text' : 'password'}
+                          autoComplete="off"
+                          disabled={locked}
+                          placeholder={locked ? t('Desbloqueie as chaves para ver ou alterar') : ''}
+                          className="pr-9 font-mono text-xs"
+                          value={conn.apiKey}
+                          onChange={(e) => patch(provider.id, { apiKey: e.target.value.trim() })}
+                        />
+                        <EyeButton
+                          visible={shown}
+                          show={t('Mostrar chave')}
+                          hide={t('Ocultar chave')}
+                          disabled={locked}
+                          className="absolute top-0.5 right-0.5"
+                          onToggle={() =>
+                            setShownKeys((ids) =>
+                              shown ? ids.filter((id) => id !== provider.id) : [...ids, provider.id],
+                            )
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`url-${provider.id}`}>{t('URL base')}</Label>
+                      <Input
+                        id={`url-${provider.id}`}
+                        type="url"
+                        placeholder={t('https://exemplo.com/v1')}
+                        className="font-mono text-xs"
+                        value={conn.baseUrl}
+                        onChange={(e) => patch(provider.id, { baseUrl: e.target.value.trim() })}
+                      />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={() => loadModels(provider)}
+                      >
+                        <RefreshCw className="size-3.5" />
+                        {t('Carregar modelos')}
+                      </Button>
+                      <span className={hint}>
+                        {status[provider.id] ??
+                          t('{count} modelos na lista.', { count: conn.models.length })}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+
+            {section === 'general' && (
+              <div className="space-y-5">
+                <Choice<Language>
+                  label={t('Idioma')}
+                  value={settings.language}
+                  options={LANGUAGES}
+                  onChange={(language) => onChange((s) => ({ ...s, language }))}
+                />
+                <div className="space-y-1.5">
+                  <Label htmlFor="global-system">{t('Prompt de sistema global')}</Label>
+                  <Textarea
+                    id="global-system"
+                    rows={4}
+                    className="font-mono text-xs"
+                    placeholder={t('Opcional. Usado nas conversas sem prompt próprio.')}
+                    value={settings.systemPrompt}
+                    onChange={(e) => onChange((s) => ({ ...s, systemPrompt: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="flex items-center justify-between gap-4 rounded-md border p-3 text-sm">
+                    {t('Avisar o modelo sobre o preview')}
+                    <Switch
+                      aria-label={t('Avisar o modelo sobre o preview')}
+                      checked={settings.previewHint}
+                      onCheckedChange={(previewHint) => onChange((s) => ({ ...s, previewHint }))}
+                    />
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    {t(
+                      'Acrescenta ao prompt de sistema uma nota dizendo que blocos de código HTML, SVG, JavaScript e Markdown podem ser abertos no preview.',
+                    )}
+                  </p>
+                </div>
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium">{t('Títulos')}</h3>
+                  <label className="flex items-center justify-between gap-4 rounded-md border p-3 text-sm">
+                    {t('Gerar o título da conversa automaticamente')}
+                    <Switch
+                      aria-label={t('Gerar o título da conversa automaticamente')}
+                      checked={settings.autoTitle}
+                      onCheckedChange={(autoTitle) => onChange((s) => ({ ...s, autoTitle }))}
+                    />
+                  </label>
+                  {settings.autoTitle && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="title-model">{t('Modelo para títulos')}</Label>
+                      <Input
+                        id="title-model"
+                        className="font-mono text-xs"
+                        placeholder={t(
+                          'Vazio usa o modelo da conversa. Um modelo barato do mesmo provedor serve.',
+                        )}
+                        value={settings.titleModel}
+                        onChange={(e) =>
+                          onChange((s) => ({ ...s, titleModel: e.target.value.trim() }))
+                        }
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
-        </p>
-      </div>
-    </div>
+
+            {section === 'appearance' && (
+              <div className="space-y-5">
+                <Choice<Appearance['theme']>
+                  label={t('Tema')}
+                  value={settings.appearance.theme}
+                  options={[
+                    { id: 'light', name: t('Claro') },
+                    { id: 'dark', name: t('Escuro') },
+                  ]}
+                  onChange={(theme) => setAppearance({ theme })}
+                />
+                <Choice<Appearance['accent']>
+                  label={t('Cor de destaque')}
+                  value={settings.appearance.accent}
+                  options={[
+                    { id: 'signal', name: t('Âmbar') },
+                    { id: 'green', name: t('Verde') },
+                    { id: 'blue', name: t('Azul') },
+                    { id: 'red', name: t('Vermelho') },
+                  ]}
+                  onChange={(accent) => setAppearance({ accent })}
+                />
+                <Choice<Appearance['font']>
+                  label={t('Tamanho da fonte')}
+                  value={settings.appearance.font}
+                  options={[
+                    { id: 'sm', name: t('Pequena') },
+                    { id: 'md', name: t('Média') },
+                    { id: 'lg', name: t('Grande') },
+                  ]}
+                  onChange={(font) => setAppearance({ font })}
+                />
+                <Choice<Appearance['density']>
+                  label={t('Densidade')}
+                  value={settings.appearance.density}
+                  options={[
+                    { id: 'compact', name: t('Compacta') },
+                    { id: 'comfortable', name: t('Confortável') },
+                  ]}
+                  onChange={(density) => setAppearance({ density })}
+                />
+              </div>
+            )}
+
+            {section === 'security' && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium">{t('Segurança das chaves')}</h3>
+                {!settings.vault && (
+                  <>
+                    <p className={hint}>
+                      {t(
+                        'Sem proteção, as chaves ficam no localStorage deste navegador em texto puro. Com uma senha, elas são gravadas criptografadas e pedidas uma vez a cada abertura do app.',
+                      )}
+                    </p>
+                    <div className="space-y-2 rounded-md border p-3">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type={visible ? 'text' : 'password'}
+                          autoComplete="new-password"
+                          placeholder={t('Senha')}
+                          aria-label={t('Senha')}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                        />
+                        <EyeButton
+                          visible={visible}
+                          show={t('Mostrar senha')}
+                          hide={t('Ocultar senha')}
+                          className="shrink-0"
+                          onToggle={() => setVisible(!visible)}
+                        />
+                      </div>
+                      <Input
+                        type={visible ? 'text' : 'password'}
+                        autoComplete="new-password"
+                        placeholder={t('Repita a senha')}
+                        aria-label={t('Repita a senha')}
+                        value={confirmation}
+                        onChange={(e) => setConfirmation(e.target.value)}
+                      />
+                      <Button
+                        size="sm"
+                        className="gap-1.5"
+                        disabled={!password || password !== confirmation}
+                        onClick={async () => {
+                          await props.onEnableVault(password)
+                          setPassword('')
+                          setConfirmation('')
+                        }}
+                      >
+                        <Lock className="size-3.5" />
+                        {t('Proteger')}
+                      </Button>
+                    </div>
+                  </>
+                )}
+                {settings.vault && !locked && (
+                  <div className="flex flex-wrap items-center gap-2 rounded-md border p-3">
+                    <span className={cn(hint, 'min-w-40 flex-1')}>
+                      {t('Chaves protegidas por senha e desbloqueadas.')}
+                    </span>
+                    <Button variant="outline" size="sm" className="gap-1.5" onClick={props.onLock}>
+                      <Lock className="size-3.5" />
+                      {t('Bloquear agora')}
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={props.onDisableVault}>
+                      {t('Remover proteção')}
+                    </Button>
+                  </div>
+                )}
+                {locked && (
+                  <div className="flex flex-wrap items-center gap-2 rounded-md border p-3">
+                    <span className={cn(hint, 'min-w-40 flex-1')}>
+                      {t('Chaves protegidas por senha e bloqueadas.')}
+                    </span>
+                    <Button variant="outline" size="sm" onClick={props.onUnlock}>
+                      {t('Desbloquear')}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        if (confirm(t('Apagar todas as chaves salvas e remover a senha?'))) {
+                          props.onResetVault()
+                        }
+                      }}
+                    >
+                      {t('Esqueci a senha')}
+                    </Button>
+                  </div>
+                )}
+                <p className={hint}>
+                  {t(
+                    'A senha não pode ser recuperada. As chaves só são enviadas ao provedor correspondente.',
+                  )}
+                </p>
+              </div>
+            )}
+
+            {section === 'data' && (
+              <div className="space-y-3">
+                <Button variant="outline" className="w-full justify-start gap-2" onClick={onExport}>
+                  <Download className="size-4" />
+                  {t('Exportar backup')}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2"
+                  onClick={() => importRef.current?.click()}
+                >
+                  <Upload className="size-4" />
+                  {t('Importar backup')}
+                </Button>
+                <input
+                  ref={importRef}
+                  type="file"
+                  accept="application/json,.json"
+                  hidden
+                  onChange={(e) => {
+                    importFile(e.target.files?.[0])
+                    e.target.value = ''
+                  }}
+                />
+                <p className={hint}>
+                  {dataStatus ||
+                    t(
+                      'O backup contém conversas, pastas, personas e prompts. Chaves de API não são exportadas.',
+                    )}
+                </p>
+              </div>
+            )}
+
+            {section === 'shortcuts' && (
+              <table className="w-full text-sm">
+                <tbody>
+                  {shortcuts.map(([keys, action]) => (
+                    <tr key={keys} className="border-b">
+                      <td className="py-2">{action}</td>
+                      <td className="py-2 text-right">
+                        <kbd className="rounded border bg-muted px-1.5 py-0.5 font-mono text-xs">
+                          {keys}
+                        </kbd>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }

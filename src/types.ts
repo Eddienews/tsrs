@@ -176,8 +176,17 @@ export interface ProviderSettings {
   modelInfo?: Record<string, ModelInfo>
 }
 
+// How the interface looks; applied as a class and data attributes on <html>.
+export interface Appearance {
+  theme: 'light' | 'dark'
+  accent: 'signal' | 'green' | 'blue' | 'red'
+  font: 'sm' | 'md' | 'lg'
+  density: 'compact' | 'comfortable'
+}
+
 export interface Settings {
   language: 'pt' | 'en'
+  appearance: Appearance
   providers: Record<string, ProviderSettings>
   providerId: string
   model: string
@@ -190,6 +199,8 @@ export interface Settings {
   webSearch: boolean
   webFetch: boolean
   autoTitle: boolean
+  // Tell the model that code blocks can be opened in the preview panel.
+  previewHint: boolean
   // Empty means "use the chat's own model".
   titleModel: string
   // Present when the API keys are password-protected; the keys are then

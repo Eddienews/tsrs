@@ -34,7 +34,16 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
   chamada, e busca na web e leitura de páginas executadas pelo provedor
   (Anthropic; busca também no OpenRouter).
 - Biblioteca de personas (prompts de sistema com nome, opcionalmente ligados a
-  um modelo) e de prompts salvos para inserir na mensagem.
+  um modelo) e de prompts salvos para inserir na mensagem, com campos
+  `{{nome}}` preenchidos na hora de inserir.
+- Preview: blocos de código HTML, SVG, JavaScript e Markdown abrem em um painel
+  ao lado da conversa, com abas de código e console e tamanhos de tela; a barra
+  de endereço também abre páginas por URL (por exemplo, `localhost:3000`).
+- Paleta de comandos (Ctrl/⌘+K) para ir a conversas, trocar de modelo e abrir
+  telas.
+- O modelo é avisado, por uma nota no prompt de sistema, de que o preview existe
+  (pode ser desligado em Configurações → Geral).
+- Tema claro e escuro, cor de destaque, tamanho da fonte e densidade.
 - Anexos: imagens e PDFs (colar, arrastar ou escolher) e arquivos de texto.
 - Conversas com busca, pastas, fixar, renomear e título gerado automaticamente.
 - Parâmetros por conversa: prompt de sistema, temperatura, máximo de tokens e
@@ -75,9 +84,20 @@ cabeçalhos (com `{apiKey}` como placeholder) e o formato da API (`openai` ou
 | `src/files.ts`           | Leitura de anexos, exportação Markdown e backup             |
 | `src/i18n.ts`            | Idioma da interface e tradução dos textos (`t()`)           |
 | `src/locales/en.ts`      | Textos em inglês, indexados pelo texto em português         |
-| `src/App.tsx`            | Estado das conversas, geração de respostas e campo de envio |
+| `src/App.tsx`            | Estado das conversas, geração de respostas e layout         |
 | `src/Sidebar.tsx`        | Busca, pastas, conversas fixadas e menus                    |
-| `src/MessageView.tsx`    | Mensagem, Markdown, edição e ações                          |
+| `src/ChatTopBar.tsx`     | Modelo, persona, uso de tokens e atalhos da conversa        |
+| `src/MessageView.tsx`    | Mensagem, edição, versões e ações                           |
+| `src/Markdown.tsx`       | Markdown das respostas e blocos de código                   |
+| `src/ToolCallBlock.tsx`  | Chamada de ferramenta e pedido de permissão                 |
+| `src/Composer.tsx`       | Campo de envio, anexos e prompts salvos                     |
+| `src/PreviewPanel.tsx`   | Painel de preview                                           |
+| `src/preview.ts`         | Documento do preview, console e endereços                   |
+| `src/prompts.ts`         | Campos `{{nome}}` dos prompts salvos                        |
+| `src/CommandPalette.tsx` | Paleta de comandos                                          |
+| `src/appearance.ts`      | Tema, cor de destaque, fonte e densidade                    |
+| `src/components/ui/`     | Componentes de interface (shadcn/ui sobre Radix)            |
+| `src/styles.css`         | Tailwind e as variáveis de cor e tipografia                 |
 | `src/ParamsPanel.tsx`    | Parâmetros da conversa                                      |
 | `src/SettingsDialog.tsx` | Chaves, URLs base, títulos, segurança e dados               |
 | `src/UnlockDialog.tsx`   | Pedido de senha para desbloquear as chaves                  |
@@ -108,6 +128,11 @@ mensagens são lidas quando a conversa é aberta.
 - A busca, a exportação em Markdown e o total de tokens consideram só a versão
   atual de cada conversa, não as versões alternativas.
 - A comparação gera uma resposta por vez, não em paralelo.
+- Preview: o código gerado roda em um frame isolado, sem acesso às chaves e às
+  conversas, mas com acesso à rede. React, TypeScript e Mermaid não são
+  renderizados. Muitos sites proíbem ser exibidos dentro de outra página e
+  aparecem em branco; o botão de abrir em nova aba contorna isso. O que está
+  aberto no painel não é guardado entre sessões.
 - PDFs dependem do suporte do provedor e do modelo escolhidos.
 - Provedores que não liberam CORS para o navegador precisam de um proxy.
 
