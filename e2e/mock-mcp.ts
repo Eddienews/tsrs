@@ -55,6 +55,11 @@ export async function startMockMcp(): Promise<MockMcp> {
     url: `http://127.0.0.1:${port}/mcp`,
     calls,
     tokens,
-    close: () => new Promise((resolve) => http_.close(() => resolve())),
+    // Kept-alive browser connections would hold close() open until they time out.
+    close: () =>
+      new Promise((resolve) => {
+        http_.close(() => resolve())
+        http_.closeAllConnections()
+      }),
   }
 }
