@@ -415,7 +415,6 @@ export const en: Record<string, string> = {
   'Novo fato': 'New fact',
   'Esquecer todos os fatos?': 'Forget every fact?',
   'Esquecer tudo': 'Forget all',
-  'Personas, prompts e memória.': 'Personas, prompts and memory.',
   'Uma persona é um prompt de sistema com nome, opcionalmente ligado a um modelo. Com ferramentas, arquivos e sugestões próprias, vira um agente. Escolha a persona de cada conversa na barra superior.':
     'A persona is a named system prompt, optionally tied to a model. With its own tools, files and suggestions it becomes an agent. Choose each chat\'s persona in the top bar.',
   'Resumindo a conversa…': 'Summarizing the chat…',
@@ -444,4 +443,82 @@ export const en: Record<string, string> = {
   'Não foi possível conectar ao proxy local em {url}. Inicie-o com npm run proxy.':
     'Could not connect to the local proxy at {url}. Start it with npm run proxy.',
   'O provedor não devolveu nenhuma imagem.': 'The provider returned no image.',
+
+  // Knowledge bases, canvas, sync
+  'Adicionar documentos': 'Add documents',
+  'A pasta foi criada por uma versão mais nova do TSRS.':
+    'The folder was created by a newer version of TSRS.',
+  'A pasta tem um {file} que não é do TSRS.':
+    'The folder has a {file} that is not from TSRS.',
+  'Bases de conhecimento': 'Knowledge bases',
+  'Canvas': 'Canvas',
+  'Com senha, os arquivos da pasta ficam criptografados. Use a mesma senha em todos os dispositivos; ela é definida na primeira sincronização da pasta e não pode ser trocada depois (para trocar, use outra pasta).':
+    'With a password, the files in the folder are encrypted. Use the same password on every device; it is set on the folder\'s first sync and cannot be changed later (to change it, use another folder).',
+  'Conhecimento': 'Knowledge',
+  '{count} trechos': '{count} passages',
+  'Crie bases de conhecimento na Biblioteca.': 'Create knowledge bases in the Library.',
+  'Da base de conhecimento: {names}': 'From the knowledge base: {names}',
+  'Descartar o canvas': 'Discard the canvas',
+  'Descartar o canvas desta conversa?': 'Discard this chat\'s canvas?',
+  'Desconectar': 'Disconnect',
+  'Desfazer a última mudança': 'Undo the last change',
+  'Documento': 'Document',
+  'Documentos guardados neste navegador e buscados por palavras, sem API. Ligue uma base numa conversa (em Parâmetros) ou numa persona, e os trechos que mais combinam com cada pergunta vão junto com ela.':
+    'Documents kept in this browser and searched by words, without any API. Turn a base on for a chat (in Parameters) or a persona, and the passages that best match each question go with it.',
+  'Escolher pasta': 'Choose folder',
+  'Escreva aqui, ou peça ao modelo para escrever.':
+    'Write here, or ask the model to write.',
+  'Esta pasta é protegida por senha. Informe a senha da sincronização.':
+    'This folder is password-protected. Enter the sync password.',
+  'Esta pasta não usa senha. Apague a senha da sincronização ou escolha outra pasta.':
+    'This folder has no password. Clear the sync password or choose another folder.',
+  'Este navegador não deixa sites gravarem numa pasta. Use o Chrome, o Edge ou outro navegador baseado no Chromium.':
+    'This browser does not let sites write to a folder. Use Chrome, Edge or another Chromium-based browser.',
+  'Excluir a base': 'Delete the base',
+  'Excluir a base "{name}" e os documentos dela?':
+    'Delete the base "{name}" and its documents?',
+  'Fechar o canvas': 'Close the canvas',
+  'Lendo os arquivos…': 'Reading the files…',
+  'Linguagem': 'Language',
+  '"{name}" está vazio.': '"{name}" is empty.',
+  '"{name}" não é PDF nem texto.': '"{name}" is neither a PDF nor text.',
+  '"{name}" não tem texto que dê para ler (talvez seja só imagem).':
+    '"{name}" has no readable text (it may be images only).',
+  '"{name}" passa de 30 MB.': '"{name}" is over 30 MB.',
+  'Nenhuma pasta escolhida.': 'No folder chosen.',
+  'Nenhum documento ainda.': 'No documents yet.',
+  'Nenhum trecho encontrado.': 'No passages found.',
+  'Nome da base': 'Base name',
+  'Nova base': 'New base',
+  'O navegador precisa da sua permissão para usar a pasta. Clique em Sincronizar agora.':
+    'The browser needs your permission to use the folder. Click Sync now.',
+  'Os trechos que mais combinam com cada pergunta vão junto com ela.':
+    'The passages that best match each question go with it.',
+  'Pasta: {name}': 'Folder: {name}',
+  'PDF, texto, Markdown, HTML, CSV, código…': 'PDF, text, Markdown, HTML, CSV, code…',
+  'Peça uma mudança (selecione um trecho para mudar só ele)':
+    'Ask for a change (select a passage to change only that)',
+  'Pedir': 'Ask',
+  'Pedir uma mudança': 'Ask for a change',
+  'Personas, prompts, memória e conhecimento.':
+    'Personas, prompts, memory and knowledge.',
+  'Remover': 'Remove',
+  'Remover {name}': 'Remove {name}',
+  'Senha da sincronização incorreta.': 'Wrong sync password.',
+  'Senha da sincronização (opcional)': 'Sync password (optional)',
+  '{sent} enviados, {received} recebidos, {removed} apagados.':
+    '{sent} sent, {received} received, {removed} deleted.',
+  'Sincroniza ao abrir o app, alguns segundos depois de cada mudança e a cada dois minutos. Vale a mudança mais recente de cada conversa; a biblioteca é sincronizada inteira, então edite-a num dispositivo de cada vez.':
+    'Syncs when the app opens, a few seconds after each change and every two minutes. The latest change to each chat wins; the library syncs as a whole, so edit it on one device at a time.',
+  'Sincronização': 'Sync',
+  'Sincronizando…': 'Syncing…',
+  'Sincronizar agora': 'Sync now',
+  'Sincronize conversas, biblioteca e documentos entre dispositivos por uma pasta que um serviço como Dropbox, Google Drive, OneDrive ou Syncthing mantém igual em todos eles. O TSRS não tem servidor: só lê e grava arquivos nessa pasta. As chaves de API e as configurações não vão para a pasta.':
+    'Sync chats, the library and documents between devices through a folder that a service such as Dropbox, Google Drive, OneDrive or Syncthing keeps the same on all of them. TSRS has no server: it only reads and writes files in that folder. API keys and settings do not go to the folder.',
+  'Sobre este trecho do canvas:': 'About this passage of the canvas:',
+  'Testar uma busca': 'Try a search',
+  'Texto do canvas': 'Canvas text',
+  'Título do canvas': 'Canvas title',
+  'Última sincronização: {time}': 'Last sync: {time}',
+  'Ver formatado': 'View formatted',
 }

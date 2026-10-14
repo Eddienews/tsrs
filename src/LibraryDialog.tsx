@@ -14,6 +14,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { readAttachment } from './files'
+import KnowledgeTab, { type KnowledgeProps } from './KnowledgeTab'
 import { t } from './i18n'
 import { PROVIDERS } from './providers'
 import type { Memory, Persona, PersonaTools, SavedPrompt, Settings } from './types'
@@ -21,9 +22,7 @@ import type { Memory, Persona, PersonaTools, SavedPrompt, Settings } from './typ
 // Settings live in localStorage, which holds a few megabytes at most.
 const MAX_AGENT_FILES = 2_000_000
 
-interface Props {
-  settings: Settings
-  onChange: (update: (s: Settings) => Settings) => void
+type Props = KnowledgeProps & {
   onClose: () => void
 }
 
@@ -132,6 +131,28 @@ function AgentFields({
           </p>
         )}
       </div>
+
+      {settings.knowledgeBases.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="text-sm font-medium">{t('Bases de conhecimento')}</div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+            {settings.knowledgeBases.map((base) => (
+              <Check
+                key={base.id}
+                label={base.name || t('Sem nome')}
+                checked={!!persona.knowledge?.includes(base.id)}
+                onChange={(on) =>
+                  onPatch({
+                    knowledge: on
+                      ? [...(persona.knowledge ?? []), base.id]
+                      : persona.knowledge?.filter((id) => id !== base.id),
+                  })
+                }
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="space-y-1.5">
         <div className="text-sm font-medium">{t('Arquivos')}</div>
@@ -290,7 +311,8 @@ function Card(props: {
   )
 }
 
-export default function LibraryDialog({ settings, onChange, onClose }: Props) {
+export default function LibraryDialog(props: Props) {
+  const { settings, onChange, onClose } = props
   // Items created while the dialog is open start expanded, ready to fill in.
   const [fresh, setFresh] = useState<string[]>([])
   // Items whose card was toggled by hand, which overrides the initial state.
@@ -324,14 +346,19 @@ export default function LibraryDialog({ settings, onChange, onClose }: Props) {
       <DialogContent className="dialog max-h-[85vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t('Biblioteca')}</DialogTitle>
-          <DialogDescription>{t('Personas, prompts e memória.')}</DialogDescription>
+          <DialogDescription>{t('Personas, prompts, memória e conhecimento.')}</DialogDescription>
         </DialogHeader>
         <Tabs defaultValue="personas" className="min-w-0">
           <TabsList>
             <TabsTrigger value="personas">Personas</TabsTrigger>
             <TabsTrigger value="prompts">{t('Prompts salvos')}</TabsTrigger>
             <TabsTrigger value="memory">{t('Memória')}</TabsTrigger>
+            <TabsTrigger value="knowledge">{t('Conhecimento')}</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="knowledge">
+            <KnowledgeTab {...props} />
+          </TabsContent>
 
           <TabsContent value="memory">
             <MemoryTab settings={settings} onChange={onChange} />

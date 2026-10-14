@@ -9,10 +9,11 @@ import {
 } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import { t } from './i18n'
-import type { ChatParams, Provider } from './types'
+import type { ChatParams, KnowledgeBase, Provider } from './types'
 
 interface Props {
   provider: Provider
+  bases: KnowledgeBase[]
   params: ChatParams
   onChange: (params: ChatParams) => void
   onClose: () => void
@@ -22,8 +23,9 @@ function number(value: string): number | undefined {
   return value === '' || Number.isNaN(Number(value)) ? undefined : Number(value)
 }
 
-export default function ParamsPanel({ provider, params, onChange, onClose }: Props) {
+export default function ParamsPanel({ provider, bases, params, onChange, onClose }: Props) {
   const set = (patch: ChatParams) => onChange({ ...params, ...patch })
+  const knowledge = params.knowledge ?? []
 
   return (
     <Sheet open onOpenChange={(open) => !open && onClose()}>
@@ -91,6 +93,31 @@ export default function ParamsPanel({ provider, params, onChange, onClose }: Pro
               </select>
             </div>
           )}
+          <fieldset className="space-y-2">
+            <legend className="mb-2 text-sm font-medium">{t('Bases de conhecimento')}</legend>
+            {bases.map((base) => (
+              <label key={base.id} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-primary"
+                  checked={knowledge.includes(base.id)}
+                  onChange={(e) =>
+                    set({
+                      knowledge: e.target.checked
+                        ? [...knowledge, base.id]
+                        : knowledge.filter((id) => id !== base.id),
+                    })
+                  }
+                />
+                {base.name || t('Sem nome')}
+              </label>
+            ))}
+            <p className="text-xs text-muted-foreground">
+              {bases.length
+                ? t('Os trechos que mais combinam com cada pergunta vão junto com ela.')
+                : t('Crie bases de conhecimento na Biblioteca.')}
+            </p>
+          </fieldset>
           {!provider.temperature && (
             <p className="text-xs text-muted-foreground">
               {t(

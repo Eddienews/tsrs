@@ -99,7 +99,12 @@ export async function startMockProvider(): Promise<MockProvider> {
     // Asked to use a tool, the mock calls the first one it was offered.
     if (body.tools?.length && last.role === 'user' && String(last.content).includes('ferramenta')) {
       const name = body.tools[0].function.name
-      const args = name === 'memory_save' ? '{"fact":"Gosta de café"}' : '{"text":"olá"}'
+      const args =
+        name === 'memory_save'
+          ? '{"fact":"Gosta de café"}'
+          : name === 'canvas_write'
+            ? JSON.stringify({ content: '# Plano\n\nPasso 1', title: 'Plano' })
+            : '{"text":"olá"}'
       const call = { index: 0, id: `call_${chats.length}`, function: { name, arguments: args } }
       res.write(`data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [call] } }] })}\n\n`)
       const done = { choices: [{ delta: {}, finish_reason: 'tool_calls' }] }

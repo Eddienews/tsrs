@@ -54,6 +54,16 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
   botão Imagem do campo de envio.
 - Pergunta à parte: selecione um trecho da resposta e pergunte sobre ele num
   painel lateral, sem acrescentar nada à conversa.
+- Base de conhecimento local: PDFs, textos, Markdown e HTML viram trechos
+  buscados por palavras (BM25), sem API; os trechos que mais combinam com cada
+  pergunta vão junto com ela e aparecem abaixo da resposta. Liga-se por conversa
+  (Parâmetros) ou por persona.
+- Canvas: um documento ou código ao lado da conversa, que o modelo escreve e
+  edita com ferramentas e você edita à mão; desfazer, ver formatado, abrir no
+  preview, baixar e pedir mudanças num trecho selecionado.
+- Sincronização entre dispositivos por uma pasta que o Dropbox, o Drive, o
+  OneDrive ou o Syncthing mantêm igual, com senha opcional (AES-GCM); conversas,
+  biblioteca e documentos, sem as chaves de API.
 - Preview: blocos de código HTML, SVG, JavaScript, Markdown, React (JSX/TSX) e
   Mermaid abrem em um painel ao lado da conversa, com abas de código e console e tamanhos de tela; a barra
   de endereço também abre páginas por URL (por exemplo, `localhost:3000`).
@@ -67,7 +77,8 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
 - Parâmetros por conversa: prompt de sistema, temperatura, máximo de tokens e
   nível de raciocínio.
 - Exportar uma conversa em Markdown; backup e restauração de tudo em JSON
-  (conversas, pastas, personas, prompts e memória; sem as chaves de API); exportar uma
+  (conversas, pastas, personas, prompts, memória e bases de conhecimento; sem as
+  chaves de API); exportar uma
   conversa como página HTML; apagar tudo o que o app guardou no navegador.
 - Raciocínio do modelo, recolhido acima da resposta, quando o provedor envia
   (Anthropic a partir dos modelos 4.6, OpenRouter, Ollama, DeepSeek).
@@ -121,6 +132,13 @@ cabeçalhos (com `{apiKey}` como placeholder) e o formato da API (`openai` ou
 | `src/memory.ts`          | Ferramentas e prompt da memória                             |
 | `src/summary.ts`         | Resumo do contexto                                          |
 | `src/images.ts`          | Escolha do provedor e do modelo de imagem                   |
+| `src/knowledge.ts`       | Trechos e busca por palavras (BM25) da base de conhecimento |
+| `src/extract.ts`         | Texto de PDFs (pdf.js), HTML e arquivos de texto            |
+| `src/KnowledgeTab.tsx`   | Bases de conhecimento na Biblioteca                         |
+| `src/canvas.ts`          | Ferramentas e texto do canvas                               |
+| `src/CanvasPanel.tsx`    | Painel do canvas                                            |
+| `src/sync.ts`            | Formato da pasta de sincronização e quem vence cada mudança |
+| `src/syncFolder.ts`      | Acesso à pasta pelo navegador (File System Access API)      |
 | `src/SideChat.tsx`       | Painel da pergunta à parte                                  |
 | `proxy/cors-proxy.mjs`   | Proxy local para provedores sem CORS                        |
 | `src/ToolsDialog.tsx`    | Ferramentas web e servidores MCP                            |
@@ -155,8 +173,9 @@ cabeçalhos (com `{apiKey}` como placeholder) e o formato da API (`openai` ou
 | `e2e/`                   | Testes de ponta a ponta e o provedor falso que eles usam    |
 
 No IndexedDB, cada conversa é gravada em duas partes: os metadados (título,
-pasta, modelo) e as mensagens. A lista lateral lê só os metadados; as
-mensagens são lidas quando a conversa é aberta.
+pasta, modelo, canvas) e as mensagens. A lista lateral lê só os metadados; as
+mensagens são lidas quando a conversa é aberta. Os documentos das bases de
+conhecimento ficam num terceiro depósito, já divididos em trechos.
 
 ## Roadmap
 
@@ -170,7 +189,12 @@ Próximos passos em [ROADMAP.md](ROADMAP.md).
 - O custo é uma estimativa: usa o valor informado pelo provedor quando existe
   e, senão, uma tabela de preços que pode estar desatualizada. Sem preço
   conhecido, só os tokens são mostrados.
-- Sem sincronização entre dispositivos.
+- A sincronização precisa de um navegador que grave em pastas (Chrome, Edge e
+  outros baseados no Chromium). Vale a mudança mais recente de cada conversa, e a
+  biblioteca é sincronizada inteira: editada em dois dispositivos ao mesmo
+  tempo, fica a versão mais recente.
+- A busca na base de conhecimento é por palavras: sinônimos e paráfrases não
+  são encontrados. PDFs que são só imagem (escaneados) não têm texto para ler.
 - MCP: só servidores remotos por HTTP que aceitem chamadas do navegador (CORS),
   com token opcional. Servidores locais por linha de comando, login por OAuth,
   recursos e prompts do MCP não são suportados.

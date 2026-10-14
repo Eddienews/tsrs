@@ -249,3 +249,10 @@ export function lastPreviewable(
   const last = blocks.at(-1)
   return last ? { lang: last[2].toLowerCase(), code: last[3] } : null
 }
+
+// Code as a Markdown block, with a fence longer than any run of backticks in it.
+export function fenced(lang: string, code: string): string {
+  const longest = Math.max(2, ...(code.match(/`+/g) ?? []).map((run) => run.length))
+  const fence = '`'.repeat(longest + 1)
+  return `${fence}${lang}\n${code}\n${fence}`
+}

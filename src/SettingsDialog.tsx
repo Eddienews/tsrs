@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Download, Eye, EyeOff, Lock, RefreshCw, Trash2, Upload } from 'lucide-react'
+import { Download, Eye, EyeOff, FolderSync, Lock, RefreshCw, Trash2, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -14,9 +14,10 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
-import { LANGUAGES, t, type Language } from './i18n'
+import { LANGUAGES, locale, t, type Language } from './i18n'
 import { connection, PROVIDERS, usesProxy } from './providers'
 import { listModels } from './stream'
+import type { SyncStatus } from './App'
 import type { Appearance, Provider, ProviderSettings, Settings } from './types'
 
 interface Props {
@@ -34,12 +35,29 @@ interface Props {
   onImport: (file: File) => Promise<string>
   // Asks for confirmation, then removes everything stored by the app.
   onDeleteEverything: () => void
+  sync: {
+    // The browser can open a folder for writing.
+    supported: boolean
+    connected: boolean
+    status: SyncStatus
+    onConnect: () => void
+    onDisconnect: () => void
+    onSyncNow: () => void
+  }
   onClose: () => void
 }
 
-type Section = 'providers' | 'general' | 'appearance' | 'security' | 'data' | 'shortcuts'
+type Section = 'providers' | 'general' | 'appearance' | 'security' | 'sync' | 'data' | 'shortcuts'
 
-const SECTIONS: Section[] = ['providers', 'general', 'appearance', 'security', 'data', 'shortcuts']
+const SECTIONS: Section[] = [
+  'providers',
+  'general',
+  'appearance',
+  'security',
+  'sync',
+  'data',
+  'shortcuts',
+]
 
 // Looked up at render time so the names follow the language being switched in this dialog.
 function sectionName(section: Section): string {
@@ -52,6 +70,8 @@ function sectionName(section: Section): string {
       return t('Aparência')
     case 'security':
       return t('Segurança')
+    case 'sync':
+      return t('Sincronização')
     case 'data':
       return t('Dados')
     case 'shortcuts':
@@ -299,6 +319,100 @@ export default function SettingsDialog(props: Props) {
                   </div>
                 )
               })}
+
+            {section === 'sync' && (
+              <div className="sync space-y-4">
+                <p className={hint}>
+                  {t(
+                    'Sincronize conversas, biblioteca e documentos entre dispositivos por uma pasta que um serviço como Dropbox, Google Drive, OneDrive ou Syncthing mantém igual em todos eles. O TSRS não tem servidor: só lê e grava arquivos nessa pasta. As chaves de API e as configurações não vão para a pasta.',
+                  )}
+                </p>
+                {!props.sync.supported ? (
+                  <p className="rounded-md border border-warning/50 px-3 py-2 text-xs text-warning">
+                    {t('Este navegador não deixa sites gravarem numa pasta. Use o Chrome, o Edge ou outro navegador baseado no Chromium.')}
+                  </p>
+                ) : (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="sync-password">{t('Senha da sincronização (opcional)')}</Label>
+                      <Input
+                        id="sync-password"
+                        type="password"
+                        autoComplete="new-password"
+                        disabled={locked}
+                        value={settings.sync.password}
+                        onChange={(e) =>
+                          onChange((s) => ({ ...s, sync: { ...s.sync, password: e.target.value } }))
+                        }
+                      />
+                      <p className={hint}>
+                        {t(
+                          'Com senha, os arquivos da pasta ficam criptografados. Use a mesma senha em todos os dispositivos; ela é definida na primeira sincronização da pasta e não pode ser trocada depois (para trocar, use outra pasta).',
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 rounded-md border p-3">
+                      <FolderSync className="size-4 text-muted-foreground" />
+                      <span className="min-w-0 flex-1 truncate text-sm">
+                        {props.sync.connected
+                          ? t('Pasta: {name}', { name: settings.sync.folder })
+                          : t('Nenhuma pasta escolhida.')}
+                      </span>
+                      {props.sync.connected ? (
+                        <>
+                          <Button
+                            size="sm"
+                            className="gap-1.5"
+                            disabled={props.sync.status.state === 'syncing'}
+                            onClick={props.sync.onSyncNow}
+                          >
+                            <RefreshCw
+                              className={cn(
+                                'size-3.5',
+                                props.sync.status.state === 'syncing' && 'animate-spin',
+                              )}
+                            />
+                            {t('Sincronizar agora')}
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={props.sync.onDisconnect}>
+                            {t('Desconectar')}
+                          </Button>
+                        </>
+                      ) : (
+                        <Button size="sm" onClick={props.sync.onConnect}>
+                          {t('Escolher pasta')}
+                        </Button>
+                      )}
+                    </div>
+                    {props.sync.connected && (
+                      <p
+                        role="status"
+                        className={cn(
+                          'sync-status text-xs',
+                          props.sync.status.state === 'error' ? 'text-destructive' : 'text-muted-foreground',
+                        )}
+                      >
+                        {props.sync.status.state === 'syncing'
+                          ? t('Sincronizando…')
+                          : props.sync.status.state === 'permission'
+                            ? t('O navegador precisa da sua permissão para usar a pasta. Clique em Sincronizar agora.')
+                            : props.sync.status.message ??
+                              (settings.sync.lastSync
+                                ? t('Última sincronização: {time}', {
+                                    time: new Date(settings.sync.lastSync).toLocaleString(locale()),
+                                  })
+                                : '')}
+                      </p>
+                    )}
+                    <p className={hint}>
+                      {t(
+                        'Sincroniza ao abrir o app, alguns segundos depois de cada mudança e a cada dois minutos. Vale a mudança mais recente de cada conversa; a biblioteca é sincronizada inteira, então edite-a num dispositivo de cada vez.',
+                      )}
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
 
             {section === 'general' && (
               <div className="space-y-5">

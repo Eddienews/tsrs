@@ -40,13 +40,21 @@ cada seção é a ordem sugerida.
 - [x] Pergunta à parte: perguntar sobre um trecho da resposta sem poluir a conversa
 - [x] Pacote dividido: o app abre com ~550 kB de JavaScript (eram ~930 kB); o
       Markdown, o realce de sintaxe e as telas chegam logo depois
+- [x] Base de conhecimento (RAG) local: PDFs, textos e HTML divididos em trechos
+      e buscados por palavras (BM25), sem API, por conversa ou por persona
+- [x] Canvas: documento ou código ao lado da conversa, editado pelo modelo (com
+      ferramentas) e à mão, com desfazer, preview e pedidos sobre um trecho
+- [x] Sincronização entre dispositivos por uma pasta sincronizada (Dropbox,
+      Drive, Syncthing…), opcionalmente criptografada, sem servidor do TSRS
 
-## Próximos: grandes
+## Próximos
 
-- [ ] Base de conhecimento (RAG) local: começar com busca por palavras, sem API,
-      e acrescentar embeddings depois
-- [ ] Canvas: editar um documento ou código junto com o modelo
-- [ ] Sincronização entre dispositivos
+- [ ] Base de conhecimento com embeddings (busca por sentido, não só por
+      palavras), usando a API de embeddings do provedor
+- [ ] Ferramenta de busca na base para o modelo refinar a pergunta sozinho
+- [ ] Sincronização da biblioteca item a item, em vez de inteira
+- [ ] Sincronização sem pasta (WebDAV ou armazenamento S3 do próprio usuário),
+      para navegadores sem acesso a pastas, como Firefox e Safari
 
 ## A confirmar com provedor real
 
@@ -62,9 +70,13 @@ cada seção é a ordem sugerida.
       (`imagen-4.0-generate-001`); os nomes dos modelos podem mudar
 - [ ] Memória com um modelo real: se ele salva fatos úteis sem exagerar
 - [ ] Resumo do contexto numa conversa longa de verdade
+- [ ] Sincronização entre dois dispositivos reais, por Dropbox, Drive ou Syncthing
+- [ ] Canvas com um modelo real: se ele prefere editar trechos a reescrever tudo
+- [ ] Qualidade da busca na base de conhecimento com documentos reais
 
 ## Fora do escopo
 
 Recursos de equipe (workspace compartilhado, gestão de usuários, análises por
 pessoa) e compartilhamento por link: exigem servidor e contas, o oposto da
-proposta local do TSRS.
+proposta local do TSRS. A sincronização entre dispositivos fica de fora dessa
+regra porque usa uma pasta do próprio usuário.

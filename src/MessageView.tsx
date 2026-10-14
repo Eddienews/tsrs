@@ -3,6 +3,7 @@ import {
   Brain,
   Download,
   ImageIcon,
+  Library,
   MessageSquareQuote,
   ScrollText,
   GitBranch,
@@ -30,7 +31,7 @@ import { locale, t } from './i18n'
 import { canSpeak, speak, speakable, stopSpeaking, useSpeaking } from './speech'
 import Markdown, { useCopy } from './Markdown'
 import ToolCallBlock from './ToolCallBlock'
-import type { Message, Usage } from './types'
+import type { Message, Reference, Usage } from './types'
 import { formatCost, formatTokens } from './usage'
 
 interface Props {
@@ -109,6 +110,37 @@ function Summary({ message, live }: { message: Message; live: boolean }) {
         <div className="mt-2 border-t pt-2">
           <Markdown content={message.content} />
         </div>
+      )}
+    </div>
+  )
+}
+
+// Knowledge base passages sent with the question, folded away.
+function References({ references }: { references: Reference[] }) {
+  const [open, setOpen] = useState(false)
+  const names = [...new Set(references.map((r) => r.name))]
+  return (
+    <div className="references w-full rounded-md border bg-card px-3 py-2 text-xs">
+      <button
+        className="flex w-full items-center gap-1.5 text-left text-muted-foreground hover:text-foreground"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        <Library className="size-3.5 shrink-0" />
+        <span className="min-w-0 truncate">
+          {t('Da base de conhecimento: {names}', { names: names.join(', ') })}
+        </span>
+        <ChevronRight className={cn('ml-auto size-3 shrink-0 transition-transform', open && 'rotate-90')} />
+      </button>
+      {open && (
+        <ol className="mt-2 space-y-2">
+          {references.map((r, i) => (
+            <li key={i} className="border-l-2 pl-2">
+              <div className="font-medium">{r.name}</div>
+              <p className="whitespace-pre-wrap text-muted-foreground">{r.text}</p>
+            </li>
+          ))}
+        </ol>
       )}
     </div>
   )
@@ -364,6 +396,9 @@ function MessageView(props: Props) {
             ))}
           </ol>
         </div>
+      ) : null}
+      {!isUser && !versions && message.references?.length ? (
+        <References references={message.references} />
       ) : null}
       {pending && !message.thinking && !message.summary && (
         <p className="flex items-center gap-2 text-xs text-muted-foreground">
