@@ -28,7 +28,16 @@ import { artifactName, lastPreviewable, withPreviewHint, type Artifact } from '.
 import { CANVAS_NOTE, CANVAS_TOOLS, newCanvas, runCanvasTool, undo, withCanvas } from './canvas'
 import { extractText } from './extract'
 import { imageSource } from './images'
-import { chunk, search, withReferences } from './knowledge'
+import { embedSource, indexDoc, meaningOf } from './embeddings'
+import {
+  chunk,
+  hitsResult,
+  knowledgeTool,
+  queryOf,
+  search,
+  withReferences,
+  type Meaning,
+} from './knowledge'
 import { MEMORY_TOOLS, runMemoryTool, withMemories } from './memory'
 import { connection, getProvider } from './providers'
 import Sidebar from './Sidebar'
@@ -59,8 +68,18 @@ import {
   type RequestMessage,
 } from './stream'
 import { SUMMARY_PROMPT, sinceSummary, withSummary } from './summary'
-import { mergeLibrary, runSync, type SyncLocal } from './sync'
+import {
+  hashOf,
+  itemsOf,
+  runSync,
+  trackLibrary,
+  withItem,
+  type SyncLocal,
+  type SyncStore,
+} from './sync'
 import { canPickFolder, folderStore, mayUse, pickFolder } from './syncFolder'
+import { bucketUrl, s3Store, webdavStore } from './syncRemote'
+import type { RemoteTarget, SyncKind } from './SyncSection'
 import { gatherTools, localTools, mergeTools, type ToolSet } from './tools'
 import type {
   Attachment,
@@ -185,6 +204,13 @@ function withKnowledge(messages: RequestMessage[], references: Reference[]): Req
   return [...messages.slice(0, -1), { ...last, content: withReferences(last.content, references) }]
 }
 
+// References found by a tool, after the ones already there.
+function withMore(references: Reference[] | undefined, more: Reference[]): Reference[] {
+  const known = references ?? []
+  const fresh = more.filter((r) => !known.some((k) => k.name === r.name && k.text === r.text))
+  return [...known, ...fresh]
+}
+
 // The canvas text goes with the latest question.
 function withCanvasText(messages: RequestMessage[], canvas: Canvas | undefined): RequestMessage[] {
   const last = messages.at(-1)
@@ -262,6 +288,8 @@ function withText(message: Message, text: string): Message {
 // server id under a prefix, and the sync password.
 const MCP_SECRET = 'mcp:'
 const SYNC_SECRET = 'sync:password'
+const WEBDAV_SECRET = 'sync:webdav'
+const S3_SECRET = 'sync:s3'
 
 function withoutKeys(settings: Settings): Settings {
   return {
@@ -270,7 +298,12 @@ function withoutKeys(settings: Settings): Settings {
       Object.entries(settings.providers).map(([id, p]) => [id, { ...p, apiKey: '' }]),
     ),
     mcpServers: settings.mcpServers.map((server) => ({ ...server, token: '' })),
-    sync: { ...settings.sync, password: '' },
+    sync: {
+      ...settings.sync,
+      password: '',
+      webdav: settings.sync.webdav && { ...settings.sync.webdav, password: '' },
+      s3: settings.sync.s3 && { ...settings.sync.s3, secretKey: '' },
+    },
   }
 }
 
@@ -281,6 +314,8 @@ function keysOf(settings: Settings): Record<string, string> {
       .map(([id, p]) => [id, p.apiKey]),
     ...settings.mcpServers.filter((s) => s.token).map((s) => [MCP_SECRET + s.id, s.token]),
     ...(settings.sync.password ? [[SYNC_SECRET, settings.sync.password]] : []),
+    ...(settings.sync.webdav?.password ? [[WEBDAV_SECRET, settings.sync.webdav.password]] : []),
+    ...(settings.sync.s3?.secretKey ? [[S3_SECRET, settings.sync.s3.secretKey]] : []),
   ])
 }
 
@@ -294,8 +329,22 @@ function withKeys(settings: Settings, keys: Record<string, string>): Settings {
       ...server,
       token: keys[MCP_SECRET + server.id] ?? '',
     })),
-    sync: { ...settings.sync, password: keys[SYNC_SECRET] ?? '' },
+    sync: {
+      ...settings.sync,
+      password: keys[SYNC_SECRET] ?? '',
+      webdav: settings.sync.webdav && { ...settings.sync.webdav, password: keys[WEBDAV_SECRET] ?? '' },
+      s3: settings.sync.s3 && { ...settings.sync.s3, secretKey: keys[S3_SECRET] ?? '' },
+    },
   }
+}
+
+// The WebDAV server or bucket the app syncs with, if it syncs with one.
+function remoteStore(settings: Settings): SyncStore | null {
+  const { sync } = settings
+  const proxy = sync.proxy ? settings.proxyUrl.trim() || undefined : undefined
+  if (sync.webdav) return webdavStore(sync.webdav, proxy)
+  if (sync.s3) return s3Store(sync.s3, proxy)
+  return null
 }
 
 // Deletions older than this are forgotten; a device offline for longer may
@@ -383,8 +432,6 @@ export default function App() {
   const [syncFolder, setSyncFolder] = useState<FileSystemDirectoryHandle | null>(null)
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({ state: 'idle' })
   const syncing = useRef(false)
-  // The library as last written by a sync, which is not a local change.
-  const syncedLibrary = useRef('')
   const [asideBusy, setAsideBusy] = useState(false)
   const asideAbort = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -444,11 +491,60 @@ export default function App() {
         }
         await saveDoc(doc)
         commitDocs([...docsRef.current, doc])
+        const problem = await indexDocs([doc])
+        if (problem) problems.push(problem)
       } catch (err) {
         problems.push(err instanceof Error ? err.message : String(err))
       }
     }
     return problems
+  }
+
+  // Adds vectors to the documents that lack them for the current embedding
+  // model; returns the problem met, if any. Documents stay searchable by words.
+  async function indexDocs(which?: KnowledgeDoc[]): Promise<string | undefined> {
+    const current = settingsRef.current
+    const source = embedSource(current, latest.current.locked)
+    if (!source) return
+    const pending = (which ?? docsRef.current).filter((d) => d.vectors?.model !== source.key)
+    for (const doc of pending) {
+      try {
+        const indexed = await indexDoc(current, source, doc)
+        // Removed while it was being indexed.
+        if (!docsRef.current.some((d) => d.id === doc.id)) continue
+        await saveDoc(indexed)
+        commitDocs(docsRef.current.map((d) => (d.id === doc.id ? indexed : d)))
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err)
+        return t('"{name}" não foi indexado por sentido: {error}', { name: doc.name, error })
+      }
+    }
+  }
+
+  // A search typed in the library to try a base out; problems are left out.
+  const searchTest = useCallback(
+    async (baseId: string, query: string) => (await latest.current.searchBases([baseId], query)).hits,
+    [],
+  )
+
+  // The passages of the bases that best match `query`, by words and, when the
+  // documents are indexed, by meaning.
+  async function searchBases(bases: string[], query: string, signal?: AbortSignal) {
+    const current = settingsRef.current
+    const source = embedSource(current, latest.current.locked)
+    const docs = docsRef.current.filter((d) => bases.includes(d.baseId))
+    let meaning: Meaning | undefined
+    let problem: string | undefined
+    if (source && query.trim() && docs.some((d) => d.vectors?.model === source.key)) {
+      try {
+        meaning = await meaningOf(current, source, query, signal)
+      } catch (err) {
+        if (signal?.aborted) throw err
+        const error = err instanceof Error ? err.message : String(err)
+        problem = t('A busca por sentido falhou ({error}); usei só a busca por palavras.', { error })
+      }
+    }
+    return { hits: search(docs, query, { meaning }), problem }
   }
 
   async function removeDoc(id: string) {
@@ -585,19 +681,20 @@ export default function App() {
 
   useEffect(() => applyAppearance(settings.appearance), [settings.appearance])
 
-  // Edits to the library get a time, which decides what syncing keeps. The
-  // text is compared, not the objects: settings adopted from another tab are
-  // new objects with the same content.
+  // Each change to a library item gets a time, which decides what syncing
+  // keeps. Items are compared by content: settings adopted from another tab
+  // are new objects with the same content.
   const libraryText = useMemo(
     () => JSON.stringify(library(settings)),
     [settings.folders, settings.personas, settings.prompts, settings.memories, settings.knowledgeBases],
   )
-  const seenLibrary = useRef(libraryText)
   useEffect(() => {
-    if (libraryText === seenLibrary.current) return
-    seenLibrary.current = libraryText
-    if (libraryText === syncedLibrary.current) return
-    setSettings((s) => ({ ...s, libraryChangedAt: Date.now() }))
+    setSettings((s) => {
+      // Before items were tracked one by one, the whole library had one time.
+      const since = (s as { libraryChangedAt?: number }).libraryChangedAt || 1
+      const sync = trackLibrary(library(s), s.sync, Date.now(), since)
+      return sync ? { ...s, sync } : s
+    })
   }, [libraryText])
 
   // The app's side of a sync, read from the latest state.
@@ -606,7 +703,7 @@ export default function App() {
     return {
       chats: metasRef.current.map((c) => ({ id: c.id, changedAt: c.changedAt ?? c.updatedAt })),
       deleted: current.sync.deleted,
-      libraryChangedAt: current.libraryChangedAt,
+      items: Object.entries(current.sync.items ?? {}).map(([key, { at }]) => ({ key, changedAt: at })),
       docIds: docsRef.current.map((d) => d.id),
       async readChat(id) {
         const meta = findMeta(id)!
@@ -627,13 +724,9 @@ export default function App() {
         commitThreads(rest)
         await deleteChat(id)
       },
-      library: () => library(settingsRef.current),
-      setLibrary(incoming, changedAt, merge) {
-        const next = merge ? mergeLibrary(incoming, library(settingsRef.current)) : incoming
-        syncedLibrary.current = JSON.stringify(library({ ...settingsRef.current, ...next }))
-        settingsRef.current = { ...settingsRef.current, ...next, libraryChangedAt: changedAt }
-        setSettings((s) => ({ ...s, ...next, libraryChangedAt: changedAt }))
-      },
+      readItem: (key) => itemsOf(library(settingsRef.current)).get(key),
+      writeItem: (key, value, at) => changeItem(key, value, at),
+      removeItem: (key) => changeItem(key, null),
       readDoc: async (id) => docsRef.current.find((d) => d.id === id)!,
       async writeDoc(doc) {
         await saveDoc(doc)
@@ -646,18 +739,32 @@ export default function App() {
     }
   }
 
+  // A library item received from another device, with the time it changed
+  // there, so that it does not count as a change made here.
+  function changeItem(key: string, value: unknown, at = 0) {
+    const update = (s: Settings): Settings => {
+      const { [key]: _old, ...items } = s.sync.items ?? {}
+      if (value) items[key] = { hash: hashOf(value), at }
+      return { ...s, ...withItem(library(s), key, value), sync: { ...s.sync, items } }
+    }
+    settingsRef.current = update(settingsRef.current)
+    setSettings(update)
+  }
+
   // `ask` lets the browser ask for access to the folder, after a click.
   async function syncNow(ask = false) {
+    const remote = remoteStore(settingsRef.current)
     const folder = syncFolder
-    // Mid-reply the chat is incomplete; while locked, the password is unknown.
-    if (!folder || syncing.current || streaming || locked) return
-    if (!(await mayUse(folder, ask).catch(() => false))) {
+    // Mid-reply the chat is incomplete; while locked, the passwords are unknown.
+    if ((!remote && !folder) || syncing.current || streaming || locked) return
+    if (!remote && !(await mayUse(folder!, ask).catch(() => false))) {
       return setSyncStatus({ state: 'permission' })
     }
     syncing.current = true
     setSyncStatus({ state: 'syncing' })
     try {
-      const report = await runSync(folderStore(folder), syncLocal(), settingsRef.current.sync.password)
+      const store = remote ?? folderStore(folder!)
+      const report = await runSync(store, syncLocal(), settingsRef.current.sync.password)
       const now = Date.now()
       const cutoff = now - TOMBSTONE_DAYS * 86_400_000
       setSettings((s) => ({
@@ -679,12 +786,22 @@ export default function App() {
     }
   }
 
+  // Connecting one place disconnects any other.
+  function syncWith(fields: Partial<Settings['sync']>) {
+    const update = (s: Settings): Settings => ({
+      ...s,
+      sync: { ...s.sync, folder: '', webdav: undefined, s3: undefined, lastSync: undefined, ...fields },
+    })
+    settingsRef.current = update(settingsRef.current)
+    setSettings(update)
+  }
+
   async function connectSync() {
     try {
       const folder = await pickFolder()
       await saveHandle('sync', folder)
       setSyncFolder(folder)
-      setSettings((s) => ({ ...s, sync: { ...s.sync, folder: folder.name } }))
+      syncWith({ folder: folder.name })
     } catch (err) {
       // Closing the picker is not an error.
       if (err instanceof DOMException && err.name === 'AbortError') return
@@ -692,22 +809,55 @@ export default function App() {
     }
   }
 
+  // Lists the server's files first, so that a wrong address or password is
+  // reported before anything is connected.
+  async function connectRemote(target: RemoteTarget): Promise<string | undefined> {
+    const fields = { webdav: target.webdav, s3: target.s3, proxy: target.proxy }
+    try {
+      await remoteStore({ ...settingsRef.current, sync: { ...settingsRef.current.sync, ...fields } })!.list()
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err)
+    }
+    if (syncFolder) {
+      await saveHandle('sync', null)
+      setSyncFolder(null)
+    }
+    setSyncStatus({ state: 'idle' })
+    syncWith(fields)
+  }
+
   async function disconnectSync() {
     await saveHandle('sync', null)
     setSyncFolder(null)
     setSyncStatus({ state: 'idle' })
-    setSettings((s) => ({ ...s, sync: { ...s.sync, folder: '', lastSync: undefined } }))
+    syncWith({})
   }
+
+  // What the app syncs with; a change of place syncs at once.
+  const syncKind: SyncKind | null = syncFolder
+    ? 'folder'
+    : settings.sync.webdav
+      ? 'webdav'
+      : settings.sync.s3
+        ? 's3'
+        : null
+  const syncPlace = syncFolder
+    ? `folder:${syncFolder.name}`
+    : settings.sync.webdav
+      ? `webdav:${settings.sync.webdav.url}`
+      : settings.sync.s3
+        ? `s3:${bucketUrl(settings.sync.s3)}/${settings.sync.s3.prefix}`
+        : ''
 
   // Syncs on connecting, a moment after each change, on returning to the
   // tab, and every few minutes; never while a reply streams.
   useEffect(() => {
-    if (!syncFolder || streaming || locked) return
+    if (!syncPlace || streaming || locked) return
     const timer = setTimeout(() => latest.current.syncNow(), SYNC_DELAY)
     return () => clearTimeout(timer)
-  }, [syncFolder, streaming, locked, metas, docs, settings.libraryChangedAt, settings.sync.deleted])
+  }, [syncPlace, streaming, locked, metas, docs, settings.sync.items, settings.sync.deleted])
   useEffect(() => {
-    if (!syncFolder) return
+    if (!syncPlace) return
     latest.current.syncNow()
     const timer = setInterval(() => latest.current.syncNow(), SYNC_EVERY)
     const onFocus = () => latest.current.syncNow()
@@ -716,7 +866,7 @@ export default function App() {
       clearInterval(timer)
       window.removeEventListener('focus', onFocus)
     }
-  }, [syncFolder])
+  }, [syncPlace])
 
   async function enableVault(password: string) {
     const salt = newSalt()
@@ -849,12 +999,7 @@ export default function App() {
     const now = Date.now()
     const agentOf = settings.personas.find((p) => p.id === base.params?.personaId)
     const bases = image ? [] : basesFor(settings, base.params, agentOf)
-    const references: Reference[] = bases.length
-      ? search(
-          docsRef.current.filter((d) => bases.includes(d.baseId)),
-          knowledgeQuery(history),
-        ).map(({ name, text }) => ({ name, text }))
-      : []
+    let references: Reference[] = []
     const replies: Message[] = usings.map((using) => ({
       id: crypto.randomUUID(),
       role: 'assistant',
@@ -862,7 +1007,6 @@ export default function App() {
       createdAt: now,
       ...using,
       ...(image ? { imagePrompt: history.at(-1)?.content ?? '' } : {}),
-      ...(references.length ? { references } : {}),
     }))
     const [first, ...others] = replies
     const alts = [...(branch?.alts ?? []), ...others.map((reply) => [reply])]
@@ -968,7 +1112,11 @@ export default function App() {
               if (!allowed) return { content: 'The user declined this tool call.', isError: true }
               patchTool(call.id, { status: 'running' })
             }
-            return toolset.run(call, abort.signal)
+            const result = await toolset.run(call, abort.signal)
+            if (result.references?.length) {
+              patchReply((m) => ({ ...m, references: withMore(m.references, result.references!) }))
+            }
+            return result
           },
         })
         for await (const event of stream) {
@@ -1019,6 +1167,15 @@ export default function App() {
 
     let completed = false
     try {
+      const problems: string[] = []
+      if (bases.length) {
+        const found = await searchBases(bases, knowledgeQuery(history), abort.signal)
+        references = found.hits.map(({ name, text }) => ({ name, text }))
+        if (found.problem) problems.push(found.problem)
+        if (references.length) {
+          replies.forEach((reply) => patcher(reply.id)((m) => ({ ...m, references })))
+        }
+      }
       if (!image) {
         const servers = settings.mcpServers.filter(
           (s) => s.url && tools.mcpServers.includes(s.id),
@@ -1026,17 +1183,21 @@ export default function App() {
         toolset = mergeTools([
           ...(sharedCanvas ? [canvasTools(meta.id)] : []),
           ...(settings.memory ? [memoryTools()] : []),
+          ...(bases.length ? [knowledgeTools(bases)] : []),
           ...(servers.length ? [await gatherTools(servers)] : []),
         ])
-        if (toolset?.problems.length) setToolProblems(toolset.problems)
+        problems.push(...(toolset?.problems ?? []))
       }
+      if (problems.length) setToolProblems(problems)
       const results = await Promise.all(
         replies.map((reply, i) => (image ? paint(reply, usings[i]) : write(reply, usings[i]))),
       )
       completed = results[0]
     } catch (err) {
-      const error = err instanceof Error ? err.message : String(err)
-      replies.forEach((reply) => patcher(reply.id)((m) => ({ ...m, error })))
+      if (!abort.signal.aborted) {
+        const error = err instanceof Error ? err.message : String(err)
+        replies.forEach((reply) => patcher(reply.id)((m) => ({ ...m, error })))
+      }
     } finally {
       setStreaming(false)
       persistThread(meta.id)
@@ -1067,6 +1228,20 @@ export default function App() {
         }
       }
       return result
+    })
+  }
+
+  // Searching the conversation's knowledge bases again, with the model's words.
+  function knowledgeTools(bases: string[]): ToolSet {
+    const names = settingsRef.current.knowledgeBases
+      .filter((b) => bases.includes(b.id))
+      .map((b) => b.name || t('Sem nome'))
+    return localTools([knowledgeTool(names)], t('Busca na base'), async (call, signal) => {
+      const query = queryOf(call.input)
+      if (!query) return { content: 'The query is empty.', isError: true }
+      const { hits, problem } = await searchBases(bases, query, signal)
+      if (problem) setToolProblems((list) => [...new Set([...list, problem])])
+      return hitsResult(hits)
     })
   }
 
@@ -1379,6 +1554,8 @@ export default function App() {
     togglePin,
     openAside,
     activeId,
+    locked,
+    searchBases,
     syncNow,
   }
   const latest = useRef(actions)
@@ -1863,9 +2040,10 @@ export default function App() {
           onDeleteEverything={eraseEverything}
           sync={{
             supported: canPickFolder(),
-            connected: !!syncFolder,
+            connected: syncKind,
             status: syncStatus,
             onConnect: connectSync,
+            onConnectRemote: connectRemote,
             onDisconnect: disconnectSync,
             onSyncNow: () => syncNow(true),
           }}
@@ -1880,6 +2058,9 @@ export default function App() {
           onAddDocs={addDocs}
           onDeleteDoc={removeDoc}
           onDeleteBase={removeBase}
+          embedder={embedSource(settings, locked)}
+          onIndex={() => indexDocs()}
+          onSearch={searchTest}
           onClose={() => setShowLibrary(false)}
         />
       )}

@@ -15,6 +15,8 @@ export interface MockProvider {
   transcriptions: string[]
   // Image generation requests received.
   images: any[]
+  // Texts sent to be turned into vectors.
+  embedded: string[]
   // Makes the next chat request fail with this status.
   failNext(status: number, headers?: Record<string, string>): void
   close(): Promise<void>
@@ -52,12 +54,21 @@ export default function Contador() {
   return <button onClick={() => setN(n + 1)}>Cliques: {n}</button>
 }`
 
+// A pretend embedding: one dimension per topic, so texts about the same topic
+// point the same way even without a word in common.
+const TOPICS = [/férias|descanso|folga/i, /prazo|entrega/i, /reembolso|despesa/i]
+
+function meaning(text: string): number[] {
+  return [...TOPICS.map((topic) => (topic.test(text) ? 1 : 0)), 0.1]
+}
+
 // An OpenAI-compatible server that streams canned replies and records what
 // the app sent.
 export async function startMockProvider(): Promise<MockProvider> {
   const chats: RecordedRequest[] = []
   const transcriptions: string[] = []
   const images: any[] = []
+  const embedded: string[] = []
   let failure: { status: number; headers: Record<string, string> } | null = null
   let replies = 0
 
@@ -82,6 +93,14 @@ export async function startMockProvider(): Promise<MockProvider> {
         .writeHead(200, { ...CORS, 'Content-Type': 'application/json' })
         .end(JSON.stringify({ data: [{ b64_json: PNG, revised_prompt: 'Um gato laranja, de perfil' }] }))
     }
+    if (req.url === '/v1/embeddings') {
+      const { input } = JSON.parse(raw)
+      embedded.push(...input)
+      const data = input.map((text: string, index: number) => ({ index, embedding: meaning(text) }))
+      return res
+        .writeHead(200, { ...CORS, 'Content-Type': 'application/json' })
+        .end(JSON.stringify({ data }))
+    }
     const body = JSON.parse(raw)
     const isTitle = raw.includes('Crie um título')
     if (!isTitle) chats.push({ headers: req.headers, body })
@@ -104,7 +123,9 @@ export async function startMockProvider(): Promise<MockProvider> {
           ? '{"fact":"Gosta de café"}'
           : name === 'canvas_write'
             ? JSON.stringify({ content: '# Plano\n\nPasso 1', title: 'Plano' })
-            : '{"text":"olá"}'
+            : name === 'knowledge_search'
+              ? '{"query":"descanso anual"}'
+              : '{"text":"olá"}'
       const call = { index: 0, id: `call_${chats.length}`, function: { name, arguments: args } }
       res.write(`data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [call] } }] })}\n\n`)
       const done = { choices: [{ delta: {}, finish_reason: 'tool_calls' }] }
@@ -142,6 +163,7 @@ export async function startMockProvider(): Promise<MockProvider> {
     chats,
     transcriptions,
     images,
+    embedded,
     failNext: (status, headers = {}) => {
       failure = { status, headers }
     },

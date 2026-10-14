@@ -1,9 +1,12 @@
-import { FileText, Loader2, Plus, Search, Trash2, Upload } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { FileText, Loader2, Plus, Search, Sparkles, Trash2, Upload } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import type { EmbedSource } from './embeddings'
 import { t } from './i18n'
-import { search } from './knowledge'
+import type { Hit } from './knowledge'
+import { PROVIDERS } from './providers'
 import type { KnowledgeBase, KnowledgeDoc, Settings } from './types'
 import { formatTokens } from './usage'
 
@@ -15,6 +18,11 @@ export interface KnowledgeProps {
   onAddDocs: (baseId: string, files: File[]) => Promise<string[]>
   onDeleteDoc: (id: string) => void
   onDeleteBase: (base: KnowledgeBase) => void
+  // Who indexes documents by meaning, if anyone.
+  embedder: EmbedSource | null
+  // Indexes the documents that lack vectors; resolves to the problem met.
+  onIndex: () => Promise<string | undefined>
+  onSearch: (baseId: string, query: string) => Promise<Hit[]>
 }
 
 const hint = 'text-xs text-muted-foreground'
@@ -25,8 +33,24 @@ function BaseCard(props: KnowledgeProps & { base: KnowledgeBase }) {
   const [busy, setBusy] = useState(false)
   const [problems, setProblems] = useState<string[]>([])
   const [query, setQuery] = useState('')
+  const [hits, setHits] = useState<Hit[]>([])
   const docs = all.filter((d) => d.baseId === base.id)
-  const hits = query.trim() ? search(docs, query, 3) : []
+  const { onSearch } = props
+  const embedder = props.embedder?.key
+
+  // Searching by meaning asks the provider, so it waits for a pause in typing.
+  useEffect(() => {
+    if (!query.trim()) return setHits([])
+    let stale = false
+    const timer = setTimeout(
+      () => onSearch(base.id, query).then((found) => !stale && setHits(found.slice(0, 3))),
+      embedder ? 400 : 0,
+    )
+    return () => {
+      stale = true
+      clearTimeout(timer)
+    }
+  }, [query, base.id, onSearch, embedder, docs.length])
 
   async function add(files: File[]) {
     if (!files.length) return
@@ -66,6 +90,11 @@ function BaseCard(props: KnowledgeProps & { base: KnowledgeBase }) {
         <div key={doc.id} className="flex items-center gap-2 text-sm">
           <FileText className="size-4 shrink-0 text-muted-foreground" />
           <span className="min-w-0 flex-1 truncate">{doc.name}</span>
+          {props.embedder && doc.vectors?.model === props.embedder.key && (
+            <span title={t('Indexado por sentido')} aria-label={t('Indexado por sentido')}>
+              <Sparkles className="indexed size-3.5 text-primary" />
+            </span>
+          )}
           <span className={hint}>
             {t('{count} trechos', { count: formatTokens(doc.chunks.length) })}
           </span>
@@ -134,14 +163,94 @@ function BaseCard(props: KnowledgeProps & { base: KnowledgeBase }) {
   )
 }
 
+function Meaning(props: KnowledgeProps) {
+  const { settings, onChange, embedder } = props
+  const [busy, setBusy] = useState(false)
+  const [problem, setProblem] = useState('')
+  const pending = embedder ? props.docs.filter((d) => d.vectors?.model !== embedder.key).length : 0
+
+  async function index() {
+    setBusy(true)
+    setProblem((await props.onIndex()) ?? '')
+    setBusy(false)
+  }
+
+  return (
+    <div className="embeddings space-y-1.5 rounded-md border p-3">
+      <Label htmlFor="embed-provider">{t('Busca por sentido')}</Label>
+      <div className="flex flex-wrap gap-2">
+        <select
+          id="embed-provider"
+          className="select-native"
+          value={settings.embedProvider}
+          onChange={(e) => onChange((s) => ({ ...s, embedProvider: e.target.value, embedModel: '' }))}
+        >
+          <option value="off">{t('Desligada')}</option>
+          <option value="auto">{t('Automático')}</option>
+          {PROVIDERS.filter((p) => p.embedding || !p.keyRequired).map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+        {settings.embedProvider !== 'off' && settings.embedProvider !== 'auto' && (
+          <Input
+            aria-label={t('Modelo de embeddings')}
+            className="h-9 min-w-40 flex-1 font-mono text-xs"
+            placeholder={
+              PROVIDERS.find((p) => p.id === settings.embedProvider)?.embedding ?? t('Modelo')
+            }
+            value={settings.embedModel}
+            onChange={(e) => onChange((s) => ({ ...s, embedModel: e.target.value.trim() }))}
+          />
+        )}
+      </div>
+      <p className={hint}>
+        {t(
+          'Encontra também trechos que dizem a mesma coisa com outras palavras. O texto dos documentos vai uma vez ao provedor para virar vetores, e cada pergunta vai também. Custa pouco, mas não é grátis.',
+        )}
+      </p>
+      {settings.embedProvider !== 'off' && !embedder && (
+        <p className="text-xs text-warning">
+          {settings.embedProvider === 'auto'
+            ? t('Nenhum provedor de embeddings com chave. Configure a OpenAI, o Gemini, o OpenRouter ou a Mistral.')
+            : PROVIDERS.find((p) => p.id === settings.embedProvider)?.embedding ||
+                settings.embedModel
+              ? t('Informe a chave de API deste provedor nas configurações.')
+              : t('Informe o modelo de embeddings.')}
+        </p>
+      )}
+      {embedder && pending > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" className="gap-1" disabled={busy} onClick={index}>
+            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+            {busy ? t('Indexando…') : t('Indexar por sentido')}
+          </Button>
+          <span className={hint}>
+            {pending === 1
+              ? t('1 documento ainda não foi indexado.')
+              : t('{count} documentos ainda não foram indexados.', { count: pending })}
+          </span>
+        </div>
+      )}
+      {problem && (
+        <p role="alert" className="text-xs text-destructive">
+          {problem}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export default function KnowledgeTab(props: KnowledgeProps) {
   return (
     <div className="space-y-3">
       <p className={hint}>
         {t(
-          'Documentos guardados neste navegador e buscados por palavras, sem API. Ligue uma base numa conversa (em Parâmetros) ou numa persona, e os trechos que mais combinam com cada pergunta vão junto com ela.',
+          'Documentos guardados neste navegador. Ligue uma base numa conversa (em Parâmetros) ou numa persona, e os trechos que mais combinam com cada pergunta vão junto com ela. O modelo também pode buscar de novo na base, com outras palavras.',
         )}
       </p>
+      <Meaning {...props} />
       {props.settings.knowledgeBases.map((base) => (
         <BaseCard key={base.id} {...props} base={base} />
       ))}

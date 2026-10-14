@@ -54,9 +54,10 @@ export function defaultSettings(): Settings {
     memories: [],
     imageProvider: 'auto',
     imageModel: '',
+    embedProvider: 'off',
+    embedModel: '',
     proxyUrl: 'http://localhost:8787',
     knowledgeBases: [],
-    libraryChangedAt: 0,
     sync: { folder: '', password: '', deleted: {} },
   }
 }

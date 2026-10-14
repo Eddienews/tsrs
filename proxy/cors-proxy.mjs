@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-// Local CORS proxy for providers whose APIs do not accept calls from a browser.
+// Local CORS proxy for providers whose APIs do not accept calls from a browser,
+// and for WebDAV servers and buckets used for syncing.
 //
 //   npm run proxy [-- --port 8787 --origin http://localhost:5173 --allow api.example.com]
 //
-// The app sends `http://localhost:8787/<full provider URL>`; the proxy forwards
+// The app sends `http://localhost:8787/<full URL>`; the proxy forwards
 // the request and streams the answer back with CORS headers. It listens only on
 // this machine, answers only the allowed origins and reaches only the allowed
 // hosts, so a page on another site cannot use it to send your keys elsewhere.
@@ -41,11 +42,13 @@ function options(argv) {
 
 const config = options(process.argv.slice(2))
 
-function cors(origin) {
+// The wildcard in allow-headers does not cover Authorization, so the headers
+// the browser asks about are named back.
+function cors(origin, requested) {
   return {
     'access-control-allow-origin': origin,
-    'access-control-allow-methods': 'GET, POST, OPTIONS',
-    'access-control-allow-headers': '*',
+    'access-control-allow-methods': 'GET, HEAD, POST, PUT, DELETE, PROPFIND, MKCOL, OPTIONS',
+    'access-control-allow-headers': requested || '*',
     'access-control-expose-headers': '*',
     'access-control-max-age': '600',
     vary: 'Origin',
@@ -63,7 +66,7 @@ const server = createServer(async (req, res) => {
     return fail(res, 403, `Origin ${origin ?? '(none)'} is not allowed; start the proxy with --origin.`)
   }
   if (req.method === 'OPTIONS') {
-    res.writeHead(204, cors(origin))
+    res.writeHead(204, cors(origin, req.headers['access-control-request-headers']))
     return res.end()
   }
 
@@ -83,16 +86,19 @@ const server = createServer(async (req, res) => {
   }
   const abort = new AbortController()
   res.on('close', () => abort.abort())
+  // Read whole, so that a request without a body (MKCOL, DELETE) is sent without one.
+  const chunks = []
+  for await (const chunk of req) chunks.push(chunk)
+  const body = chunks.length ? Buffer.concat(chunks) : undefined
   try {
     const upstream = await fetch(target, {
       method: req.method,
       headers,
-      body: req.method === 'GET' || req.method === 'HEAD' ? undefined : Readable.toWeb(req),
-      duplex: 'half',
+      body,
       signal: abort.signal,
     })
     const out = { ...cors(origin) }
-    for (const key of ['content-type', 'retry-after', 'cache-control']) {
+    for (const key of ['content-type', 'retry-after', 'cache-control', 'etag']) {
       const value = upstream.headers.get(key)
       if (value) out[key] = value
     }

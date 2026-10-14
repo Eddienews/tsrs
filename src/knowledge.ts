@@ -1,8 +1,10 @@
+import type { ToolDef, ToolResult } from './stream'
 import type { KnowledgeDoc, Reference } from './types'
 
-// Knowledge bases are searched by words, without any API: documents are split
-// into passages, and the passages that best match the question (BM25) are
-// sent with it.
+// Documents are split into passages, and the passages that best match the
+// question are sent with it. Passages are matched by words (BM25), without any
+// API, and also by meaning when the documents were indexed with a provider's
+// embedding model: the two rankings are then merged.
 
 const CHUNK_CHARS = 1200
 // Text repeated between passages cut in the middle of a paragraph.
@@ -82,8 +84,91 @@ export interface Hit extends Reference {
   score: number
 }
 
+// Vectors are kept as base64 of their float32 bytes, scaled to length 1 so
+// that their dot product is the cosine similarity.
+export function encodeVector(values: ArrayLike<number>): string {
+  const vector = Float32Array.from(values)
+  let length = 0
+  for (const value of vector) length += value * value
+  length = Math.sqrt(length) || 1
+  for (let i = 0; i < vector.length; i++) vector[i] /= length
+  const bytes = new Uint8Array(vector.buffer)
+  let binary = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  }
+  return btoa(binary)
+}
+
+export function decodeVector(text: string): Float32Array {
+  const binary = atob(text)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return new Float32Array(bytes.buffer)
+}
+
+const vectorCache = new Map<string, Float32Array[]>()
+
+function vectorsOf(doc: KnowledgeDoc, model: string): Float32Array[] | undefined {
+  if (doc.vectors?.model !== model) return undefined
+  const key = `${doc.id}\n${model}`
+  let vectors = vectorCache.get(key)
+  if (!vectors) {
+    vectors = doc.vectors.data.map(decodeVector)
+    vectorCache.set(key, vectors)
+  }
+  return vectors
+}
+
+function dot(x: Float32Array, y: Float32Array): number {
+  let sum = 0
+  for (let i = 0; i < x.length; i++) sum += x[i] * y[i]
+  return sum
+}
+
+// The question as a vector of the embedding model `model`.
+export interface Meaning {
+  model: string
+  vector: Float32Array
+}
+
+export interface SearchOptions {
+  limit?: number
+  meaning?: Meaning
+}
+
+// Reciprocal rank fusion: a passage near the top of either ranking does well.
+const FUSION = 60
+
 // The passages of `docs` that best match `query`, best first.
-export function search(docs: KnowledgeDoc[], query: string, limit = TOP_PASSAGES): Hit[] {
+export function search(docs: KnowledgeDoc[], query: string, options: SearchOptions = {}): Hit[] {
+  const limit = options.limit ?? TOP_PASSAGES
+  const byWords = searchWords(docs, query)
+  const meaning = options.meaning
+  if (!meaning) return byWords.slice(0, limit)
+  const byMeaning: Hit[] = []
+  for (const doc of docs) {
+    const vectors = vectorsOf(doc, meaning.model)
+    vectors?.forEach((vector, i) => {
+      if (vector.length !== meaning.vector.length) return
+      const score = dot(vector, meaning.vector)
+      byMeaning.push({ docId: doc.id, name: doc.name, text: doc.chunks[i], score })
+    })
+  }
+  if (!byMeaning.length) return byWords.slice(0, limit)
+  byMeaning.sort((x, y) => y.score - x.score)
+  const fused = new Map<string, Hit>()
+  for (const ranking of [byWords, byMeaning.slice(0, limit * 4)]) {
+    ranking.forEach((hit, rank) => {
+      const key = `${hit.docId}\n${hit.text}`
+      const score = (fused.get(key)?.score ?? 0) + 1 / (FUSION + rank + 1)
+      fused.set(key, { ...hit, score })
+    })
+  }
+  return [...fused.values()].sort((x, y) => y.score - x.score).slice(0, limit)
+}
+
+function searchWords(docs: KnowledgeDoc[], query: string): Hit[] {
   const terms = [...new Set(tokenize(query))]
   if (!terms.length) return []
   const passages = docs.flatMap((doc) =>
@@ -111,7 +196,7 @@ export function search(docs: KnowledgeDoc[], query: string, limit = TOP_PASSAGES
       hits.push({ docId: passage.doc.id, name: passage.doc.name, text: passage.text, score })
     }
   }
-  return hits.sort((x, y) => y.score - x.score).slice(0, limit)
+  return hits.sort((x, y) => y.score - x.score)
 }
 
 // The passages, as text to send after the question.
@@ -124,4 +209,38 @@ export function withReferences(question: string, references: Reference[]): strin
     `${question}\n\n<knowledge>\nPassages from the user's documents that may help; use them ` +
     `when relevant and name the document you rely on:\n${passages}\n</knowledge>`
   )
+}
+
+// Lets the model search again, with words of its own, when the passages sent
+// with the question are not enough.
+export const KNOWLEDGE_TOOL = 'knowledge_search'
+
+export function knowledgeTool(bases: string[]): ToolDef {
+  return {
+    name: KNOWLEDGE_TOOL,
+    description:
+      `Search the user's documents (knowledge bases: ${bases.join(', ')}) for passages ` +
+      'relevant to a query. Passages that matched the latest message were already sent with it; ' +
+      'call this when they are missing or not enough, with other words, names, synonyms or a ' +
+      'narrower question, in the language of the documents. Returns the best passages, each ' +
+      'with the name of its document.',
+    schema: {
+      type: 'object',
+      properties: { query: { type: 'string', description: 'What to look for.' } },
+      required: ['query'],
+    },
+  }
+}
+
+export function queryOf(input: unknown): string {
+  return String((input as { query?: unknown })?.query ?? '').trim()
+}
+
+export function hitsResult(hits: Hit[]): ToolResult {
+  if (!hits.length) return { content: 'No passage matches that query.', isError: false }
+  const references = hits.map(({ name, text }) => ({ name, text }))
+  const content = references
+    .map((r, i) => `<passage index="${i + 1}" document="${r.name}">\n${r.text}\n</passage>`)
+    .join('\n')
+  return { content, isError: false, references }
 }

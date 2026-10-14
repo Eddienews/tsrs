@@ -57,15 +57,18 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
 - Pergunta à parte: selecione um trecho da resposta e pergunte sobre ele num
   painel lateral, sem acrescentar nada à conversa.
 - Base de conhecimento local: PDFs, textos, Markdown e HTML viram trechos
-  buscados por palavras (BM25), sem API; os trechos que mais combinam com cada
-  pergunta vão junto com ela e aparecem abaixo da resposta. Liga-se por conversa
-  (Parâmetros) ou por persona.
+  buscados por palavras (BM25), sem API, e opcionalmente também por sentido,
+  com o modelo de embeddings de um provedor; os trechos que mais combinam com
+  cada pergunta vão junto com ela e aparecem abaixo da resposta, e o modelo pode
+  buscar de novo com outras palavras pela ferramenta `knowledge_search`.
+  Liga-se por conversa (Parâmetros) ou por persona.
 - Canvas: um documento ou código ao lado da conversa, que o modelo escreve e
   edita com ferramentas e você edita à mão; desfazer, ver formatado, abrir no
   preview, baixar e pedir mudanças num trecho selecionado.
 - Sincronização entre dispositivos por uma pasta que o Dropbox, o Drive, o
-  OneDrive ou o Syncthing mantêm igual, com senha opcional (AES-GCM); conversas,
-  biblioteca e documentos, sem as chaves de API.
+  OneDrive ou o Syncthing mantêm igual, por um servidor WebDAV ou por um bucket
+  S3 (AWS, Cloudflare R2, Backblaze B2, MinIO…), com senha opcional (AES-GCM);
+  conversas e cada item da biblioteca e documentos, sem as chaves de API.
 - Preview: blocos de código HTML, SVG, JavaScript, Markdown, React (JSX/TSX) e
   Mermaid abrem em um painel ao lado da conversa, com abas de código e console e tamanhos de tela; a barra
   de endereço também abre páginas por URL (por exemplo, `localhost:3000`).
@@ -134,15 +137,18 @@ cabeçalhos (com `{apiKey}` como placeholder) e o formato da API (`openai` ou
 | `src/memory.ts`          | Ferramentas e prompt da memória                             |
 | `src/summary.ts`         | Resumo do contexto                                          |
 | `src/images.ts`          | Escolha do provedor e do modelo de imagem                   |
-| `src/knowledge.ts`       | Trechos e busca por palavras (BM25) da base de conhecimento |
+| `src/knowledge.ts`       | Trechos e busca (palavras e sentido) da base de conhecimento |
+| `src/embeddings.ts`      | Vetores dos trechos e das perguntas, pelo provedor          |
 | `src/extract.ts`         | Texto de PDFs (pdf.js), HTML e arquivos de texto            |
 | `src/KnowledgeTab.tsx`   | Bases de conhecimento na Biblioteca                         |
 | `src/canvas.ts`          | Ferramentas e texto do canvas                               |
 | `src/CanvasPanel.tsx`    | Painel do canvas                                            |
 | `src/sync.ts`            | Formato da pasta de sincronização e quem vence cada mudança |
 | `src/syncFolder.ts`      | Acesso à pasta pelo navegador (File System Access API)      |
+| `src/syncRemote.ts`      | Sincronização por WebDAV e S3 (assinatura AWS v4)           |
+| `src/SyncSection.tsx`    | Seção Sincronização das Configurações                       |
 | `src/SideChat.tsx`       | Painel da pergunta à parte                                  |
-| `proxy/cors-proxy.mjs`   | Proxy local para provedores sem CORS                        |
+| `proxy/cors-proxy.mjs`   | Proxy local para provedores e servidores sem CORS           |
 | `src/ToolsDialog.tsx`    | Ferramentas web e servidores MCP                            |
 | `src/usage.ts`           | Contagem de tokens, custo e uso do contexto                 |
 | `src/report.ts`          | Totais de uso por dia e por modelo                          |
@@ -191,12 +197,14 @@ Próximos passos em [ROADMAP.md](ROADMAP.md).
 - O custo é uma estimativa: usa o valor informado pelo provedor quando existe
   e, senão, uma tabela de preços que pode estar desatualizada. Sem preço
   conhecido, só os tokens são mostrados.
-- A sincronização precisa de um navegador que grave em pastas (Chrome, Edge,
-  Arc e outros baseados no Chromium); o Safari e o Firefox não gravam. Vale a mudança mais recente de cada conversa, e a
-  biblioteca é sincronizada inteira: editada em dois dispositivos ao mesmo
-  tempo, fica a versão mais recente.
-- A busca na base de conhecimento é por palavras: sinônimos e paráfrases não
-  são encontrados. PDFs que são só imagem (escaneados) não têm texto para ler.
+- A sincronização por pasta precisa de um navegador que grave em pastas
+  (Chrome, Edge, Arc e outros baseados no Chromium); no Safari e no Firefox,
+  use WebDAV ou S3. O servidor ou bucket precisa aceitar chamadas do navegador
+  (CORS), ou ser acessado pelo proxy local. Vale a mudança mais recente de cada
+  conversa e de cada item da biblioteca.
+- Sem busca por sentido, a base de conhecimento só acha palavras: sinônimos e
+  paráfrases ficam de fora. Com ela, os documentos e as perguntas vão ao
+  provedor de embeddings. PDFs que são só imagem (escaneados) não têm texto.
 - MCP: só servidores remotos por HTTP que aceitem chamadas do navegador (CORS),
   com token opcional. Servidores locais por linha de comando, login por OAuth,
   recursos e prompts do MCP não são suportados.

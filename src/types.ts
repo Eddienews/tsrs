@@ -177,6 +177,9 @@ export interface KnowledgeDoc {
   // Characters of text extracted from the file.
   size: number
   chunks: string[]
+  // One vector per passage, for searching by meaning; `model` is the
+  // provider and embedding model that made them, as 'provider/model'.
+  vectors?: { model: string; data: string[] }
 }
 
 // A fact about the user the model chose, or was asked, to remember.
@@ -227,6 +230,8 @@ export interface Provider {
   transcription?: string
   // Model for image generation, when the provider has one.
   image?: string
+  // Embedding model, for searching knowledge bases by meaning.
+  embedding?: string
   // The provider's API does not accept calls from a browser; it is reached
   // through the local proxy by default.
   needsProxy?: boolean
@@ -285,17 +290,46 @@ export interface Appearance {
   density: 'compact' | 'comfortable'
 }
 
+// A folder on a WebDAV server (Nextcloud, ownCloud, a NAS…).
+export interface WebdavSync {
+  url: string
+  user: string
+  // Held like an API key.
+  password: string
+}
+
+// A bucket on S3 or a compatible service (Cloudflare R2, Backblaze B2, MinIO…).
+export interface S3Sync {
+  // Empty for AWS itself.
+  endpoint: string
+  region: string
+  bucket: string
+  // Folder inside the bucket.
+  prefix: string
+  accessKey: string
+  // Held like an API key.
+  secretKey: string
+}
+
 // Syncing through a folder that a sync service (Dropbox, Drive, Syncthing…)
-// copies between devices.
+// copies between devices, a WebDAV server or an S3 bucket; at most one is
+// connected.
 export interface SyncSettings {
   // Name of the chosen folder; the handle itself is kept in IndexedDB.
   folder: string
+  webdav?: WebdavSync
+  s3?: S3Sync
+  // Reach the WebDAV server or the bucket through the local proxy.
+  proxy?: boolean
   // Encrypts what is written to the folder; held like an API key.
   password: string
   lastSync?: number
-  // Chats and documents deleted here, by id ('doc:' prefix for documents),
-  // with when, so other devices delete them too.
+  // Chats, library items and documents deleted here, by id ('persona:',
+  // 'doc:'… prefix for the others), with when, so other devices delete them too.
   deleted: Record<string, number>
+  // What each library item looked like when last seen, as a hash, and when it
+  // last changed; absent until the library is first looked at.
+  items?: Record<string, { hash: string; at: number }>
 }
 
 export interface Settings {
@@ -333,12 +367,14 @@ export interface Settings {
   // such provider with a key). An empty model uses the provider's default.
   imageProvider: string
   imageModel: string
+  // Who turns passages into vectors to search knowledge bases by meaning:
+  // 'off', 'auto' (the first provider with an embedding model and a key) or a
+  // provider. An empty model uses the provider's default.
+  embedProvider: string
+  embedModel: string
   // Address of the local proxy (npm run proxy) for providers without CORS.
   proxyUrl: string
   knowledgeBases: KnowledgeBase[]
-  // When the folders, personas, prompts, memories or knowledge bases last
-  // changed, for syncing.
-  libraryChangedAt: number
   sync: SyncSettings
   // Present when the API keys are password-protected; the keys are then
   // stored only inside it.
