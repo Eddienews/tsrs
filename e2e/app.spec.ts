@@ -829,6 +829,50 @@ test('answers from a knowledge base', async ({ page }) => {
   await expect(reply(page).locator('.references')).toContainText('30 dias de férias por ano')
 })
 
+test('keeps a temporary chat out of the history and drops it on leaving', async ({ page }) => {
+  await connect(page)
+  await page.getByRole('button', { name: 'Biblioteca' }).click()
+  await page.getByRole('tab', { name: 'Memória' }).click()
+  await page.getByRole('switch', { name: 'Usar memória' }).click()
+  await page.getByTitle('Fechar').click()
+  const toggle = page.getByRole('button', { name: 'Conversa temporária' })
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('.temporary-note')).toBeVisible()
+  await send(page, 'algo que não deve ficar')
+  await expect(reply(page)).toContainText('Resposta 1.')
+  await expect(page.locator('.chat-item')).toHaveCount(0)
+  // It neither reads nor saves memories.
+  expect(provider.chats[0].body.tools).toBeUndefined()
+  expect(JSON.stringify(provider.chats[0].body.messages)).not.toContain('Facts you saved')
+  // Once started, it stays temporary.
+  await expect(toggle).toBeHidden()
+  const stored = () =>
+    page.evaluate(
+      () =>
+        new Promise<number>((resolve) => {
+          const open = indexedDB.open('tsrs')
+          open.onsuccess = () => {
+            const count = open.result.transaction('meta').objectStore('meta').count()
+            count.onsuccess = () => resolve(count.result)
+          }
+        }),
+    )
+  expect(await stored()).toBe(0)
+
+  await page.getByRole('button', { name: 'Nova conversa' }).click()
+  await expect(page.getByText('algo que não deve ficar')).toBeHidden()
+  // The next chat is temporary too, until the mode is turned off.
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+  await toggle.click()
+  await expect(page.locator('.temporary-note')).toBeHidden()
+  await send(page, 'esta fica')
+  await expect(chatRow(page, 'Saudação inicial')).toBeVisible()
+  await expect(page.locator('.chat-item')).toHaveCount(1)
+  expect(await stored()).toBe(1)
+  expect(provider.chats[1].body.tools.map((t: any) => t.function.name)).toContain('memory_save')
+})
+
 test('searches a knowledge base by meaning and with a tool', async ({ page }) => {
   await connect(page)
   await page.getByRole('button', { name: 'Biblioteca' }).click()
@@ -979,12 +1023,12 @@ test('syncs two devices through a WebDAV server', async ({ page, browser }) => {
       await on.getByLabel('Endereço da pasta').fill(`${dav.url}/tsrs`)
       await on.getByLabel('Usuário').fill('eddie')
       await on.getByLabel('Senha ou senha de app').fill(password)
-      await on.getByRole('button', { name: 'Conectar' }).click()
+      await on.getByRole('button', { name: 'Conectar', exact: true }).click()
     }
     await connectDav(page, 'errada')
     await expect(page.getByRole('alert')).toHaveText(/recusou o acesso \(401\)/)
     await page.getByLabel('Senha ou senha de app').fill('certa')
-    await page.getByRole('button', { name: 'Conectar' }).click()
+    await page.getByRole('button', { name: 'Conectar', exact: true }).click()
     await expect(page.getByText(`WebDAV: ${dav.url}/tsrs`)).toBeVisible()
     await expect(page.locator('.sync-status')).toHaveText('1 enviados, 0 recebidos, 0 apagados.')
     expect([...dav.files.keys()].sort()).toEqual([
@@ -1004,7 +1048,8 @@ test('syncs two devices through a WebDAV server', async ({ page, browser }) => {
     // Disconnecting forgets the server.
     await openSettings(other, 'Sincronização')
     await other.getByRole('button', { name: 'Desconectar' }).click()
-    await expect(other.getByRole('button', { name: 'Conectar' })).toBeVisible()
+    await expect(other.getByRole('button', { name: 'Conectar', exact: true })).toBeVisible()
+    await expect(other.getByLabel('Endereço da pasta')).toHaveValue(`${dav.url}/tsrs`)
     await other.context().close()
   } finally {
     await dav.close()

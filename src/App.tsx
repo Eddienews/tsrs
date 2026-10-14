@@ -1,4 +1,4 @@
-import { Pin } from 'lucide-react'
+import { MessageSquareDashed, Pin } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
@@ -410,6 +410,8 @@ export default function App() {
   const [showCanvas, setShowCanvas] = useState(false)
   // The canvas of the conversation that has not been created yet.
   const [draftCanvas, setDraftCanvas] = useState<Canvas | undefined>()
+  // The next conversation is temporary; it stays on until turned off.
+  const [draftTemporary, setDraftTemporary] = useState(false)
   // Pending writes of a canvas being typed in, by chat id.
   const canvasSaves = useRef(new Map<string, ReturnType<typeof setTimeout>>())
   const artifactCount = useRef(0)
@@ -445,6 +447,9 @@ export default function App() {
   const messages = activeId ? threads[activeId] : undefined
   const params = active ? (active.params ?? {}) : draftParams
   const canvas = active ? active.canvas : draftCanvas
+  const temporary = active ? !!active.temporary : draftTemporary
+  // Temporary conversations are left out of every list.
+  const listed = useMemo(() => metas.filter((c) => !c.temporary), [metas])
   const persona = settings.personas.find((p) => p.id === params.personaId)
   const painter = imageSource(settings, locked)
   const blocked = imageMode
@@ -571,11 +576,20 @@ export default function App() {
     return metasRef.current.find((c) => c.id === id)
   }
 
+  // Writes a conversation to IndexedDB, unless it is temporary.
+  function storeMeta(meta: ChatMeta) {
+    if (!meta.temporary) saveMeta(meta)
+  }
+
+  function storeThread(id: string, messages: Message[]) {
+    if (!findMeta(id)?.temporary) saveThread(id, messages)
+  }
+
   function updateChat(id: string, fields: Partial<ChatMeta>) {
     const changedAt = Date.now()
     commitMetas(metasRef.current.map((c) => (c.id === id ? { ...c, ...fields, changedAt } : c)))
     const meta = findMeta(id)
-    if (meta) saveMeta(meta)
+    if (meta) storeMeta(meta)
   }
 
   // Typing in the canvas updates it at once and writes it a moment later.
@@ -588,7 +602,7 @@ export default function App() {
     const save = () => {
       canvasSaves.current.delete(id)
       const meta = findMeta(id)
-      if (meta) saveMeta(meta)
+      if (meta) storeMeta(meta)
     }
     if (now) save()
     else canvasSaves.current.set(id, setTimeout(save, 500))
@@ -623,7 +637,7 @@ export default function App() {
     const thread = threadsRef.current[id]
     // A conversation deleted mid-stream must not be written back.
     if (!thread || !findMeta(id)) return
-    saveThread(id, thread)
+    storeThread(id, thread)
     updateChat(id, {})
   }
 
@@ -701,7 +715,9 @@ export default function App() {
   function syncLocal(): SyncLocal {
     const current = settingsRef.current
     return {
-      chats: metasRef.current.map((c) => ({ id: c.id, changedAt: c.changedAt ?? c.updatedAt })),
+      chats: metasRef.current
+        .filter((c) => !c.temporary)
+        .map((c) => ({ id: c.id, changedAt: c.changedAt ?? c.updatedAt })),
       deleted: current.sync.deleted,
       items: Object.entries(current.sync.items ?? {}).map(([key, { at }]) => ({ key, changedAt: at })),
       docIds: docsRef.current.map((d) => d.id),
@@ -951,6 +967,10 @@ export default function App() {
 
   function runAction(action: PaletteAction) {
     if (action === 'new') selectChat(null)
+    else if (action === 'temporary') {
+      selectChat(null)
+      setDraftTemporary(true)
+    }
     else if (action === 'preview') togglePreview()
     else if (action === 'tools') setShowTools(true)
     else if (action === 'library') setShowLibrary(true)
@@ -962,6 +982,14 @@ export default function App() {
 
   async function selectChat(id: string | null) {
     if (id !== activeId) closeAside()
+    // Leaving a temporary conversation throws it away.
+    const left = findMeta(activeId)
+    if (left?.temporary && id !== left.id) {
+      if (streaming) abortRef.current?.abort()
+      commitMetas(metasRef.current.filter((c) => c.id !== left.id))
+      const { [left.id]: _gone, ...rest } = threadsRef.current
+      commitThreads(rest)
+    }
     setShowDrawer(false)
     setShowUsage(false)
     setActiveId(id)
@@ -1021,7 +1049,7 @@ export default function App() {
     }
     commitMetas([meta, ...metasRef.current.filter((c) => c.id !== meta.id)])
     commitThreads({ ...threadsRef.current, [meta.id]: [...history, current] })
-    saveMeta(meta)
+    storeMeta(meta)
     setActiveId(meta.id)
     setStreaming(true)
     const abort = new AbortController()
@@ -1037,7 +1065,9 @@ export default function App() {
     const tools = toolsFor(settings, agent)
     const recent = sinceSummary(history)
     let system = meta.params?.system?.trim() || settings.systemPrompt
-    if (settings.memory) system = withMemories(system, settings.memories)
+    // A temporary conversation neither reads nor saves memories.
+    const remember = settings.memory && !meta.temporary
+    if (remember) system = withMemories(system, settings.memories)
     system = withSummary(system, recent.summary)
     // Comparing models would let each of them change the same canvas.
     const sharedCanvas = !image && !targets ? meta.canvas : undefined
@@ -1182,7 +1212,7 @@ export default function App() {
         )
         toolset = mergeTools([
           ...(sharedCanvas ? [canvasTools(meta.id)] : []),
-          ...(settings.memory ? [memoryTools()] : []),
+          ...(remember ? [memoryTools()] : []),
           ...(bases.length ? [knowledgeTools(bases)] : []),
           ...(servers.length ? [await gatherTools(servers)] : []),
         ])
@@ -1209,7 +1239,9 @@ export default function App() {
       if (block) latest.current.showArtifact(block.lang, block.code)
     }
 
-    if (completed && !targets && !image && settings.autoTitle && history.length === 1) {
+    // A temporary conversation is listed nowhere, so its title is not worth a request.
+    const titled = settings.autoTitle && !meta.temporary
+    if (completed && !targets && !image && titled && history.length === 1) {
       titleChat(meta.id, connection(settings, usings[0].providerId))
     }
   }
@@ -1434,6 +1466,7 @@ export default function App() {
       model: settings.model,
       params: draftParams,
       ...(draftCanvas ? { canvas: draftCanvas } : {}),
+      ...(draftTemporary ? { temporary: true } : {}),
     }
     if (typed) {
       setDraft('')
@@ -1498,8 +1531,8 @@ export default function App() {
       .map(({ alts: _alts, altIndex: _altIndex, ...m }) => ({ ...m, id: crypto.randomUUID() }))
     commitMetas([fork, ...metasRef.current])
     commitThreads({ ...threadsRef.current, [fork.id]: messages })
-    saveMeta(fork)
-    saveThread(fork.id, messages)
+    storeMeta(fork)
+    storeThread(fork.id, messages)
     selectChat(fork.id)
   }
 
@@ -1724,7 +1757,7 @@ export default function App() {
     (tools.webSearch && provider.webTools ? 1 : 0) +
     (tools.webFetch && provider.webTools === 'anthropic' ? 1 : 0) +
     settings.mcpServers.filter((s) => s.url && tools.mcpServers.includes(s.id)).length +
-    (settings.memory ? 1 : 0) +
+    (settings.memory && !temporary ? 1 : 0) +
     basesFor(settings, params, persona).length
   const starters = persona?.starters?.filter((s) => s.trim()).length
     ? persona.starters.filter((s) => s.trim())
@@ -1737,7 +1770,7 @@ export default function App() {
 
   const sidebar = (
     <Sidebar
-      chats={metas}
+      chats={listed}
       folders={settings.folders}
       activeId={showUsage ? null : activeId}
       theme={settings.appearance.theme}
@@ -1803,7 +1836,18 @@ export default function App() {
         onTools={() => setShowTools(true)}
         onParams={() => setShowParams(true)}
         onTogglePreview={togglePreview}
+        temporary={temporary}
+        onToggleTemporary={active ? undefined : () => setDraftTemporary((on) => !on)}
       />
+      {temporary && (
+        <p
+          role="status"
+          className="temporary-note flex items-center justify-center gap-1.5 border-b bg-surface-2 px-4 py-1.5 text-center text-xs text-muted-foreground"
+        >
+          <MessageSquareDashed className="size-3.5 shrink-0" />
+          {t('Conversa temporária: não fica no histórico, não é sincronizada nem usa a memória. Some quando você sair dela.')}
+        </p>
+      )}
 
       <section className="messages min-h-0 flex-1 overflow-y-auto">
         {!active && (
@@ -2085,7 +2129,7 @@ export default function App() {
       )}
       {showPalette && (
         <CommandPalette
-          chats={metas}
+          chats={listed}
           settings={settings}
           canLock={!!settings.vault && !locked}
           onChat={selectChat}

@@ -132,6 +132,9 @@ export interface ChatMeta {
   // Last change of any kind (rename, pin, a new message), for syncing;
   // `updatedAt` only moves with new messages, to keep the list order.
   changedAt?: number
+  // Kept only in memory: never stored, synced or listed, and gone once the
+  // user leaves it.
+  temporary?: boolean
 }
 
 export interface Chat extends ChatMeta {

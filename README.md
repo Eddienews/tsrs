@@ -54,6 +54,8 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
   enviados.
 - Geração de imagens pela OpenAI (GPT Image) ou pelo Gemini (Imagen), com o
   botão Imagem do campo de envio.
+- Conversa temporária: fica só na memória da aba, sem histórico, sincronização
+  nem memória, e some quando você sai dela.
 - Pergunta à parte: selecione um trecho da resposta e pergunte sobre ele num
   painel lateral, sem acrescentar nada à conversa.
 - Base de conhecimento local: PDFs, textos, Markdown e HTML viram trechos

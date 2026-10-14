@@ -2,6 +2,7 @@ import {
   AlertTriangle,
   ChevronDown,
   Menu,
+  MessageSquareDashed,
   NotebookPen,
   PanelRight,
   SlidersHorizontal,
@@ -54,6 +55,10 @@ interface Props {
   onParams: () => void
   onTogglePreview: () => void
   onToggleCanvas: () => void
+  // The conversation is temporary, or the next one will be.
+  temporary: boolean
+  // Absent once the conversation has started: it stays what it is.
+  onToggleTemporary?: () => void
 }
 
 function ModelPicker({ settings, onModel }: Pick<Props, 'settings' | 'onModel'>) {
@@ -230,6 +235,29 @@ export default function ChatTopBar(p: Props) {
             </span>
           )}
         </Button>
+        {p.onToggleTemporary ? (
+          <Button
+            variant={p.temporary ? 'secondary' : 'ghost'}
+            size="icon"
+            className="size-8"
+            aria-label={t('Conversa temporária')}
+            title={t('Conversa temporária')}
+            aria-pressed={p.temporary}
+            onClick={p.onToggleTemporary}
+          >
+            <MessageSquareDashed className="size-4" />
+          </Button>
+        ) : (
+          p.temporary && (
+            <span
+              className="flex items-center gap-1 rounded bg-surface-2 px-2 py-1 text-[11px] text-muted-foreground"
+              title={t('Conversa temporária')}
+            >
+              <MessageSquareDashed className="size-3.5" />
+              <span className="hidden sm:inline">{t('Temporária')}</span>
+            </span>
+          )
+        )}
         <Button
           variant={p.paramsOpen ? 'secondary' : 'ghost'}
           size="icon"

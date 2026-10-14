@@ -573,4 +573,10 @@ export const en: Record<string, string> = {
   'Não foi possível criar a pasta no servidor': 'Could not create the folder on the server',
   'Não foi possível listar a pasta no servidor': 'Could not list the folder on the server',
   'Não foi possível listar o bucket': 'Could not list the bucket',
+  // Temporary chats
+  'Conversa temporária': 'Temporary chat',
+  'Temporária': 'Temporary',
+  'Nova conversa temporária': 'New temporary chat',
+  'Conversa temporária: não fica no histórico, não é sincronizada nem usa a memória. Some quando você sair dela.':
+    'Temporary chat: it is not kept in the history, synced or given memory. It is gone once you leave it.',
 }

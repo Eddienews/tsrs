@@ -4,6 +4,7 @@ import {
   Library,
   Lock,
   MessageSquare,
+  MessageSquareDashed,
   PanelRight,
   Plus,
   Settings as SettingsIcon,
@@ -25,6 +26,7 @@ import type { ChatMeta, Settings } from './types'
 
 export type PaletteAction =
   | 'new'
+  | 'temporary'
   | 'preview'
   | 'tools'
   | 'library'
@@ -51,6 +53,7 @@ export default function CommandPalette(p: Props) {
   }
   const actions: [PaletteAction, string, typeof Plus][] = [
     ['new', t('Nova conversa'), Plus],
+    ['temporary', t('Nova conversa temporária'), MessageSquareDashed],
     ['preview', t('Abrir ou fechar o preview'), PanelRight],
     ['tools', t('Ferramentas'), Wrench],
     ['library', t('Biblioteca'), Library],
