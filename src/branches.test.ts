@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { branchAt, switchVersion, versions } from './branches'
+import { branchAt, patchMessage, switchVersion, versions } from './branches'
 import type { Message } from './types'
 
 const msg = (id: string, role: Message['role'] = 'assistant'): Message => ({
@@ -48,5 +48,15 @@ describe('branches', () => {
     const retry = branchAt(forked, 3, false)
     expect(retry.alts?.map(ids)).toEqual([['a2']])
     expect(retry.altIndex).toBe(1)
+  })
+
+  it('patches a message on the current path or inside a kept version', () => {
+    const forked = [...thread.slice(0, 3), { ...msg('a2b'), ...branchAt(thread, 3) }]
+    const outer = [...forked.slice(0, 1), { ...msg('b1'), ...branchAt(forked, 1) }]
+    const shout = (m: Message) => ({ ...m, content: m.content.toUpperCase() })
+    const patched = patchMessage(outer, 'a2', shout)
+    expect(versions(patched, 1)[0].at(-1)!.alts![0][0].content).toBe('A2')
+    expect(patchMessage(outer, 'b1', shout)[1].content).toBe('B1')
+    expect(patchMessage(outer, 'missing', shout)).toBe(outer)
   })
 })
