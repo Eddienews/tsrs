@@ -187,7 +187,12 @@ conhecimento ficam num terceiro depósito, já divididos em trechos.
 
 ## Roadmap
 
-Próximos passos em [ROADMAP.md](ROADMAP.md).
+Próximos passos em [ROADMAP.md](ROADMAP.md) e nas issues do repositório.
+
+## Contribuindo
+
+Veja o [CONTRIBUTING.md](CONTRIBUTING.md): princípios, como rodar os testes,
+estilo do código e como mandar um pull request.
 
 ## Limitações conhecidas
 

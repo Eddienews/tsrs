@@ -1,0 +1,31 @@
+name: Problema
+description: Algo não funciona como deveria
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: O que aconteceu
+      description: E o que você esperava que acontecesse.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Como reproduzir
+      placeholder: |
+        1. Abra as Configurações
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Navegador, sistema e provedor
+      placeholder: Chrome 140, Windows 11, Ollama com qwen3
+  - type: textarea
+    id: console
+    attributes:
+      label: Erros no console do navegador
+      description: Se houver. Apague chaves de API e dados pessoais antes de colar.
+      render: text

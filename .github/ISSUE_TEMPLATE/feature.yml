@@ -1,0 +1,23 @@
+name: Ideia de recurso
+description: Proponha algo novo para o TSRS
+labels: [enhancement]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: O que você quer fazer
+      description: O problema ou a tarefa, mais do que a solução.
+    validations:
+      required: true
+  - type: textarea
+    id: how
+    attributes:
+      label: Como poderia funcionar
+  - type: checkboxes
+    id: principles
+    attributes:
+      label: Princípios
+      description: Veja o CONTRIBUTING.md.
+      options:
+        - label: Funciona sem um servidor do TSRS, sem conta e sem telemetria
+          required: true
