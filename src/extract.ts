@@ -1,4 +1,5 @@
 import { t } from './i18n'
+import { isOtherSpreadsheet, isSpreadsheet, otherSpreadsheet, spreadsheetText } from './spreadsheet'
 
 // Text of a file added to a knowledge base: PDFs through pdf.js, HTML without
 // its markup, and anything else that reads as text.
@@ -52,6 +53,8 @@ export async function extractText(file: File): Promise<string> {
     }
     return text
   }
+  if (isSpreadsheet(file)) return spreadsheetText(file)
+  if (isOtherSpreadsheet(file.name)) throw new Error(otherSpreadsheet(file.name))
   const text = await file.text()
   if (text.includes('\u0000')) {
     throw new Error(t('"{name}" não é PDF nem texto.', { name: file.name }))

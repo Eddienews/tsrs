@@ -988,6 +988,27 @@ test('keeps a temporary chat out of the history and drops it on leaving', async 
   expect(provider.chats[1].body.tools.map((t: any) => t.function.name)).toContain('memory_save')
 })
 
+test('reads Excel workbooks attached to a message or added to a base', async ({ page }) => {
+  await connect(page)
+  await page.locator('.composer input[type=file]').setInputFiles([
+    { name: 'vendas.xlsx', mimeType: '', buffer: await readFile('e2e/fixtures/vendas.xlsx') },
+    { name: 'antiga.xls', mimeType: 'application/vnd.ms-excel', buffer: Buffer.from([0xd0, 0xcf, 0x11]) },
+  ])
+  await expect(page.getByText('"antiga.xls" é uma planilha num formato que o TSRS não lê. Salve como .xlsx ou CSV.')).toBeVisible()
+  await send(page, 'quanto vendi?')
+  const sent = provider.chats[0].body.messages.at(-1).content
+  expect(sent).toContain('<file name="vendas.xlsx">\nSheet "Vendas" (3 rows):\nProduto,Data,Qtd,Preço,Total,Pago\n')
+  expect(sent).toContain('Sheet "Resumo" (1 rows):\nTotal geral,9.3')
+
+  await page.getByRole('button', { name: 'Biblioteca' }).click()
+  await page.getByRole('tab', { name: 'Conhecimento' }).click()
+  await page.getByRole('button', { name: 'Nova base' }).click()
+  await page.getByLabel('Adicionar documentos').setInputFiles('e2e/fixtures/vendas.xlsx')
+  await expect(page.locator('.knowledge-base')).toContainText('vendas.xlsx')
+  await page.getByLabel('Testar uma busca').fill('café torrado')
+  await expect(page.locator('.search-hit').first()).toContainText('"Café, torrado",2026-10-14')
+})
+
 test('searches a knowledge base by meaning and with a tool', async ({ page }) => {
   await connect(page)
   await page.getByRole('button', { name: 'Biblioteca' }).click()

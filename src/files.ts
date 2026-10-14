@@ -1,4 +1,5 @@
 import { locale, t } from './i18n'
+import { isOtherSpreadsheet, isSpreadsheet, otherSpreadsheet, spreadsheetText } from './spreadsheet'
 import type {
   Attachment,
   Chat,
@@ -37,6 +38,10 @@ export async function readAttachment(file: File): Promise<Attachment> {
   if (file.type === 'application/pdf') {
     return { ...base, mime: file.type, kind: 'pdf', data: await base64(file) }
   }
+  if (isSpreadsheet(file)) {
+    return { ...base, mime: 'text/csv', kind: 'text', data: await spreadsheetText(file) }
+  }
+  if (isOtherSpreadsheet(file.name)) throw new Error(otherSpreadsheet(file.name))
   const text = await file.text()
   if (text.includes('\u0000')) {
     throw new Error(t('"{name}" não é imagem, PDF nem texto.', { name: file.name }))

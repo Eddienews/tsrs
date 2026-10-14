@@ -23,6 +23,8 @@ export default defineConfig({
       },
     },
   },
+  // Lets the tests import sample workbooks.
+  assetsInclude: ['**/*.xlsx'],
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
