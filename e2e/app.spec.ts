@@ -198,6 +198,8 @@ test('applies a persona and inserts a saved prompt', async ({ page }) => {
   const { messages } = provider.chats[0].body
   expect(messages[0].content).toMatch(/^Fale como um pirata\.\n\nThe user is reading/)
   expect(messages[1].content).toBe('Resuma em uma frase:')
+  // The title arrives in a request after the reply; reloading earlier loses it.
+  await expect(chatRow(page, 'Saudação inicial')).toBeVisible()
   await page.reload()
   await chatRow(page, 'Saudação inicial').click()
   await expect(page.getByTitle('Persona desta conversa')).toContainText('Pirata')
