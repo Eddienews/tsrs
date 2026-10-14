@@ -57,6 +57,8 @@ export interface ChatRequest extends Connection {
   webFetch?: boolean
   // Ask for the model's reasoning, where the provider only sends it on request.
   showThinking?: boolean
+  // Let the provider cache the prompt (Anthropic).
+  promptCache?: boolean
 }
 
 export type StreamEvent =
@@ -325,6 +327,9 @@ function body(req: ChatRequest, wire: unknown[]): unknown {
         ? { thinking: { type: 'adaptive', display: 'summarized' } }
         : {}),
       ...(tools.length ? { tools } : {}),
+      // Automatic caching: the breakpoint follows the end of the conversation,
+      // so each request reads everything the previous one sent.
+      ...(req.promptCache ? { cache_control: { type: 'ephemeral' } } : {}),
     }
   }
   return {
@@ -389,6 +394,8 @@ function anthropicTurn(): Turn {
           (u.input_tokens ?? 0) +
           (u.cache_creation_input_tokens ?? 0) +
           (u.cache_read_input_tokens ?? 0)
+        if (u.cache_read_input_tokens) turn.usage.cacheRead = u.cache_read_input_tokens
+        if (u.cache_creation_input_tokens) turn.usage.cacheWrite = u.cache_creation_input_tokens
       } else if (event.type === 'content_block_start') {
         const started = { ...event.content_block }
         blocks[event.index] = started
@@ -565,6 +572,9 @@ export async function* streamChat(req: ChatRequest): AsyncGenerator<StreamEvent>
 
     total.input += turn.usage.input
     total.output += turn.usage.output
+    for (const field of ['cacheRead', 'cacheWrite'] as const) {
+      if (turn.usage[field]) total[field] = (total[field] ?? 0) + turn.usage[field]
+    }
     if (turn.usage.cost !== undefined) total.cost = (total.cost ?? 0) + turn.usage.cost
     if (total.input || total.output) {
       const context = turn.usage.input + turn.usage.output
@@ -641,10 +651,14 @@ function infoOf(model: any): ModelInfo {
 }
 
 export async function listModels(conn: Connection): Promise<ModelList> {
+  if (!conn.provider.modelsPath) return { ids: conn.provider.defaultModels, info: {} }
   const res = await request(url(conn, conn.provider.modelsPath), { headers: headers(conn) })
   const json = await res.json()
   const info: Record<string, ModelInfo> = {}
   for (const model of json.data ?? []) {
+    // Gateways that serve each model on one wire format say which.
+    const endpoints = model.supported_endpoints
+    if (Array.isArray(endpoints) && !endpoints.includes(conn.provider.chatPath)) continue
     info[String(model.id).replace(/^models\//, '')] = infoOf(model)
   }
   return { ids: Object.keys(info).sort(), info }

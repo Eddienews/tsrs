@@ -97,10 +97,16 @@ function Thinking({ text, live }: { text: string; live: boolean }) {
 function usageLine(model: string | undefined, usage: Usage | undefined): string {
   const tokens =
     usage &&
-    t('{input} entrada · {output} saída', {
-      input: formatTokens(usage.input),
-      output: formatTokens(usage.output),
-    })
+    (usage.cacheRead
+      ? t('{input} entrada ({cached} do cache) · {output} saída', {
+          input: formatTokens(usage.input),
+          cached: formatTokens(usage.cacheRead),
+          output: formatTokens(usage.output),
+        })
+      : t('{input} entrada · {output} saída', {
+          input: formatTokens(usage.input),
+          output: formatTokens(usage.output),
+        }))
   const cost = usage?.cost !== undefined ? formatCost(usage.cost) : undefined
   return [model, tokens, cost].filter(Boolean).join(' · ')
 }

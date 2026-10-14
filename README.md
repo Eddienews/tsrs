@@ -66,8 +66,17 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
 
 ## Provedores
 
-Anthropic, OpenAI, Google Gemini, OpenRouter, Ollama (local) e qualquer
+Anthropic, OpenAI, Google Gemini, OpenRouter, DeepSeek, Mistral, xAI (Grok),
+Groq, Perplexity, Command Code, Ollama (local), LM Studio (local) e qualquer
 endpoint compatível com a API de chat da OpenAI ("Custom").
+
+O Command Code aparece duas vezes, com a mesma chave: "Command Code" para os
+modelos no formato da OpenAI e "Command Code (Claude)" para os modelos Claude,
+que ele só serve no formato da Anthropic. A API dele exige o plano Pro.
+
+Na Anthropic, o cache de prompt fica ligado por padrão: a parte da conversa já
+enviada é cobrada a cerca de 10% do preço nas mensagens seguintes. O rodapé de
+cada resposta mostra quantos tokens vieram do cache.
 
 Cada provedor é uma linha na tabela de `src/providers.ts`: URL base, caminhos,
 cabeçalhos (com `{apiKey}` como placeholder) e o formato da API (`openai` ou
@@ -116,6 +125,10 @@ cabeçalhos (com `{apiKey}` como placeholder) e o formato da API (`openai` ou
 No IndexedDB, cada conversa é gravada em duas partes: os metadados (título,
 pasta, modelo) e as mensagens. A lista lateral lê só os metadados; as
 mensagens são lidas quando a conversa é aberta.
+
+## Roadmap
+
+Próximos passos em [ROADMAP.md](ROADMAP.md).
 
 ## Limitações conhecidas
 
