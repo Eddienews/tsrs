@@ -879,6 +879,71 @@ test('shows message times, chimes when a reply is done and takes new shortcuts',
   await expect(page.locator('.temporary-note')).toBeVisible()
 })
 
+test('tags, archives and acts on several chats at once', async ({ page }) => {
+  await connect(page)
+  await openSettings(page, 'Geral')
+  await page.getByRole('switch', { name: 'Gerar o título da conversa automaticamente' }).click()
+  await closeSettings(page)
+  for (const title of ['alfa', 'beta', 'gama']) {
+    await page.getByRole('button', { name: 'Nova conversa' }).click()
+    await send(page, title)
+  }
+  await expect(page.locator('.chat-item')).toHaveCount(3)
+
+  // One chat: tags typed with or without #, and a filter for each tag.
+  await chatMenu(page, 'alfa', 'Etiquetas')
+  await page.getByLabel('Etiquetas, separadas por vírgula:').fill('#trabalho, Ideias, trabalho')
+  await page.getByLabel('Etiquetas, separadas por vírgula:').press('Enter')
+  await expect(chatRow(page, 'alfa').locator('.chat-tag')).toHaveText(['#trabalho', '#Ideias'])
+  await page.locator('.tag-filter').getByRole('button', { name: '#trabalho' }).click()
+  await expect(page.locator('.chat-item')).toHaveCount(1)
+  await page.locator('.tag-filter').getByRole('button', { name: '#trabalho' }).click()
+  await expect(page.locator('.chat-item')).toHaveCount(3)
+
+  // Archived chats leave the list for a section of their own.
+  await chatMenu(page, 'beta', 'Arquivar')
+  await expect(page.locator('.chat-item')).toHaveCount(2)
+  await page.getByRole('button', { name: 'Arquivadas (1)' }).click()
+  await expect(chatRow(page, 'beta')).toBeVisible()
+  await chatMenu(page, 'beta', 'Desarquivar')
+  await expect(page.getByRole('button', { name: /Arquivadas/ })).toBeHidden()
+
+  // Several at once: a tag, archiving, then deleting with one question.
+  await page.getByRole('button', { name: 'Selecionar conversas' }).click()
+  await page.getByLabel('Selecionar "beta"').check()
+  await chatRow(page, 'gama').getByRole('button').first().click()
+  await expect(page.locator('.bulk')).toContainText('2 selecionadas')
+  await page.locator('.bulk').getByRole('button', { name: 'Etiquetar' }).click()
+  await page.getByLabel('Etiqueta para acrescentar:').fill('lote')
+  await page.getByLabel('Etiqueta para acrescentar:').press('Enter')
+  await expect(page.locator('.chat-item .chat-tag', { hasText: '#lote' })).toHaveCount(2)
+  await expect(page.locator('.bulk')).toBeHidden()
+
+  await page.getByRole('button', { name: 'Selecionar conversas' }).click()
+  await page.getByLabel('Selecionar "beta"').check()
+  await page.getByLabel('Selecionar "gama"').check()
+  await page.locator('.bulk').getByRole('button', { name: 'Arquivar' }).click()
+  // The archived section is still open from before.
+  await expect(page.locator('.archived .chat-item')).toHaveCount(2)
+  await expect(page.getByRole('button', { name: 'Arquivadas (2)' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Selecionar conversas' }).click()
+  await page.getByLabel('Selecionar "beta"').check()
+  await page.getByLabel('Selecionar "gama"').check()
+  const asked: string[] = []
+  page.on('dialog', (dialog) => {
+    asked.push(dialog.message())
+    dialog.accept()
+  })
+  await page.locator('.bulk').getByRole('button', { name: 'Excluir' }).click()
+  await expect(page.locator('.chat-item')).toHaveCount(1)
+  expect(asked).toEqual(['Excluir 2 conversas?'])
+
+  // Tags and archiving are kept across a reload.
+  await page.reload()
+  await expect(chatRow(page, 'alfa').locator('.chat-tag')).toHaveText(['#trabalho', '#Ideias'])
+})
+
 test('keeps a temporary chat out of the history and drops it on leaving', async ({ page }) => {
   await connect(page)
   await page.getByRole('button', { name: 'Biblioteca' }).click()
