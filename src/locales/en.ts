@@ -579,4 +579,13 @@ export const en: Record<string, string> = {
   'Nova conversa temporária': 'New temporary chat',
   'Conversa temporária: não fica no histórico, não é sincronizada nem usa a memória. Some quando você sair dela.':
     'Temporary chat: it is not kept in the history, synced or given memory. It is gone once you leave it.',
+  // Usage details
+  'Tocar um som quando a resposta terminar': 'Play a sound when a reply is done',
+  '{keys} deixou de abrir "{action}".': '{keys} no longer opens "{action}".',
+  'Clique num atalho e pressione as teclas novas, com Ctrl, ⌘ ou Alt. Backspace tira o atalho; Esc cancela.':
+    'Click a shortcut and press the new keys, with Ctrl, ⌘ or Alt. Backspace removes the shortcut; Esc cancels.',
+  'Atalho de {action}': 'Shortcut for {action}',
+  'Pressione as teclas…': 'Press the keys…',
+  'Voltar aos atalhos padrão': 'Restore the default shortcuts',
+  'Nenhum': 'None',
 }

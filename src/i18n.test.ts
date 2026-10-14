@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { locale, setLanguage, t } from './i18n'
+import { formatWhen, locale, setLanguage, t } from './i18n'
 import { en } from './locales/en'
 
 // Text of every source file, read through Vite since the project has no Node types.
@@ -71,5 +71,15 @@ describe('t', () => {
     setLanguage('en')
     expect(t('Texto sem tradução')).toBe('Texto sem tradução')
     expect(t('Olá, {name} e {other}', { name: 'Ana' })).toBe('Olá, Ana e {other}')
+  })
+})
+
+describe('formatWhen', () => {
+  const now = new Date(2026, 9, 14, 18, 0).getTime()
+
+  it('shows the time today, the day this year and the year before', () => {
+    expect(formatWhen(new Date(2026, 9, 14, 9, 5).getTime(), now)).toBe('09:05')
+    expect(formatWhen(new Date(2026, 2, 3, 9, 5).getTime(), now)).toMatch(/^3 de mar\.?,? 09:05$/)
+    expect(formatWhen(new Date(2025, 2, 3, 9, 5).getTime(), now)).toMatch(/2025/)
   })
 })

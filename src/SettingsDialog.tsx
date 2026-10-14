@@ -17,6 +17,8 @@ import { cn } from '@/lib/utils'
 import { LANGUAGES, t, type Language } from './i18n'
 import { connection, PROVIDERS, usesProxy } from './providers'
 import { listModels } from './stream'
+import ShortcutsSection from './ShortcutsSection'
+import { chime } from './sound'
 import SyncSection, { type SyncProps } from './SyncSection'
 import type { Appearance, Provider, ProviderSettings, Settings } from './types'
 
@@ -173,14 +175,6 @@ export default function SettingsDialog(props: Props) {
       setDataStatus(t('Falhou: {message}', { message }))
     }
   }
-
-  const shortcuts: [string, string][] = [
-    ['Ctrl/⌘+K', t('Paleta de comandos')],
-    ['Ctrl/⌘+.', t('Abrir ou fechar o preview')],
-    ['Alt+N', t('Nova conversa')],
-    ['Enter', t('Enviar mensagem')],
-    ['Shift+Enter', t('Quebrar a linha')],
-  ]
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -431,6 +425,18 @@ export default function SettingsDialog(props: Props) {
                     onCheckedChange={(autoPreview) => onChange((s) => ({ ...s, autoPreview }))}
                   />
                 </label>
+                <label className="flex items-center justify-between gap-4 rounded-md border p-3 text-sm">
+                  {t('Tocar um som quando a resposta terminar')}
+                  <Switch
+                    aria-label={t('Tocar um som quando a resposta terminar')}
+                    checked={settings.doneSound}
+                    onCheckedChange={(doneSound) => {
+                      onChange((s) => ({ ...s, doneSound }))
+                      // Turning it on lets the user hear what it sounds like.
+                      if (doneSound) chime()
+                    }}
+                  />
+                </label>
                 <div className="space-y-1.5">
                   <label className="flex items-center justify-between gap-4 rounded-md border p-3 text-sm">
                     {t('Avisar o modelo sobre o preview')}
@@ -665,22 +671,7 @@ export default function SettingsDialog(props: Props) {
               </div>
             )}
 
-            {section === 'shortcuts' && (
-              <table className="w-full text-sm">
-                <tbody>
-                  {shortcuts.map(([keys, action]) => (
-                    <tr key={keys} className="border-b">
-                      <td className="py-2">{action}</td>
-                      <td className="py-2 text-right">
-                        <kbd className="rounded border bg-muted px-1.5 py-0.5 font-mono text-xs">
-                          {keys}
-                        </kbd>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+            {section === 'shortcuts' && <ShortcutsSection settings={settings} onChange={onChange} />}
           </div>
         </div>
       </DialogContent>

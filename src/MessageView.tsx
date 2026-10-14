@@ -27,7 +27,7 @@ import { memo, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { locale, t } from './i18n'
+import { formatWhen, locale, t } from './i18n'
 import { canSpeak, speak, speakable, stopSpeaking, useSpeaking } from './speech'
 import Markdown, { useCopy } from './Markdown'
 import ToolCallBlock from './ToolCallBlock'
@@ -438,6 +438,18 @@ function MessageView(props: Props) {
             isUser && 'justify-end',
           )}
         >
+          {message.createdAt !== undefined && (
+            <time
+              className="message-time px-1 font-mono text-[11px] text-muted-foreground"
+              dateTime={new Date(message.createdAt).toISOString()}
+              title={new Date(message.createdAt).toLocaleString(locale(), {
+                dateStyle: 'full',
+                timeStyle: 'short',
+              })}
+            >
+              {formatWhen(message.createdAt)}
+            </time>
+          )}
           {total > 1 && (
             <div className="flex items-center font-mono text-xs text-muted-foreground">
               <Button

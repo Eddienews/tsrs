@@ -46,6 +46,8 @@ export function defaultSettings(): Settings {
     autoTitle: true,
     previewHint: true,
     autoPreview: false,
+    doneSound: false,
+    shortcuts: {},
     dictation: 'auto',
     showThinking: true,
     promptCache: true,
