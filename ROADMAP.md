@@ -22,7 +22,7 @@ cada seção é a ordem sugerida.
 - [x] Raciocínio do modelo, recolhido acima da resposta
 - [x] Apagar tudo
 - [x] Cache de prompt automático na Anthropic, com custo calculado à parte
-- [x] Mais provedores: DeepSeek, Mistral, xAI, Groq, Perplexity e LM Studio
+- [x] Mais provedores: DeepSeek, Mistral, xAI, Groq, Perplexity, LM Studio e Command Code
 
 ## Próximos: rápidos
 
@@ -38,6 +38,10 @@ cada seção é a ordem sugerida.
 
 ## Próximos: médios
 
+- [ ] OpenCode Zen e OpenCode Go: as APIs não aceitam chamadas do navegador (sem
+      CORS no endpoint de chat), e o plano gratuito do Zen só funciona dentro do
+      OpenCode. Precisariam de um proxy local opcional, que também serviria a
+      outros provedores sem CORS
 - [ ] Memória: o modelo guarda fatos sobre você numa lista que você vê e edita
 - [ ] Agentes: personas com modelo, ferramentas, arquivos e sugestões iniciais
 - [ ] Resumo do contexto quando a conversa se aproxima do limite do modelo
@@ -57,7 +61,7 @@ cada seção é a ordem sugerida.
 - [ ] MCP com um servidor remoto de verdade (só rodou com o servidor de teste)
 - [ ] Resumo do raciocínio na Anthropic
 - [ ] Cache de prompt na Anthropic (conferir "do cache" no rodapé da resposta)
-- [ ] Os seis provedores novos (CORS verificado; conversa ainda não)
+- [ ] Os provedores novos, incluindo Command Code (CORS verificado; conversa ainda não)
 - [ ] Botão de instalar o app (PWA)
 
 ## Fora do escopo

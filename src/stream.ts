@@ -656,6 +656,9 @@ export async function listModels(conn: Connection): Promise<ModelList> {
   const json = await res.json()
   const info: Record<string, ModelInfo> = {}
   for (const model of json.data ?? []) {
+    // Gateways that serve each model on one wire format say which.
+    const endpoints = model.supported_endpoints
+    if (Array.isArray(endpoints) && !endpoints.includes(conn.provider.chatPath)) continue
     info[String(model.id).replace(/^models\//, '')] = infoOf(model)
   }
   return { ids: Object.keys(info).sort(), info }

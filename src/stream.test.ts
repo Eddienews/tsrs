@@ -468,4 +468,16 @@ describe('listModels', () => {
     expect(list.info.c.context).toBe(5)
     expect(list.info.b).toEqual({})
   })
+
+  it('keeps only the models a gateway serves on the provider\'s format', async () => {
+    const data = [
+      { id: 'claude-x', supported_endpoints: ['/messages'] },
+      { id: 'gpt-x', supported_endpoints: ['/chat/completions', '/responses'] },
+      { id: 'plain' },
+    ]
+    stubFetch(Response.json({ data }))
+    expect((await listModels(request('commandcode'))).ids).toEqual(['gpt-x', 'plain'])
+    stubFetch(Response.json({ data }))
+    expect((await listModels(request('commandcode-claude'))).ids).toEqual(['claude-x', 'plain'])
+  })
 })

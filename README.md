@@ -67,8 +67,12 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
 ## Provedores
 
 Anthropic, OpenAI, Google Gemini, OpenRouter, DeepSeek, Mistral, xAI (Grok),
-Groq, Perplexity, Ollama (local), LM Studio (local) e qualquer endpoint
-compatível com a API de chat da OpenAI ("Custom").
+Groq, Perplexity, Command Code, Ollama (local), LM Studio (local) e qualquer
+endpoint compatível com a API de chat da OpenAI ("Custom").
+
+O Command Code aparece duas vezes, com a mesma chave: "Command Code" para os
+modelos no formato da OpenAI e "Command Code (Claude)" para os modelos Claude,
+que ele só serve no formato da Anthropic. A API dele exige o plano Pro.
 
 Na Anthropic, o cache de prompt fica ligado por padrão: a parte da conversa já
 enviada é cobrada a cerca de 10% do preço nas mensagens seguintes. O rodapé de
