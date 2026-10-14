@@ -29,6 +29,22 @@ export function locale(): string {
   return current === 'pt' ? 'pt-BR' : 'en-US'
 }
 
+// When a message was written, as briefly as is clear: the time today, the
+// day and time this year, the full date before.
+export function formatWhen(ms: number, now = Date.now()): string {
+  const when = new Date(ms)
+  const today = new Date(now)
+  const time: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' }
+  if (when.toDateString() === today.toDateString()) {
+    return when.toLocaleTimeString(locale(), time)
+  }
+  const day: Intl.DateTimeFormatOptions =
+    when.getFullYear() === today.getFullYear()
+      ? { day: 'numeric', month: 'short' }
+      : { day: 'numeric', month: 'short', year: 'numeric' }
+  return when.toLocaleString(locale(), { ...day, ...time })
+}
+
 // Translates `text`, filling `{name}` placeholders from `vars`.
 export function t(text: string, vars?: Record<string, string | number>): string {
   const template = dictionaries[current][text] ?? text

@@ -75,7 +75,8 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
   Mermaid abrem em um painel ao lado da conversa, com abas de código e console e tamanhos de tela; a barra
   de endereço também abre páginas por URL (por exemplo, `localhost:3000`).
 - Paleta de comandos (Ctrl/⌘+K) para ir a conversas, trocar de modelo e abrir
-  telas.
+  telas. Os atalhos podem ser trocados em Configurações → Atalhos.
+- Data e hora de cada mensagem, e um som opcional quando a resposta termina.
 - O modelo é avisado, por uma nota no prompt de sistema, de que o preview existe
   (pode ser desligado em Configurações → Geral).
 - Tema claro e escuro, cor de destaque, tamanho da fonte e densidade.
@@ -171,6 +172,8 @@ cabeçalhos (com `{apiKey}` como placeholder) e o formato da API (`openai` ou
 | `src/preview.ts`         | Documento do preview, console e endereços                   |
 | `src/prompts.ts`         | Campos `{{nome}}` dos prompts salvos                        |
 | `src/CommandPalette.tsx` | Paleta de comandos                                          |
+| `src/shortcuts.ts`       | Atalhos de teclado configuráveis                            |
+| `src/sound.ts`           | Som ao terminar a resposta                                  |
 | `src/appearance.ts`      | Tema, cor de destaque, fonte e densidade                    |
 | `src/components/ui/`     | Componentes de interface (shadcn/ui sobre Radix)            |
 | `src/styles.css`         | Tailwind e as variáveis de cor e tipografia                 |

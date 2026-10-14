@@ -41,6 +41,8 @@ import {
 import { MEMORY_TOOLS, runMemoryTool, withMemories } from './memory'
 import { connection, getProvider } from './providers'
 import Sidebar from './Sidebar'
+import { comboOf, SHORTCUT_ACTIONS, shortcutsOf } from './shortcuts'
+import { chime } from './sound'
 import {
   SETTINGS_KEY,
   deleteChat,
@@ -1223,6 +1225,7 @@ export default function App() {
         replies.map((reply, i) => (image ? paint(reply, usings[i]) : write(reply, usings[i]))),
       )
       completed = results[0]
+      if (completed && settings.doneSound) chime()
     } catch (err) {
       if (!abort.signal.aborted) {
         const error = err instanceof Error ? err.message : String(err)
@@ -1588,6 +1591,7 @@ export default function App() {
     openAside,
     activeId,
     locked,
+    runAction,
     searchBases,
     syncNow,
   }
@@ -1600,17 +1604,15 @@ export default function App() {
 
   useEffect(() => {
     function shortcut(event: KeyboardEvent) {
-      const key = event.key.toLowerCase()
-      if ((event.metaKey || event.ctrlKey) && key === 'k') {
-        event.preventDefault()
-        setShowPalette((open) => !open)
-      } else if ((event.metaKey || event.ctrlKey) && key === '.') {
-        event.preventDefault()
-        latest.current.togglePreview()
-      } else if (event.altKey && key === 'n') {
-        event.preventDefault()
-        latest.current.selectChat(null)
-      }
+      const combo = comboOf(event)
+      if (!combo) return
+      const keys = shortcutsOf(settingsRef.current.shortcuts)
+      const action = SHORTCUT_ACTIONS.find((a) => keys[a] === combo)
+      if (!action) return
+      event.preventDefault()
+      if (action === 'palette') setShowPalette((open) => !open)
+      else if (action === 'preview') latest.current.togglePreview()
+      else latest.current.runAction(action)
     }
     window.addEventListener('keydown', shortcut)
     return () => window.removeEventListener('keydown', shortcut)

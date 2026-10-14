@@ -1,3 +1,5 @@
+import type { ShortcutAction } from './shortcuts'
+
 export type Role = 'user' | 'assistant'
 
 export type AttachmentKind = 'image' | 'pdf' | 'text'
@@ -359,6 +361,10 @@ export interface Settings {
   dictation: string
   // Open the preview when a reply ends with a page, drawing or component.
   autoPreview: boolean
+  // Play a short chime when a reply is done.
+  doneSound: boolean
+  // Shortcuts changed by the user; the others keep their defaults.
+  shortcuts: Partial<Record<ShortcutAction, string>>
   // Tell the model that code blocks can be opened in the preview panel.
   previewHint: boolean
   // Empty means "use the chat's own model".

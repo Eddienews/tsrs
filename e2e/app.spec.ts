@@ -829,6 +829,56 @@ test('answers from a knowledge base', async ({ page }) => {
   await expect(reply(page).locator('.references')).toContainText('30 dias de férias por ano')
 })
 
+test('shows message times, chimes when a reply is done and takes new shortcuts', async ({ page }) => {
+  // Counts the notes played instead of playing them.
+  await page.addInitScript(() => {
+    ;(window as any).notes = 0
+    const Real = window.AudioContext
+    window.AudioContext = class extends Real {
+      createOscillator() {
+        const tone = super.createOscillator()
+        const start = tone.start.bind(tone)
+        tone.start = (when?: number) => {
+          ;(window as any).notes++
+          start(when)
+        }
+        return tone
+      }
+    }
+  })
+  await connect(page)
+  await openSettings(page, 'Geral')
+  await page.getByRole('switch', { name: 'Tocar um som quando a resposta terminar' }).click()
+  // Turning it on plays it once, as a sample.
+  expect(await page.evaluate(() => (window as any).notes)).toBe(2)
+
+  await settingsSection(page, 'Atalhos')
+  await page.getByRole('button', { name: 'Atalho de Nova conversa', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Atalho de Nova conversa', exact: true })).toHaveText('Pressione as teclas…')
+  await page.keyboard.press('Control+Shift+O')
+  await expect(page.getByRole('button', { name: 'Atalho de Nova conversa', exact: true })).toHaveText('Ctrl+Shift+O')
+  // A shortcut taken from another action leaves that one without it.
+  await page.getByRole('button', { name: 'Atalho de Nova conversa temporária' }).click()
+  await page.keyboard.press('Control+K')
+  await expect(page.getByRole('status')).toHaveText('Ctrl+K deixou de abrir "Paleta de comandos".')
+  await expect(page.getByRole('button', { name: 'Atalho de Paleta de comandos' })).toHaveText('Nenhum')
+  await closeSettings(page)
+
+  await send(page, 'que horas são?')
+  await expect(reply(page)).toContainText('Resposta 1.')
+  await expect(page.locator('.message.user .message-time')).toHaveText(/^\d{2}:\d{2}$/)
+  await expect(reply(page).locator('.message-time')).toHaveText(/^\d{2}:\d{2}$/)
+  expect(await page.evaluate(() => (window as any).notes)).toBe(4)
+
+  // Alt+N no longer starts a chat; the new keys do.
+  await page.keyboard.press('Alt+N')
+  await expect(reply(page)).toBeVisible()
+  await page.keyboard.press('Control+Shift+O')
+  await expect(page.getByRole('heading', { name: 'No que vamos trabalhar?' })).toBeVisible()
+  await page.keyboard.press('Control+K')
+  await expect(page.locator('.temporary-note')).toBeVisible()
+})
+
 test('keeps a temporary chat out of the history and drops it on leaving', async ({ page }) => {
   await connect(page)
   await page.getByRole('button', { name: 'Biblioteca' }).click()
