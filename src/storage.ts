@@ -43,6 +43,7 @@ export function defaultSettings(): Settings {
     autoTitle: true,
     previewHint: true,
     showThinking: true,
+    promptCache: true,
     titleModel: '',
   }
 }

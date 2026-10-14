@@ -260,6 +260,12 @@ export const en: Record<string, string> = {
   'Apagar todas as conversas, chaves de API e configurações deste navegador?':
     'Delete every chat, API key and setting from this browser?',
 
+  // Prompt cache
+  'Cache de prompt (Anthropic)': 'Prompt cache (Anthropic)',
+  'A Anthropic guarda a conversa por alguns minutos e cobra cerca de 10% do preço pela parte já enviada. A gravação no cache custa 25% a mais, então só não compensa em conversas de uma pergunta.':
+    'Anthropic keeps the conversation for a few minutes and charges about 10% of the price for the part already sent. Writing to the cache costs 25% more, so it only fails to pay off in one-question chats.',
+  '{input} entrada ({cached} do cache) · {output} saída': '{input} in ({cached} cached) · {output} out',
+
   // Reasoning
   Raciocínio: 'Reasoning',
   'Mostrar o raciocínio do modelo': "Show the model's reasoning",

@@ -498,6 +498,7 @@ export default function App() {
           webSearch: settings.webSearch && !!via.webTools,
           webFetch: settings.webFetch && via.webTools === 'anthropic',
           showThinking: settings.showThinking,
+          promptCache: settings.promptCache,
           async runTool(call) {
             if (!toolset) throw new Error(`No tool named ${call.name}.`)
             if (!toolset.autoApprove(call.name)) {

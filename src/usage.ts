@@ -12,6 +12,7 @@ export function modelInfo(settings: Settings, providerId: string, model: string)
     context: reported.context ?? known.context,
     inputPrice: reported.inputPrice ?? known.inputPrice,
     outputPrice: reported.outputPrice ?? known.outputPrice,
+    cacheReadPrice: reported.inputPrice === undefined ? known.cacheReadPrice : undefined,
     // Only applies to the built-in prices it was listed with.
     longPrompt:
       reported.inputPrice === undefined && reported.outputPrice === undefined
@@ -26,7 +27,13 @@ export function costOf(usage: Usage, info: ModelInfo): number | undefined {
   const long = info.longPrompt && usage.input > info.longPrompt.above ? info.longPrompt : undefined
   const inputPrice = long?.inputPrice ?? info.inputPrice
   const outputPrice = long?.outputPrice ?? info.outputPrice
-  return (usage.input * inputPrice + usage.output * outputPrice) / 1_000_000
+  // Writing to the cache costs a quarter more than plain input; reading from
+  // it, a tenth of the price unless the model's rate is known.
+  const read = usage.cacheRead ?? 0
+  const write = usage.cacheWrite ?? 0
+  const readPrice = (!long && info.cacheReadPrice) || inputPrice / 10
+  const input = (usage.input - read - write) * inputPrice + write * inputPrice * 1.25 + read * readPrice
+  return (input + usage.output * outputPrice) / 1_000_000
 }
 
 export interface Totals {

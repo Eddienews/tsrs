@@ -50,3 +50,11 @@ describe('usage', () => {
     expect(contextUse([], { context: 1000 })).toBeUndefined()
   })
 })
+
+it('prices cache reads and writes apart from plain input', () => {
+  // 1M plain + 1M written + 1M read at $2 input: 2 + 2.5 + 0.2, plus 1M output at $10.
+  const usage = { input: 3_000_000, output: 1_000_000, cacheWrite: 1_000_000, cacheRead: 1_000_000 }
+  expect(costOf(usage, { inputPrice: 2, outputPrice: 10 })).toBeCloseTo(14.7)
+  // A known cache price replaces the tenth.
+  expect(costOf(usage, { inputPrice: 2, outputPrice: 10, cacheReadPrice: 0.5 })).toBeCloseTo(15)
+})

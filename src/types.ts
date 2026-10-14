@@ -14,6 +14,10 @@ export interface Attachment {
 export interface Usage {
   input: number
   output: number
+  // Part of `input` read from or written to the provider's prompt cache,
+  // which is billed at a different rate.
+  cacheRead?: number
+  cacheWrite?: number
   // US dollars, when the provider reports it or the model's price is known.
   cost?: number
   // Tokens the conversation occupies after this reply. Set when the reply
@@ -160,6 +164,8 @@ export interface ModelInfo {
   // US dollars per million tokens.
   inputPrice?: number
   outputPrice?: number
+  // Price of input read from the prompt cache; a tenth of `inputPrice` when unset.
+  cacheReadPrice?: number
   // Rate card that replaces the prices above when the prompt is longer than
   // `above` tokens.
   longPrompt?: { above: number; inputPrice: number; outputPrice: number }
@@ -203,6 +209,8 @@ export interface Settings {
   webSearch: boolean
   webFetch: boolean
   autoTitle: boolean
+  // Let Anthropic cache the conversation so that resending it costs less.
+  promptCache: boolean
   // Show the model's reasoning, asking for it where the provider needs that.
   showThinking: boolean
   // Tell the model that code blocks can be opened in the preview panel.

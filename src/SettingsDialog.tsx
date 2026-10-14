@@ -295,6 +295,21 @@ export default function SettingsDialog(props: Props) {
                 </div>
                 <div className="space-y-1.5">
                   <label className="flex items-center justify-between gap-4 rounded-md border p-3 text-sm">
+                    {t('Cache de prompt (Anthropic)')}
+                    <Switch
+                      aria-label={t('Cache de prompt (Anthropic)')}
+                      checked={settings.promptCache}
+                      onCheckedChange={(promptCache) => onChange((s) => ({ ...s, promptCache }))}
+                    />
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    {t(
+                      'A Anthropic guarda a conversa por alguns minutos e cobra cerca de 10% do preço pela parte já enviada. A gravação no cache custa 25% a mais, então só não compensa em conversas de uma pergunta.',
+                    )}
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="flex items-center justify-between gap-4 rounded-md border p-3 text-sm">
                     {t('Mostrar o raciocínio do modelo')}
                     <Switch
                       aria-label={t('Mostrar o raciocínio do modelo')}

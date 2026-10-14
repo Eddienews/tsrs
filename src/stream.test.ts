@@ -153,8 +153,24 @@ describe('streamChat, Anthropic format', () => {
       { type: 'thinking', text: 'x' },
       { type: 'text', text: 'oi' },
       { type: 'truncated' },
-      { type: 'usage', usage: { input: 12, output: 4 } },
+      { type: 'usage', usage: { input: 12, output: 4, cacheRead: 5 } },
     ])
+  })
+
+  it('turns on automatic prompt caching and reports cached tokens', async () => {
+    const fetch = stubFetch(
+      sse([
+        'data: {"type":"message_start","message":{"usage":{"input_tokens":10,"cache_creation_input_tokens":200,"cache_read_input_tokens":3000}}}\n\n',
+        'data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":5}}\n\n',
+      ]),
+    )
+    expect(await collect(request('anthropic', { promptCache: true }))).toEqual([
+      { type: 'usage', usage: { input: 3210, output: 5, cacheRead: 3000, cacheWrite: 200 } },
+    ])
+    expect(sentBody(fetch).cache_control).toEqual({ type: 'ephemeral' })
+    const plain = stubFetch(sse([]))
+    await collect(request('anthropic'))
+    expect(sentBody(plain)).not.toHaveProperty('cache_control')
   })
 
   it('sends effort in output_config and never sends temperature', async () => {
@@ -427,6 +443,13 @@ describe('errors', () => {
 })
 
 describe('listModels', () => {
+  it('offers the known models of a provider without a list endpoint', async () => {
+    const fetch = stubFetch(new Error('should not be called'))
+    const list = await listModels({ provider: getProvider('perplexity'), baseUrl: 'x', apiKey: 'k' })
+    expect(list.ids).toContain('sonar')
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
   it('normalizes ids, limits and prices', async () => {
     stubFetch(
       Response.json({
