@@ -31,5 +31,7 @@ export default defineConfig({
     // The cached transform of i18n.test.ts keeps an old list of source files
     // (import.meta.glob), so a new file's strings looked unused.
     fsModuleCache: false,
+    // Slow machines running every file at once took longer than the default 5 s.
+    testTimeout: 15_000,
   },
 })

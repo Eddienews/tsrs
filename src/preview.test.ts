@@ -5,6 +5,7 @@ import {
   normalizeUrl,
   previewDocument,
   previewable,
+  urlSandbox,
   withPreviewHint,
 } from './preview'
 
@@ -71,4 +72,11 @@ test('builds React and Mermaid documents that load pinned libraries', () => {
   expect(mermaid).toMatch(/mermaid@\d+\.\d+\.\d+/)
   expect(artifactName('tsx', 1)).toBe('preview-1.tsx')
   expect(artifactName('mermaid', 2)).toBe('preview-2.mmd')
+})
+
+test('pages of the app\'s own origin lose their origin in the preview', () => {
+  const app = 'https://eddie.github.io'
+  expect(urlSandbox('https://eddie.github.io/outra/', app)).not.toContain('allow-same-origin')
+  expect(urlSandbox('https://example.com/', app)).toContain('allow-same-origin')
+  expect(urlSandbox('nope', app)).not.toContain('allow-same-origin')
 })
