@@ -137,6 +137,10 @@ export interface ChatMeta {
   // Kept only in memory: never stored, synced or listed, and gone once the
   // user leaves it.
   temporary?: boolean
+  // Free words to find and group conversations by.
+  tags?: string[]
+  // Kept out of the main lists, in a section of its own; still searchable.
+  archived?: boolean
 }
 
 export interface Chat extends ChatMeta {

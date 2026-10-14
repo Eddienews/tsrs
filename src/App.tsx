@@ -1644,17 +1644,26 @@ export default function App() {
     }
   }
 
-  async function removeChat(chat: ChatMeta) {
-    if (!confirm(t('Excluir a conversa "{title}"?', { title: chat.title }))) return
-    if (chat.id === activeId) {
+  async function removeChats(chats: ChatMeta[]) {
+    if (!chats.length) return
+    const question =
+      chats.length === 1
+        ? t('Excluir a conversa "{title}"?', { title: chats[0].title })
+        : t('Excluir {count} conversas?', { count: chats.length })
+    if (!confirm(question)) return
+    const ids = new Set(chats.map((c) => c.id))
+    if (activeId && ids.has(activeId)) {
       abortRef.current?.abort()
       setActiveId(null)
     }
-    commitMetas(metasRef.current.filter((c) => c.id !== chat.id))
-    tombstone(chat.id)
-    const { [chat.id]: _removed, ...rest } = threadsRef.current
+    commitMetas(metasRef.current.filter((c) => !ids.has(c.id)))
+    const rest = { ...threadsRef.current }
+    for (const id of ids) {
+      tombstone(id)
+      delete rest[id]
+    }
     commitThreads(rest)
-    await deleteChat(chat.id)
+    await Promise.all([...ids].map(deleteChat))
   }
 
   function removeFolder(folder: Folder) {
@@ -1778,7 +1787,7 @@ export default function App() {
       theme={settings.appearance.theme}
       onSelect={selectChat}
       onUpdateChat={updateChat}
-      onDeleteChat={removeChat}
+      onDeleteChats={removeChats}
       onExportChat={exportChat}
       onExportHtml={exportChatHtml}
       onSearch={searchThreads}

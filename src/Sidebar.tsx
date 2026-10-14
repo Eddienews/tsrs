@@ -1,4 +1,6 @@
 import {
+  Archive,
+  ArchiveRestore,
   BarChart3,
   ChevronRight,
   Download,
@@ -8,6 +10,7 @@ import {
   FolderOutput,
   FolderPlus,
   Library,
+  ListChecks,
   Moon,
   MoreHorizontal,
   Pencil,
@@ -17,8 +20,10 @@ import {
   Search,
   Settings as SettingsIcon,
   Sun,
+  Tag,
   Trash2,
   Wrench,
+  X,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -32,6 +37,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { t } from './i18n'
+import { allTags, hasTag, parseTags, withTag } from './tags'
 import type { ChatMeta, Folder } from './types'
 
 const SEARCH_DELAY_MS = 200
@@ -43,7 +49,8 @@ interface Props {
   theme: 'light' | 'dark'
   onSelect: (id: string | null) => void
   onUpdateChat: (id: string, patch: Partial<ChatMeta>) => void
-  onDeleteChat: (chat: ChatMeta) => void
+  // Asks for confirmation once, then deletes them all.
+  onDeleteChats: (chats: ChatMeta[]) => void
   onExportChat: (chat: ChatMeta) => void
   onExportHtml: (chat: ChatMeta) => void
   // Ids of the conversations whose messages contain the (lowercase) text.
@@ -80,6 +87,11 @@ export default function Sidebar(props: Props) {
   // Id of the chat or folder being renamed, or 'new' for a folder being created.
   const [naming, setNaming] = useState<string | null>(null)
   const [closed, setClosed] = useState<Set<string>>(new Set())
+  // Choosing several conversations to act on at once.
+  const [selecting, setSelecting] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [tagFilter, setTagFilter] = useState<string | null>(null)
+  const [showArchived, setShowArchived] = useState(false)
 
   const sorted = useMemo(() => [...chats].sort((a, b) => b.updatedAt - a.updatedAt), [chats])
   const needle = query.trim().toLowerCase()
@@ -99,13 +111,44 @@ export default function Sidebar(props: Props) {
       clearTimeout(timer)
     }
   }, [needle, onSearch])
-  const results = needle
-    ? sorted.filter((c) => c.title.toLowerCase().includes(needle) || contentHits.has(c.id))
+  const tags = useMemo(() => allTags(chats), [chats])
+  // A tag no conversation has any more filters nothing.
+  const filter = tagFilter && tags.some((x) => x.toLowerCase() === tagFilter.toLowerCase())
+    ? tagFilter
+    : null
+  // Searching and filtering by tag both reach archived conversations too.
+  const results = needle || filter
+    ? sorted.filter(
+        (c) =>
+          (!needle || c.title.toLowerCase().includes(needle) || contentHits.has(c.id)) &&
+          (!filter || hasTag(c, filter)),
+      )
     : []
 
   const folderIds = new Set(folders.map((f) => f.id))
-  const pinned = sorted.filter((c) => c.pinned)
-  const loose = sorted.filter((c) => !c.pinned && !(c.folderId && folderIds.has(c.folderId)))
+  const current = sorted.filter((c) => !c.archived)
+  const archived = sorted.filter((c) => c.archived)
+  const pinned = current.filter((c) => c.pinned)
+  const loose = current.filter((c) => !c.pinned && !(c.folderId && folderIds.has(c.folderId)))
+  const chosen = sorted.filter((c) => selected.has(c.id))
+
+  function toggleSelected(id: string) {
+    const next = new Set(selected)
+    if (!next.delete(id)) next.add(id)
+    setSelected(next)
+  }
+
+  function stopSelecting() {
+    setSelecting(false)
+    setSelected(new Set())
+    setNaming(null)
+  }
+
+  // Changes every chosen conversation, then leaves selection mode.
+  function updateChosen(patch: (chat: ChatMeta) => Partial<ChatMeta>) {
+    for (const chat of chosen) props.onUpdateChat(chat.id, patch(chat))
+    stopSelecting()
+  }
 
   function toggleFolder(id: string) {
     const next = new Set(closed)
@@ -122,6 +165,15 @@ export default function Sidebar(props: Props) {
           chat.id === activeId && 'bg-sidebar-accent',
         )}
       >
+        {selecting && (
+          <input
+            type="checkbox"
+            className="ml-2 size-3.5 shrink-0 accent-primary"
+            aria-label={t('Selecionar "{title}"', { title: chat.title })}
+            checked={selected.has(chat.id)}
+            onChange={() => toggleSelected(chat.id)}
+          />
+        )}
         {naming === chat.id ? (
           <NameField
             label={t('Novo título da conversa:')}
@@ -131,77 +183,108 @@ export default function Sidebar(props: Props) {
               setNaming(null)
             }}
           />
+        ) : naming === `tags:${chat.id}` ? (
+          <NameField
+            label={t('Etiquetas, separadas por vírgula:')}
+            initial={(chat.tags ?? []).join(', ')}
+            onDone={(text) => {
+              props.onUpdateChat(chat.id, { tags: parseTags(text ?? '') })
+              setNaming(null)
+            }}
+          />
         ) : (
           <button
             className="min-w-0 flex-1 px-2 py-1.5 text-left"
-            onClick={() => props.onSelect(chat.id)}
+            onClick={() => (selecting ? toggleSelected(chat.id) : props.onSelect(chat.id))}
           >
-            <div className="truncate text-sm">{chat.title}</div>
-            <div className="truncate font-mono text-[10.5px] text-muted-foreground">{chat.model}</div>
+            <div className="flex items-center gap-1 truncate text-sm">
+              {chat.archived && (
+                <Archive className="size-3 shrink-0 text-muted-foreground" aria-label={t('Arquivada')} />
+              )}
+              <span className="truncate">{chat.title}</span>
+            </div>
+            <div className="flex items-center gap-1 truncate font-mono text-[10.5px] text-muted-foreground">
+              <span className="truncate">{chat.model}</span>
+              {chat.tags?.map((tag) => (
+                <span key={tag} className="chat-tag shrink-0 rounded bg-surface-2 px-1">
+                  #{tag}
+                </span>
+              ))}
+            </div>
           </button>
         )}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={t('Opções')}
-              title={t('Opções')}
-              className="mr-1 size-6 shrink-0 opacity-0 focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
-            >
-              <MoreHorizontal className="size-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" onCloseAutoFocus={(e) => e.preventDefault()}>
-            <DropdownMenuItem onSelect={() => setNaming(chat.id)}>
-              <Pencil />
-              {t('Renomear')}
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => props.onUpdateChat(chat.id, { pinned: !chat.pinned })}>
-              {chat.pinned ? <PinOff /> : <Pin />}
-              {chat.pinned ? t('Desafixar') : t('Fixar')}
-            </DropdownMenuItem>
-            {folders
-              .filter((f) => f.id !== chat.folderId)
-              .map((f) => (
-                <DropdownMenuItem
-                  key={f.id}
-                  onSelect={() => props.onUpdateChat(chat.id, { folderId: f.id })}
-                >
-                  <FolderInput />
-                  {t('Mover para “{name}”', { name: f.name })}
-                </DropdownMenuItem>
-              ))}
-            {chat.folderId && folderIds.has(chat.folderId) && (
-              <DropdownMenuItem onSelect={() => props.onUpdateChat(chat.id, { folderId: undefined })}>
-                <FolderOutput />
-                {t('Tirar da pasta')}
+        {!selecting && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={t('Opções')}
+                title={t('Opções')}
+                className="mr-1 size-6 shrink-0 opacity-0 focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
+              >
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" onCloseAutoFocus={(e) => e.preventDefault()}>
+              <DropdownMenuItem onSelect={() => setNaming(chat.id)}>
+                <Pencil />
+                {t('Renomear')}
               </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onSelect={() => props.onExportChat(chat)}>
-              <Download />
-              {t('Exportar Markdown')}
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => props.onExportHtml(chat)}>
-              <FileCode />
-              {t('Exportar HTML')}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              onSelect={() => props.onDeleteChat(chat)}
-            >
-              <Trash2 />
-              {t('Excluir')}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <DropdownMenuItem onSelect={() => props.onUpdateChat(chat.id, { pinned: !chat.pinned })}>
+                {chat.pinned ? <PinOff /> : <Pin />}
+                {chat.pinned ? t('Desafixar') : t('Fixar')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setNaming(`tags:${chat.id}`)}>
+                <Tag />
+                {t('Etiquetas')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => props.onUpdateChat(chat.id, { archived: !chat.archived })}>
+                {chat.archived ? <ArchiveRestore /> : <Archive />}
+                {chat.archived ? t('Desarquivar') : t('Arquivar')}
+              </DropdownMenuItem>
+              {folders
+                .filter((f) => f.id !== chat.folderId)
+                .map((f) => (
+                  <DropdownMenuItem
+                    key={f.id}
+                    onSelect={() => props.onUpdateChat(chat.id, { folderId: f.id })}
+                  >
+                    <FolderInput />
+                    {t('Mover para “{name}”', { name: f.name })}
+                  </DropdownMenuItem>
+                ))}
+              {chat.folderId && folderIds.has(chat.folderId) && (
+                <DropdownMenuItem onSelect={() => props.onUpdateChat(chat.id, { folderId: undefined })}>
+                  <FolderOutput />
+                  {t('Tirar da pasta')}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onSelect={() => props.onExportChat(chat)}>
+                <Download />
+                {t('Exportar Markdown')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => props.onExportHtml(chat)}>
+                <FileCode />
+                {t('Exportar HTML')}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onSelect={() => props.onDeleteChats([chat])}
+              >
+                <Trash2 />
+                {t('Excluir')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
     )
   }
 
   function folderRow(folder: Folder) {
-    const items = sorted.filter((c) => !c.pinned && c.folderId === folder.id)
+    const items = current.filter((c) => !c.pinned && c.folderId === folder.id)
     const open = !closed.has(folder.id)
     return (
       <div key={folder.id} data-folder={folder.id}>
@@ -292,6 +375,17 @@ export default function Sidebar(props: Props) {
           >
             <FolderPlus className="size-4" />
           </Button>
+          <Button
+            variant={selecting ? 'secondary' : 'outline'}
+            size="icon"
+            aria-label={t('Selecionar conversas')}
+            title={t('Selecionar conversas')}
+            aria-pressed={selecting}
+            disabled={!chats.length}
+            onClick={() => (selecting ? stopSelecting() : setSelecting(true))}
+          >
+            <ListChecks className="size-4" />
+          </Button>
         </div>
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -304,15 +398,137 @@ export default function Sidebar(props: Props) {
             className="h-8 pl-8 text-sm"
           />
         </div>
+        {tags.length > 0 && (
+          <div className="tag-filter flex flex-wrap gap-1" aria-label={t('Filtrar por etiqueta')}>
+            {tags.map((tag) => {
+              const on = filter?.toLowerCase() === tag.toLowerCase()
+              return (
+                <button
+                  key={tag}
+                  aria-pressed={on}
+                  className={cn(
+                    'rounded border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground hover:bg-sidebar-accent',
+                    on && 'border-primary bg-primary/10 text-foreground',
+                  )}
+                  onClick={() => setTagFilter(on ? null : tag)}
+                >
+                  #{tag}
+                </button>
+              )
+            })}
+          </div>
+        )}
+        {selecting && (
+          <div className="bulk space-y-1.5 rounded-md border bg-card p-2">
+            <div className="flex items-center gap-1">
+              <span className="flex-1 text-xs text-muted-foreground">
+                {chosen.length === 1
+                  ? t('1 selecionada')
+                  : t('{count} selecionadas', { count: chosen.length })}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-6"
+                aria-label={t('Cancelar a seleção')}
+                title={t('Cancelar a seleção')}
+                onClick={stopSelecting}
+              >
+                <X className="size-3.5" />
+              </Button>
+            </div>
+            {naming === 'bulk-tag' ? (
+              <NameField
+                label={t('Etiqueta para acrescentar:')}
+                onDone={(text) => {
+                  const [tag] = parseTags(text ?? '')
+                  if (tag) updateChosen((chat) => ({ tags: withTag(chat, tag) }))
+                  else setNaming(null)
+                }}
+              />
+            ) : (
+              <div className="flex flex-wrap gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1 px-2 text-xs"
+                  disabled={!chosen.length}
+                  onClick={() => {
+                    // Restores when every chosen one is archived, else archives.
+                    const archive = !chosen.every((c) => c.archived)
+                    updateChosen(() => ({ archived: archive }))
+                  }}
+                >
+                  {chosen.length && chosen.every((c) => c.archived) ? (
+                    <ArchiveRestore className="size-3.5" />
+                  ) : (
+                    <Archive className="size-3.5" />
+                  )}
+                  {chosen.length && chosen.every((c) => c.archived) ? t('Desarquivar') : t('Arquivar')}
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 gap-1 px-2 text-xs"
+                      disabled={!chosen.length}
+                    >
+                      <FolderInput className="size-3.5" />
+                      {t('Mover')}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    {folders.map((f) => (
+                      <DropdownMenuItem key={f.id} onSelect={() => updateChosen(() => ({ folderId: f.id }))}>
+                        <FolderInput />
+                        {t('Mover para “{name}”', { name: f.name })}
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuItem onSelect={() => updateChosen(() => ({ folderId: undefined }))}>
+                      <FolderOutput />
+                      {t('Tirar da pasta')}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1 px-2 text-xs"
+                  disabled={!chosen.length}
+                  onClick={() => setNaming('bulk-tag')}
+                >
+                  <Tag className="size-3.5" />
+                  {t('Etiquetar')}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1 px-2 text-xs text-destructive"
+                  disabled={!chosen.length}
+                  onClick={() => {
+                    props.onDeleteChats(chosen)
+                    stopSelecting()
+                  }}
+                >
+                  <Trash2 className="size-3.5" />
+                  {t('Excluir')}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <nav className="flex-1 space-y-4 overflow-y-auto px-2 py-2">
-        {needle ? (
+        {needle || filter ? (
           <section>
             <h4 className={heading}>
-              {results.length === 1
-                ? t('{count} resultado', { count: results.length })
-                : t('{count} resultados', { count: results.length })}
+              {filter && !needle
+                ? t('#{tag} · {count}', { tag: filter, count: results.length })
+                : results.length === 1
+                  ? t('{count} resultado', { count: results.length })
+                  : t('{count} resultados', { count: results.length })}
             </h4>
             {results.map(row)}
           </section>
@@ -343,6 +559,19 @@ export default function Sidebar(props: Props) {
               <section>
                 <h4 className={heading}>{t('Conversas')}</h4>
                 {loose.map(row)}
+              </section>
+            )}
+            {archived.length > 0 && (
+              <section className="archived">
+                <button
+                  className={cn(heading, 'flex w-full items-center gap-1 hover:text-foreground')}
+                  aria-expanded={showArchived}
+                  onClick={() => setShowArchived(!showArchived)}
+                >
+                  <ChevronRight className={cn('size-3 transition-transform', showArchived && 'rotate-90')} />
+                  {t('Arquivadas ({count})', { count: archived.length })}
+                </button>
+                {showArchived && archived.map(row)}
               </section>
             )}
             {chats.length === 0 && (

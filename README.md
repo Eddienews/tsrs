@@ -81,7 +81,9 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
   (pode ser desligado em Configurações → Geral).
 - Tema claro e escuro, cor de destaque, tamanho da fonte e densidade.
 - Anexos: imagens e PDFs (colar, arrastar ou escolher) e arquivos de texto.
-- Conversas com busca, pastas, fixar, renomear e título gerado automaticamente.
+- Conversas com busca, pastas, etiquetas, arquivo, fixar, renomear e título
+  gerado automaticamente; várias de uma vez podem ser arquivadas, movidas,
+  etiquetadas ou excluídas.
 - Parâmetros por conversa: prompt de sistema, temperatura, máximo de tokens e
   nível de raciocínio.
 - Exportar uma conversa em Markdown; backup e restauração de tudo em JSON
