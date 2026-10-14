@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
+import vendas from '../e2e/fixtures/vendas.xlsx?inline'
 import { buildBackup, chatToMarkdown, fileName, parseBackup, readAttachment } from './files'
 import type { Chat } from './types'
+
+// The sample workbook's bytes, imported by Vite as a data URL.
+function fixture(): Uint8Array<ArrayBuffer> {
+  const binary = atob(vendas.split(',')[1])
+  return Uint8Array.from(binary, (c) => c.charCodeAt(0))
+}
 
 const chat: Chat = {
   id: 'c1',
@@ -76,6 +83,14 @@ describe('readAttachment', () => {
     expect(pdf.kind).toBe('pdf')
     const text = await readAttachment(new File(['olá'], 'a.md'))
     expect(text).toMatchObject({ kind: 'text', data: 'olá', mime: 'text/plain' })
+  })
+
+  it('reads Excel workbooks as CSV and refuses older spreadsheet formats', async () => {
+    const xlsx = new File([fixture()], 'vendas.xlsx')
+    const sheet = await readAttachment(xlsx)
+    expect(sheet).toMatchObject({ kind: 'text', mime: 'text/csv', name: 'vendas.xlsx' })
+    expect(sheet.data).toContain('"Café, torrado",2026-10-14,3,0.1,0.3,1')
+    await expect(readAttachment(new File(['x'], 'antiga.xls'))).rejects.toThrow('Salve como .xlsx ou CSV')
   })
 
   it('rejects other binary files', async () => {

@@ -120,7 +120,7 @@ function BaseCard(props: KnowledgeProps & { base: KnowledgeBase }) {
           {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
           {busy ? t('Lendo os arquivos…') : t('Adicionar documentos')}
         </Button>
-        <span className={hint}>{t('PDF, texto, Markdown, HTML, CSV, código…')}</span>
+        <span className={hint}>{t('PDF, planilhas Excel, texto, Markdown, HTML, CSV, código…')}</span>
         <input
           ref={fileRef}
           type="file"

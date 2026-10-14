@@ -80,7 +80,9 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
 - O modelo é avisado, por uma nota no prompt de sistema, de que o preview existe
   (pode ser desligado em Configurações → Geral).
 - Tema claro e escuro, cor de destaque, tamanho da fonte e densidade.
-- Anexos: imagens e PDFs (colar, arrastar ou escolher) e arquivos de texto.
+- Anexos: imagens e PDFs (colar, arrastar ou escolher), arquivos de texto e
+  planilhas do Excel (.xlsx), lidas no navegador e enviadas como CSV, uma por
+  aba, com datas e resultados de fórmulas como o Excel mostra.
 - Conversas com busca, pastas, etiquetas, arquivo, fixar, renomear e título
   gerado automaticamente; várias de uma vez podem ser arquivadas, movidas,
   etiquetadas ou excluídas.
@@ -145,6 +147,7 @@ cabeçalhos (com `{apiKey}` como placeholder) e o formato da API (`openai` ou
 | `src/knowledge.ts`       | Trechos e busca (palavras e sentido) da base de conhecimento |
 | `src/embeddings.ts`      | Vetores dos trechos e das perguntas, pelo provedor          |
 | `src/extract.ts`         | Texto de PDFs (pdf.js), HTML e arquivos de texto            |
+| `src/spreadsheet.ts`     | Leitura de planilhas .xlsx (abertas com fflate)             |
 | `src/KnowledgeTab.tsx`   | Bases de conhecimento na Biblioteca                         |
 | `src/canvas.ts`          | Ferramentas e texto do canvas                               |
 | `src/CanvasPanel.tsx`    | Painel do canvas                                            |

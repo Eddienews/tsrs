@@ -491,7 +491,8 @@ export const en: Record<string, string> = {
   'Os trechos que mais combinam com cada pergunta vão junto com ela.':
     'The passages that best match each question go with it.',
   'Pasta: {name}': 'Folder: {name}',
-  'PDF, texto, Markdown, HTML, CSV, código…': 'PDF, text, Markdown, HTML, CSV, code…',
+  'PDF, planilhas Excel, texto, Markdown, HTML, CSV, código…':
+    'PDF, Excel spreadsheets, text, Markdown, HTML, CSV, code…',
   'Peça uma mudança (selecione um trecho para mudar só ele)':
     'Ask for a change (select a passage to change only that)',
   'Pedir': 'Ask',
@@ -606,4 +607,9 @@ export const en: Record<string, string> = {
   'Etiquetar': 'Tag',
   '#{tag} · {count}': '#{tag} · {count}',
   'Arquivadas ({count})': 'Archived ({count})',
+  // Spreadsheets
+  'O arquivo não é uma planilha .xlsx válida.': 'The file is not a valid .xlsx spreadsheet.',
+  '"{name}" não tem nenhuma célula preenchida.': '"{name}" has no filled-in cells.',
+  '"{name}" é uma planilha num formato que o TSRS não lê. Salve como .xlsx ou CSV.':
+    '"{name}" is a spreadsheet in a format TSRS cannot read. Save it as .xlsx or CSV.',
 }
