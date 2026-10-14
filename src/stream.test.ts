@@ -108,6 +108,28 @@ describe('streamChat, OpenAI format', () => {
     ])
   })
 
+  it('reads cached input and cited sources', async () => {
+    stubFetch(
+      sse([
+        'data: {"search_results":[{"title":"A","url":"https://a.test"}],"choices":[{"delta":{"content":"x"}}]}\n\n',
+        'data: {"search_results":[{"title":"A","url":"https://a.test"}],"citations":["https://a.test"],"choices":[{"delta":{"annotations":[{"type":"url_citation","url_citation":{"url":"https://b.test","title":"B"}}]}}]}\n\n',
+        'data: {"choices":[],"usage":{"prompt_tokens":100,"completion_tokens":2,"prompt_tokens_details":{"cached_tokens":64}}}\n\n',
+      ]),
+    )
+    expect(await collect(request('perplexity'))).toEqual([
+      { type: 'text', text: 'x' },
+      { type: 'sources', sources: [{ url: 'https://a.test', title: 'A' }] },
+      {
+        type: 'sources',
+        sources: [
+          { url: 'https://a.test', title: 'A' },
+          { url: 'https://b.test', title: 'B' },
+        ],
+      },
+      { type: 'usage', usage: { input: 100, output: 2, cacheRead: 64 } },
+    ])
+  })
+
   it('omits the auth header for keyless providers', async () => {
     const fetch = stubFetch(sse(['data: [DONE]\n\n']))
     await collect(request('ollama', { apiKey: '' }))

@@ -23,18 +23,15 @@ cada seção é a ordem sugerida.
 - [x] Apagar tudo
 - [x] Cache de prompt automático na Anthropic, com custo calculado à parte
 - [x] Mais provedores: DeepSeek, Mistral, xAI, Groq, Perplexity, LM Studio e Command Code
-
-## Próximos: rápidos
-
-- [ ] Ramificar a conversa ("fork") a partir de uma mensagem
-- [ ] Fixar mensagens dentro da conversa
-- [ ] Ler a resposta em voz alta (voz do sistema, sem internet)
-- [ ] Ditar a mensagem (Whisper da OpenAI ou reconhecimento do navegador)
-- [ ] Exportar a conversa como um arquivo HTML único
-- [ ] Mostrar as fontes que o Perplexity devolve junto com a resposta
-- [ ] Opção de abrir o preview sozinho quando a resposta trouxer uma página
-- [ ] Contar os tokens de cache dos provedores no formato OpenAI (cada um tem
-      um preço diferente para eles)
+- [x] Ramificar a conversa a partir de uma mensagem
+- [x] Fixar mensagens, com atalhos no topo da conversa
+- [x] Ler a resposta em voz alta (vozes do sistema)
+- [x] Ditar a mensagem (OpenAI, Groq ou reconhecimento do navegador)
+- [x] Exportar a conversa como um arquivo HTML único
+- [x] Fontes citadas pelo Perplexity e pela busca do OpenRouter
+- [x] Opção de abrir o preview sozinho
+- [x] Tokens de cache dos provedores no formato OpenAI (o desconto só entra no
+      custo quando o preço de cache do provedor é conhecido)
 
 ## Próximos: médios
 
@@ -63,6 +60,8 @@ cada seção é a ordem sugerida.
 - [ ] Cache de prompt na Anthropic (conferir "do cache" no rodapé da resposta)
 - [ ] Os provedores novos, incluindo Command Code (CORS verificado; conversa ainda não)
 - [ ] Botão de instalar o app (PWA)
+- [ ] Ditado com a OpenAI ou o Groq e leitura em voz alta (no Linux, o navegador
+      precisa de vozes instaladas, por exemplo pelo speech-dispatcher)
 
 ## Fora do escopo
 

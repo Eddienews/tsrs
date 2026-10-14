@@ -1,8 +1,21 @@
-import { ArrowUp, BookMarked, FileText, FileType2, Paperclip, Square, Upload, X } from 'lucide-react'
+import {
+  ArrowUp,
+  BookMarked,
+  FileText,
+  FileType2,
+  Loader2,
+  Mic,
+  Paperclip,
+  Square,
+  Upload,
+  X,
+} from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { cn } from '@/lib/utils'
+import type { Dictation } from './dictation'
 import { t } from './i18n'
 import { fillPrompt, promptFields } from './prompts'
 import type { Attachment, SavedPrompt } from './types'
@@ -25,6 +38,7 @@ interface Props {
   prompts: SavedPrompt[]
   onInsertPrompt: (text: string) => void
   onManagePrompts: () => void
+  dictation: Dictation
   // Warnings shown above the field.
   children?: ReactNode
 }
@@ -222,11 +236,32 @@ export default function Composer(p: Props) {
               )}
             </PopoverContent>
           </Popover>
+          {p.dictation.available && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                'ml-auto size-8',
+                p.dictation.state === 'recording' && 'animate-pulse text-destructive',
+              )}
+              aria-label={p.dictation.state === 'recording' ? t('Parar o ditado') : t('Ditar')}
+              title={p.dictation.state === 'recording' ? t('Parar o ditado') : t('Ditar')}
+              aria-pressed={p.dictation.state === 'recording'}
+              disabled={p.dictation.state === 'transcribing'}
+              onClick={p.dictation.toggle}
+            >
+              {p.dictation.state === 'transcribing' ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Mic className="size-4" />
+              )}
+            </Button>
+          )}
           {p.streaming ? (
             <Button
               size="icon"
               variant="outline"
-              className="ml-auto size-8"
+              className={cn('size-8', !p.dictation.available && 'ml-auto')}
               aria-label={t('Parar')}
               title={t('Parar')}
               onClick={p.onStop}
@@ -236,7 +271,7 @@ export default function Composer(p: Props) {
           ) : (
             <Button
               size="icon"
-              className="ml-auto size-8"
+              className={cn('size-8', !p.dictation.available && 'ml-auto')}
               aria-label={t('Enviar')}
               title={t('Enviar')}
               disabled={empty || p.blocked}

@@ -238,8 +238,14 @@ export function withPreviewHint(system: string, button: string): string {
 const FENCE = /^(`{3,})([\w-]+)[^\n]*\n([\s\S]*?)\n\1[ \t]*$/gm
 
 // The last code block in `text` that the preview can show.
-export function lastPreviewable(text: string): { lang: string; code: string } | null {
-  const blocks = [...text.matchAll(FENCE)].filter((match) => previewable(match[2]))
+export function lastPreviewable(
+  text: string,
+  // Languages to consider; any previewable one when absent.
+  only?: string[],
+): { lang: string; code: string } | null {
+  const blocks = [...text.matchAll(FENCE)].filter((match) =>
+    only ? only.includes(match[2].toLowerCase()) : previewable(match[2]),
+  )
   const last = blocks.at(-1)
   return last ? { lang: last[2].toLowerCase(), code: last[3] } : null
 }

@@ -26,6 +26,12 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
 
 - Respostas em streaming, com Markdown, realce de sintaxe e botão de copiar.
 - Editar e reenviar uma mensagem, regenerar a resposta e tentar de novo após um erro.
+- Ramificar a conversa a partir de qualquer mensagem e fixar mensagens, que
+  ficam como atalhos no topo da conversa.
+- Ler a resposta em voz alta com as vozes do sistema e ditar a mensagem pela
+  OpenAI, pelo Groq ou pelo reconhecimento de voz do navegador.
+- Fontes citadas pelo Perplexity e pela busca do OpenRouter, listadas abaixo da
+  resposta.
 - Versões: editar ou regenerar guarda a versão anterior da conversa, e as
   setas ‹ › em cada mensagem alternam entre elas.
 - Comparar modelos: até três outros modelos respondem à mesma pergunta ao mesmo
@@ -49,8 +55,8 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
 - Parâmetros por conversa: prompt de sistema, temperatura, máximo de tokens e
   nível de raciocínio.
 - Exportar uma conversa em Markdown; backup e restauração de tudo em JSON
-  (conversas, pastas, personas e prompts; sem as chaves de API); apagar tudo o
-  que o app guardou no navegador.
+  (conversas, pastas, personas e prompts; sem as chaves de API); exportar uma
+  conversa como página HTML; apagar tudo o que o app guardou no navegador.
 - Raciocínio do modelo, recolhido acima da resposta, quando o provedor envia
   (Anthropic a partir dos modelos 4.6, OpenRouter, Ollama, DeepSeek).
 - Tokens e custo estimado por resposta e por conversa, com aviso quando o

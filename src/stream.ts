@@ -6,6 +6,7 @@ import type {
   Part,
   Provider,
   Role,
+  Source,
   ToolPart,
   Usage,
 } from './types'
@@ -65,6 +66,8 @@ export type StreamEvent =
   | { type: 'text'; text: string }
   // Part of the model's reasoning, shown apart from the reply.
   | { type: 'thinking'; text: string }
+  // Pages cited for the reply so far; each event has the whole list.
+  | { type: 'sources'; sources: Source[] }
   // Cumulative over the requests made so far for this reply.
   | { type: 'usage'; usage: Usage }
   | { type: 'truncated' }
@@ -474,8 +477,25 @@ function anthropicTurn(): Turn {
   return turn
 }
 
+// Citations as Perplexity (search_results, or the older citations) and
+// OpenRouter's web search (url_citation annotations) report them.
+function sourcesOf(event: any): Source[] {
+  const found: Source[] = []
+  const add = (url: unknown, title?: unknown) => {
+    if (typeof url === 'string' && url) found.push({ url, ...(title ? { title: String(title) } : {}) })
+  }
+  for (const result of event.search_results ?? []) add(result?.url, result?.title)
+  for (const url of event.citations ?? []) add(url)
+  const choice = event.choices?.[0]
+  for (const note of choice?.delta?.annotations ?? choice?.message?.annotations ?? []) {
+    if (note?.type === 'url_citation') add(note.url_citation?.url, note.url_citation?.title)
+  }
+  return found
+}
+
 function openaiTurn(): Turn {
   let content = ''
+  const sources: Source[] = []
   const calls: { id: string; name: string; args: string }[] = []
   const turn: Turn = {
     usage: { input: 0, output: 0 },
@@ -499,11 +519,26 @@ function openaiTurn(): Turn {
       if (choice?.finish_reason === 'length') events.push({ type: 'truncated' })
       if (choice?.finish_reason === 'tool_calls') turn.stop = 'tools'
       if (event.usage) {
+        // OpenAI and most others report cached input in prompt_tokens_details;
+        // DeepSeek, as prompt_cache_hit_tokens.
+        const cached =
+          event.usage.prompt_tokens_details?.cached_tokens ?? event.usage.prompt_cache_hit_tokens
         turn.usage = {
           input: event.usage.prompt_tokens ?? 0,
           output: event.usage.completion_tokens ?? 0,
+          ...(cached ? { cacheRead: cached } : {}),
           ...(typeof event.usage.cost === 'number' ? { cost: event.usage.cost } : {}),
         }
+      }
+      // Lists may repeat in every chunk or arrive a few at a time.
+      let added = false
+      for (const source of sourcesOf(event)) {
+        if (sources.some((known) => known.url === source.url)) continue
+        sources.push(source)
+        added = true
+      }
+      if (added) {
+        events.push({ type: 'sources', sources: [...sources] })
       }
       return events
     },
@@ -648,6 +683,21 @@ function infoOf(model: any): ModelInfo {
     inputPrice: perMillion(model.pricing?.prompt),
     outputPrice: perMillion(model.pricing?.completion),
   }
+}
+
+// Turns recorded speech into text with the provider's transcription model.
+export async function transcribe(conn: Connection, audio: Blob, language: string): Promise<string> {
+  const form = new FormData()
+  form.append('file', audio, `dictation.${audio.type.includes('ogg') ? 'ogg' : 'webm'}`)
+  form.append('model', conn.provider.transcription ?? '')
+  form.append('language', language)
+  const res = await request(url(conn, '/audio/transcriptions'), {
+    method: 'POST',
+    headers: headers(conn),
+    body: form,
+  })
+  const json = await res.json()
+  return String(json.text ?? '').trim()
 }
 
 export async function listModels(conn: Connection): Promise<ModelList> {

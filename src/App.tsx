@@ -1,9 +1,11 @@
+import { Pin } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useIsMobile } from '@/lib/use-mobile'
 import { applyAppearance } from './appearance'
+import { useDictation } from './dictation'
 import { branchAt, patchMessage, switchVersion, versions, type Branch } from './branches'
 import ChatTopBar from './ChatTopBar'
 import CommandPalette, { type PaletteAction } from './CommandPalette'
@@ -66,6 +68,8 @@ import {
 } from './usage'
 
 const TITLE_LENGTH = 60
+// Code blocks that open the preview by themselves, when that is turned on.
+const AUTO_PREVIEW = ['html', 'svg', 'jsx', 'tsx', 'react', 'mermaid']
 const TITLE_EXCERPT = 1000
 const TITLE_PROMPT =
   'Crie um título curto (no máximo 6 palavras) para a conversa abaixo, no mesmo idioma dela. ' +
@@ -230,6 +234,9 @@ export default function App() {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const provider = getProvider(settings.providerId)
+  const dictation = useDictation(settings, locked, (text) =>
+    setDraft((d) => (d.trim() ? `${d.trimEnd()} ${text}` : text)),
+  )
   const active = metas.find((c) => c.id === activeId) ?? null
   // Undefined while the active conversation's messages are being read.
   const messages = activeId ? threads[activeId] : undefined
@@ -517,6 +524,8 @@ export default function App() {
         for await (const event of stream) {
           if (event.type === 'text') {
             patchReply((m) => withText(m, event.text))
+          } else if (event.type === 'sources') {
+            patchReply((m) => ({ ...m, sources: event.sources }))
           } else if (event.type === 'thinking') {
             if (settings.showThinking) {
               patchReply((m) => ({ ...m, thinking: (m.thinking ?? '') + event.text }))
@@ -571,6 +580,12 @@ export default function App() {
     } finally {
       setStreaming(false)
       persistThread(meta.id)
+    }
+
+    if (completed && !targets && settings.autoPreview) {
+      const reply = threadsRef.current[meta.id]?.find((m) => m.id === first.id)
+      const block = reply && lastPreviewable(reply.content, AUTO_PREVIEW)
+      if (block) latest.current.showArtifact(block.lang, block.code)
     }
 
     if (completed && !targets && settings.autoTitle && history.length === 1) {
@@ -660,6 +675,39 @@ export default function App() {
     generate(meta, thread.slice(0, index), { branch, targets })
   }
 
+  // A new conversation with the current path up to message `id`.
+  function forkChat(id: string) {
+    const meta = findMeta(activeId)
+    const thread = meta && threadsRef.current[meta.id]
+    const index = thread?.findIndex((m) => m.id === id) ?? -1
+    if (!meta || !thread || index < 0) return
+    const now = Date.now()
+    const fork: ChatMeta = {
+      ...meta,
+      id: crypto.randomUUID(),
+      title: t('{title} (ramificação)', { title: meta.title }),
+      createdAt: now,
+      updatedAt: now,
+      pinned: false,
+    }
+    const messages = thread
+      .slice(0, index + 1)
+      .map(({ alts: _alts, altIndex: _altIndex, ...m }) => ({ ...m, id: crypto.randomUUID() }))
+    commitMetas([fork, ...metasRef.current])
+    commitThreads({ ...threadsRef.current, [fork.id]: messages })
+    saveMeta(fork)
+    saveThread(fork.id, messages)
+    selectChat(fork.id)
+  }
+
+  function togglePin(id: string) {
+    if (!activeId || streaming) return
+    patchThread(activeId, (thread) =>
+      thread.map((m) => (m.id === id ? { ...m, pinned: !m.pinned } : m)),
+    )
+    persistThread(activeId)
+  }
+
   function switchTo(id: string, version: number) {
     if (!activeId || streaming) return
     patchThread(activeId, (thread) =>
@@ -691,7 +739,17 @@ export default function App() {
 
   // MessageView is memoized, so it gets callbacks whose identity never changes
   // but which always run the latest edit/regenerate.
-  const actions = { edit, regenerate, switchTo, toggleVersions, showArtifact, selectChat, togglePreview }
+  const actions = {
+    edit,
+    regenerate,
+    switchTo,
+    toggleVersions,
+    showArtifact,
+    selectChat,
+    togglePreview,
+    forkChat,
+    togglePin,
+  }
   const latest = useRef(actions)
   latest.current = actions
   const openPreview = useCallback(
@@ -720,6 +778,8 @@ export default function App() {
   const onRegenerate = useCallback((id: string) => latest.current.regenerate(id), [])
   const onSwitch = useCallback((id: string, v: number) => latest.current.switchTo(id, v), [])
   const onToggleVersions = useCallback((id: string) => latest.current.toggleVersions(id), [])
+  const onFork = useCallback((id: string) => latest.current.forkChat(id), [])
+  const onTogglePin = useCallback((id: string) => latest.current.togglePin(id), [])
   const onApprove = useCallback(
     (callId: string, allowed: boolean) => approvals.current.get(callId)?.(allowed),
     [],
@@ -779,6 +839,12 @@ export default function App() {
     location.reload()
   }
 
+  async function exportChatHtml(chat: ChatMeta) {
+    const thread = threadsRef.current[chat.id] ?? (await loadThread(chat.id))
+    const { chatToHtml } = await import('./exportHtml')
+    download(fileName(chat.title, 'html'), await chatToHtml({ ...chat, messages: thread }), 'text/html')
+  }
+
   async function exportBackup() {
     const date = new Date().toISOString().slice(0, 10)
     download(
@@ -827,6 +893,7 @@ export default function App() {
   }
 
   const last = messages?.at(-1)
+  const pinnedMessages = messages?.filter((m) => m.pinned) ?? []
   const personaId = settings.personas.some((p) => p.id === params.personaId)
     ? (params.personaId ?? '')
     : ''
@@ -845,6 +912,7 @@ export default function App() {
       onUpdateChat={updateChat}
       onDeleteChat={removeChat}
       onExportChat={exportChat}
+      onExportHtml={exportChatHtml}
       onSearch={searchThreads}
       onFoldersChange={(folders) => setSettings((s) => ({ ...s, folders }))}
       onDeleteFolder={removeFolder}
@@ -930,6 +998,29 @@ export default function App() {
             </div>
           </div>
         )}
+        {active && pinnedMessages.length > 0 && (
+          <nav
+            aria-label={t('Mensagens fixadas')}
+            className="pinned sticky top-0 z-10 border-b bg-background/95 px-4 py-1.5 backdrop-blur"
+          >
+            <div className="mx-auto flex max-w-3xl items-center gap-1.5 overflow-x-auto text-xs">
+              <Pin className="size-3.5 shrink-0 text-primary" aria-hidden />
+              {pinnedMessages.map((m) => (
+                <button
+                  key={m.id}
+                  className="max-w-56 shrink-0 truncate rounded border bg-card px-2 py-0.5 hover:bg-accent"
+                  onClick={() =>
+                    document
+                      .getElementById(`message-${m.id}`)
+                      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  }
+                >
+                  {(m.content || m.attachments?.[0]?.name || '').slice(0, 80)}
+                </button>
+              ))}
+            </div>
+          </nav>
+        )}
         {active && (
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6">
             {!messages && <p className="text-sm text-muted-foreground">{t('Carregando…')}</p>}
@@ -952,6 +1043,8 @@ export default function App() {
                   onCompare={setCompareId}
                   onApprove={onApprove}
                   onToggleVersions={onToggleVersions}
+                  onFork={onFork}
+                  onTogglePin={onTogglePin}
                 />
               ))}
             </PreviewContext.Provider>
@@ -974,6 +1067,7 @@ export default function App() {
         prompts={settings.prompts}
         onInsertPrompt={(text) => setDraft((d) => (d.trim() ? `${d}\n${text}` : text))}
         onManagePrompts={() => setShowLibrary(true)}
+        dictation={dictation}
       >
         {blocked && (
           <p className="notice rounded-md border border-warning/50 px-3 py-2 text-xs text-warning">
@@ -996,7 +1090,7 @@ export default function App() {
             )}
           </p>
         )}
-        {[...toolProblems, ...(attachError ? [attachError] : [])].map((problem) => (
+        {[...toolProblems, ...[attachError, dictation.error].filter(Boolean)].map((problem) => (
           <p
             key={problem}
             role="alert"

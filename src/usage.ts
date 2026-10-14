@@ -1,9 +1,15 @@
 import { locale } from './i18n'
-import { KNOWN_MODELS } from './providers'
+import { KNOWN_MODELS, getProvider } from './providers'
 import type { Message, ModelInfo, Settings, Usage } from './types'
 
 // Share of the context window above which the user is warned.
 export const CONTEXT_WARNING = 0.8
+
+function cacheReadPrice(providerId: string, reported: ModelInfo, known: ModelInfo) {
+  const share = getProvider(providerId).cacheReadShare
+  if (reported.inputPrice !== undefined) return share && reported.inputPrice * share
+  return known.cacheReadPrice ?? (share && known.inputPrice && known.inputPrice * share)
+}
 
 export function modelInfo(settings: Settings, providerId: string, model: string): ModelInfo {
   const reported = settings.providers[providerId]?.modelInfo?.[model] ?? {}
@@ -12,7 +18,7 @@ export function modelInfo(settings: Settings, providerId: string, model: string)
     context: reported.context ?? known.context,
     inputPrice: reported.inputPrice ?? known.inputPrice,
     outputPrice: reported.outputPrice ?? known.outputPrice,
-    cacheReadPrice: reported.inputPrice === undefined ? known.cacheReadPrice : undefined,
+    cacheReadPrice: cacheReadPrice(providerId, reported, known),
     // Only applies to the built-in prices it was listed with.
     longPrompt:
       reported.inputPrice === undefined && reported.outputPrice === undefined
@@ -28,10 +34,10 @@ export function costOf(usage: Usage, info: ModelInfo): number | undefined {
   const inputPrice = long?.inputPrice ?? info.inputPrice
   const outputPrice = long?.outputPrice ?? info.outputPrice
   // Writing to the cache costs a quarter more than plain input; reading from
-  // it, a tenth of the price unless the model's rate is known.
+  // it costs the model's or provider's cache rate, or the full price if unknown.
   const read = usage.cacheRead ?? 0
   const write = usage.cacheWrite ?? 0
-  const readPrice = (!long && info.cacheReadPrice) || inputPrice / 10
+  const readPrice = (!long && info.cacheReadPrice) || inputPrice
   const input = (usage.input - read - write) * inputPrice + write * inputPrice * 1.25 + read * readPrice
   return (input + usage.output * outputPrice) / 1_000_000
 }

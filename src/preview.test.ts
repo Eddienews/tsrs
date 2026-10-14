@@ -55,6 +55,7 @@ test('finds the last previewable block of a reply', () => {
   expect(lastPreviewable(text)).toEqual({ lang: 'svg', code: '<svg/>' })
   expect(lastPreviewable('```python\nprint(1)\n```')).toBeNull()
   expect(lastPreviewable('sem código')).toBeNull()
+  expect(lastPreviewable(text, ['html'])).toEqual({ lang: 'html', code: '<p>1</p>' })
 })
 
 test('builds React and Mermaid documents that load pinned libraries', () => {

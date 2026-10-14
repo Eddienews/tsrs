@@ -2,6 +2,7 @@ import {
   BarChart3,
   ChevronRight,
   Download,
+  FileCode,
   Folder as FolderIcon,
   FolderInput,
   FolderOutput,
@@ -44,6 +45,7 @@ interface Props {
   onUpdateChat: (id: string, patch: Partial<ChatMeta>) => void
   onDeleteChat: (chat: ChatMeta) => void
   onExportChat: (chat: ChatMeta) => void
+  onExportHtml: (chat: ChatMeta) => void
   // Ids of the conversations whose messages contain the (lowercase) text.
   onSearch: (needle: string) => Promise<string[]>
   onFoldersChange: (folders: Folder[]) => void
@@ -179,6 +181,10 @@ export default function Sidebar(props: Props) {
             <DropdownMenuItem onSelect={() => props.onExportChat(chat)}>
               <Download />
               {t('Exportar Markdown')}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => props.onExportHtml(chat)}>
+              <FileCode />
+              {t('Exportar HTML')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
