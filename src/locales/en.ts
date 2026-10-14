@@ -26,8 +26,6 @@ export const en: Record<string, string> = {
   'Carregando…': 'Loading…',
   Desbloquear: 'Unlock',
   'Abrir configurações': 'Open settings',
-  'Esta conversa já ocupa {percent}% do contexto do modelo. Comece uma nova conversa para evitar erros e reduzir o custo.':
-    'This chat already fills {percent}% of the model context. Start a new chat to avoid errors and reduce the cost.',
   'Remover anexo': 'Remove attachment',
   'Anexar imagens, PDFs ou arquivos de texto': 'Attach images, PDFs or text files',
   Anexar: 'Attach',
@@ -152,8 +150,6 @@ export const en: Record<string, string> = {
   'Verificando…': 'Checking…',
 
   // Library
-  'Uma persona é um prompt de sistema com nome, opcionalmente ligado a um modelo. Escolha a persona de cada conversa na barra superior.':
-    'A persona is a named system prompt, optionally tied to a model. Choose the persona for each chat in the top bar.',
   Nome: 'Name',
   'Prompt de sistema': 'System prompt',
   'Provedor da persona': 'Persona provider',
@@ -386,8 +382,66 @@ export const en: Record<string, string> = {
   'O que o modelo pode usar.': 'What the model is allowed to use.',
   'Mostrar detalhes': 'Show details',
   'Ocultar detalhes': 'Hide details',
-  'Personas e prompts reutilizáveis.': 'Reusable personas and prompts.',
   'Use {{variável}} para campos preenchidos ao inserir o prompt.':
     'Use {{variable}} for fields filled in when inserting the prompt.',
   'Valem apenas para esta conversa.': 'Applied to this conversation only.',
+
+  // Memory, agents, summaries, images, side questions, proxy
+  'Configure uma chave da OpenAI ou do Gemini para gerar imagens.':
+    'Set up an OpenAI or Gemini key to generate images.',
+  'Memória': 'Memory',
+  'Esta conversa já ocupa {percent}% do contexto do modelo. Resuma a conversa para continuar com menos tokens, ou comece uma nova.':
+    'This chat already fills {percent}% of the model context. Summarize it to go on with fewer tokens, or start a new chat.',
+  'Resumir a conversa': 'Summarize the chat',
+  'Descreva a imagem que você quer gerar…': 'Describe the image you want to generate…',
+  'Gerar uma imagem com a próxima mensagem': 'Generate an image from the next message',
+  'Imagem': 'Image',
+  'Os arquivos de uma persona somam no máximo cerca de 1,5 MB.':
+    'A persona\'s files can add up to about 1.5 MB at most.',
+  'Ferramentas próprias': 'Own tools',
+  'Desligado, a persona usa as ferramentas ligadas para todas as conversas.':
+    'When off, the persona uses the tools switched on for every chat.',
+  'Arquivos': 'Files',
+  'Enviados com a primeira mensagem de cada pedido, como contexto.':
+    'Sent with the first message of every request, as context.',
+  'Anexar arquivos': 'Attach files',
+  'Sugestões iniciais (uma por linha)': 'Starter suggestions (one per line)',
+  'Usar memória': 'Use memory',
+  'Ligada, o modelo recebe esta lista em toda conversa e pode acrescentar ou apagar fatos sozinho quando você pedir ou quando achar útil. Precisa de um modelo que use ferramentas.':
+    'When on, the model gets this list in every chat and can add or delete facts on its own, when you ask or when it finds it useful. Needs a model that uses tools.',
+  'Fato': 'Fact',
+  'Esquecer': 'Forget',
+  'Nenhum fato guardado ainda.': 'No facts saved yet.',
+  'Novo fato': 'New fact',
+  'Esquecer todos os fatos?': 'Forget every fact?',
+  'Esquecer tudo': 'Forget all',
+  'Personas, prompts e memória.': 'Personas, prompts and memory.',
+  'Uma persona é um prompt de sistema com nome, opcionalmente ligado a um modelo. Com ferramentas, arquivos e sugestões próprias, vira um agente. Escolha a persona de cada conversa na barra superior.':
+    'A persona is a named system prompt, optionally tied to a model. With its own tools, files and suggestions it becomes an agent. Choose each chat\'s persona in the top bar.',
+  'Resumindo a conversa…': 'Summarizing the chat…',
+  'Conversa resumida até aqui: as mensagens acima não são mais enviadas ao modelo.':
+    'Chat summarized up to here: the messages above are no longer sent to the model.',
+  'Baixar imagem': 'Download image',
+  'Gerando imagem…': 'Generating image…',
+  'Perguntar à parte': 'Ask on the side',
+  'Proxy local': 'Local proxy',
+  'Alguns provedores (como o OpenCode) não aceitam chamadas do navegador. Rode npm run proxy na pasta do TSRS e ligue o proxy no provedor; para outros endereços, inicie com --allow host.':
+    'Some providers (such as OpenCode) do not accept calls from a browser. Run npm run proxy in the TSRS folder and switch the proxy on for the provider; for other addresses, start it with --allow host.',
+  'Usar o proxy local': 'Use the local proxy',
+  'Geração de imagens': 'Image generation',
+  'Modelo de imagem': 'Image model',
+  'O botão Imagem, ao lado de Prompts, transforma a próxima mensagem num pedido de imagem. No automático, usa a OpenAI ou o Gemini, o que tiver chave. O custo da imagem não entra na conta da conversa.':
+    'The Image button, next to Prompts, turns the next message into an image request. Automatic uses OpenAI or Gemini, whichever has a key. The image cost is not added to the chat total.',
+  'Pergunta à parte': 'Side question',
+  'As perguntas e respostas daqui não entram na conversa.':
+    'Questions and answers here are not added to the chat.',
+  'Pergunta': 'Question',
+  'O que você quer saber sobre este trecho?':
+    'What do you want to know about this passage?',
+  'O que você quer saber sobre esta resposta?':
+    'What do you want to know about this reply?',
+  'Perguntar': 'Ask',
+  'Não foi possível conectar ao proxy local em {url}. Inicie-o com npm run proxy.':
+    'Could not connect to the local proxy at {url}. Start it with npm run proxy.',
+  'O provedor não devolveu nenhuma imagem.': 'The provider returned no image.',
 }

@@ -13,12 +13,18 @@ export interface MockProvider {
   chats: RecordedRequest[]
   // Audio transcription requests received, as raw multipart bodies.
   transcriptions: string[]
+  // Image generation requests received.
+  images: any[]
   // Makes the next chat request fail with this status.
   failNext(status: number, headers?: Record<string, string>): void
   close(): Promise<void>
 }
 
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*' }
+
+// A 1×1 orange PNG.
+const PNG =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=='
 
 // A page that logs to the console and reports whether it can reach the
 // storage of the app that previews it.
@@ -51,6 +57,7 @@ export default function Contador() {
 export async function startMockProvider(): Promise<MockProvider> {
   const chats: RecordedRequest[] = []
   const transcriptions: string[] = []
+  const images: any[] = []
   let failure: { status: number; headers: Record<string, string> } | null = null
   let replies = 0
 
@@ -69,6 +76,12 @@ export async function startMockProvider(): Promise<MockProvider> {
         .writeHead(200, { ...CORS, 'Content-Type': 'application/json' })
         .end(JSON.stringify({ text: 'ditado de teste' }))
     }
+    if (req.url === '/v1/images/generations') {
+      images.push(JSON.parse(raw))
+      return res
+        .writeHead(200, { ...CORS, 'Content-Type': 'application/json' })
+        .end(JSON.stringify({ data: [{ b64_json: PNG, revised_prompt: 'Um gato laranja, de perfil' }] }))
+    }
     const body = JSON.parse(raw)
     const isTitle = raw.includes('Crie um título')
     if (!isTitle) chats.push({ headers: req.headers, body })
@@ -85,11 +98,9 @@ export async function startMockProvider(): Promise<MockProvider> {
     const last = body.messages.at(-1)
     // Asked to use a tool, the mock calls the first one it was offered.
     if (body.tools?.length && last.role === 'user' && String(last.content).includes('ferramenta')) {
-      const call = {
-        index: 0,
-        id: `call_${chats.length}`,
-        function: { name: body.tools[0].function.name, arguments: '{"text":"olá"}' },
-      }
+      const name = body.tools[0].function.name
+      const args = name === 'memory_save' ? '{"fact":"Gosta de café"}' : '{"text":"olá"}'
+      const call = { index: 0, id: `call_${chats.length}`, function: { name, arguments: args } }
       res.write(`data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [call] } }] })}\n\n`)
       const done = { choices: [{ delta: {}, finish_reason: 'tool_calls' }] }
       return res.end(`data: ${JSON.stringify(done)}\n\ndata: [DONE]\n\n`)
@@ -125,6 +136,7 @@ export async function startMockProvider(): Promise<MockProvider> {
     url: `http://127.0.0.1:${port}/v1`,
     chats,
     transcriptions,
+    images,
     failNext: (status, headers = {}) => {
       failure = { status, headers }
     },

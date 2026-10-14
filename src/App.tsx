@@ -1,5 +1,5 @@
 import { Pin } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -8,8 +8,7 @@ import { applyAppearance } from './appearance'
 import { useDictation } from './dictation'
 import { branchAt, patchMessage, switchVersion, versions, type Branch } from './branches'
 import ChatTopBar from './ChatTopBar'
-import CommandPalette, { type PaletteAction } from './CommandPalette'
-import CompareDialog from './CompareDialog'
+import type { PaletteAction } from './CommandPalette'
 import Composer from './Composer'
 import { deriveKey, newSalt, seal, unseal } from './crypto'
 import {
@@ -21,15 +20,14 @@ import {
   readAttachment,
 } from './files'
 import { setLanguage, t } from './i18n'
-import LibraryDialog from './LibraryDialog'
 import { PreviewContext } from './Markdown'
 import MessageView from './MessageView'
 import ParamsPanel from './ParamsPanel'
 import { forget } from './mcp'
 import { artifactName, lastPreviewable, withPreviewHint, type Artifact } from './preview'
-import PreviewPanel from './PreviewPanel'
-import { getProvider } from './providers'
-import SettingsDialog from './SettingsDialog'
+import { imageSource } from './images'
+import { MEMORY_TOOLS, runMemoryTool, withMemories } from './memory'
+import { connection, getProvider } from './providers'
 import Sidebar from './Sidebar'
 import {
   SETTINGS_KEY,
@@ -45,20 +43,26 @@ import {
   saveThread,
   searchThreads,
 } from './storage'
-import { completeText, streamChat, type Connection, type RequestMessage } from './stream'
-import { gatherTools } from './tools'
-import ToolsDialog from './ToolsDialog'
+import {
+  completeText,
+  generateImage,
+  streamChat,
+  type Connection,
+  type RequestMessage,
+} from './stream'
+import { SUMMARY_PROMPT, sinceSummary, withSummary } from './summary'
+import { gatherTools, localTools, mergeTools, type ToolSet } from './tools'
 import type {
   Attachment,
   ChatMeta,
   ChatParams,
   Folder,
   Message,
+  Persona,
+  PersonaTools,
   Settings,
   ToolPart,
 } from './types'
-import UnlockDialog from './UnlockDialog'
-import UsageView from './UsageView'
 import {
   CONTEXT_WARNING,
   contextUse,
@@ -66,6 +70,30 @@ import {
   modelInfo,
   totals,
 } from './usage'
+
+// Loaded after startup, to keep the first download small. They are all
+// fetched once the app is idle, so they open at once and work offline.
+const chunks = {
+  CommandPalette: () => import('./CommandPalette'),
+  CompareDialog: () => import('./CompareDialog'),
+  LibraryDialog: () => import('./LibraryDialog'),
+  PreviewPanel: () => import('./PreviewPanel'),
+  SettingsDialog: () => import('./SettingsDialog'),
+  SideChat: () => import('./SideChat'),
+  ToolsDialog: () => import('./ToolsDialog'),
+  UnlockDialog: () => import('./UnlockDialog'),
+  UsageView: () => import('./UsageView'),
+}
+const CommandPalette = lazy(chunks.CommandPalette)
+const CompareDialog = lazy(chunks.CompareDialog)
+const LibraryDialog = lazy(chunks.LibraryDialog)
+const PreviewPanel = lazy(chunks.PreviewPanel)
+const SettingsDialog = lazy(chunks.SettingsDialog)
+const SideChat = lazy(chunks.SideChat)
+const ToolsDialog = lazy(chunks.ToolsDialog)
+const UnlockDialog = lazy(chunks.UnlockDialog)
+const UsageView = lazy(chunks.UsageView)
+const PREFETCH_DELAY = 2000
 
 const TITLE_LENGTH = 60
 // Code blocks that open the preview by themselves, when that is turned on.
@@ -108,11 +136,51 @@ function blocker(settings: Settings, locked: boolean): Blocker | null {
 }
 
 // Empty replies (aborted or failed) are dropped: providers reject empty turns.
+// Replies carry no attachments: a generated image travels as its prompt.
 function toRequest(messages: Message[]): RequestMessage[] {
   return messages
+    .map(({ role, content, attachments, parts, imagePrompt }) =>
+      role === 'user'
+        ? { role, content, attachments, parts }
+        : {
+            role,
+            content: imagePrompt ? `[Generated an image for the prompt: ${imagePrompt}]` : content,
+            parts,
+          },
+    )
     .filter((m) => m.content || m.attachments?.length)
-    .map(({ role, content, attachments, parts }) => ({ role, content, attachments, parts }))
 }
+
+// The tools a conversation uses: its agent's, or the ones switched on for all.
+function toolsFor(settings: Settings, persona: Persona | undefined): PersonaTools {
+  return (
+    persona?.tools ?? {
+      webSearch: settings.webSearch,
+      webFetch: settings.webFetch,
+      mcpServers: settings.mcpServers.filter((s) => s.enabled).map((s) => s.id),
+    }
+  )
+}
+
+// An agent's files go with the first message of every request.
+function withFiles(messages: RequestMessage[], persona: Persona | undefined): RequestMessage[] {
+  const files = persona?.files ?? []
+  if (!files.length || !messages.length) return messages
+  const [first, ...rest] = messages
+  return [{ ...first, attachments: [...files, ...(first.attachments ?? [])] }, ...rest]
+}
+
+// A question about part of a reply, answered beside the conversation.
+interface Aside {
+  chatId: string
+  replyId: string
+  quote: string
+  messages: Message[]
+}
+
+const ASIDE_NOTE =
+  'The user is asking a side question about your reply above. Answer it briefly; this exchange ' +
+  'is kept apart from the main conversation.'
 
 // Looked up when a call arrives, so the label follows the current language.
 const PROVIDER_TOOLS: Record<string, () => string> = {
@@ -182,6 +250,9 @@ function withKeys(settings: Settings, keys: Record<string, string>): Settings {
 
 export default function App() {
   const [settings, setSettings] = useState(loadSettings)
+  // The latest settings, for tools that change them while a reply streams.
+  const settingsRef = useRef(settings)
+  settingsRef.current = settings
   // Set while rendering so that every t() below already uses the chosen language.
   setLanguage(settings.language)
   // The key that opens the vault, held only in memory while unlocked.
@@ -231,6 +302,11 @@ export default function App() {
   const [compareId, setCompareId] = useState<string | null>(null)
   const [streaming, setStreaming] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
+  // The next message asks for an image instead of a reply.
+  const [imageMode, setImageMode] = useState(false)
+  const [aside, setAside] = useState<Aside | null>(null)
+  const [asideBusy, setAsideBusy] = useState(false)
+  const asideAbort = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const provider = getProvider(settings.providerId)
@@ -241,7 +317,16 @@ export default function App() {
   // Undefined while the active conversation's messages are being read.
   const messages = activeId ? threads[activeId] : undefined
   const params = active ? (active.params ?? {}) : draftParams
-  const blocked = blocker(settings, locked)
+  const persona = settings.personas.find((p) => p.id === params.personaId)
+  const painter = imageSource(settings, locked)
+  const blocked = imageMode
+    ? painter
+      ? null
+      : {
+          text: t('Configure uma chave da OpenAI ou do Gemini para gerar imagens.'),
+          fix: 'settings' as const,
+        }
+    : blocker(settings, locked)
   const info = modelInfo(settings, provider.id, settings.model)
   const spent = totals(messages ?? [])
   const context = contextUse(messages ?? [], info)
@@ -279,6 +364,11 @@ export default function App() {
 
   useEffect(() => {
     loadMetas().then(commitMetas)
+    const timer = setTimeout(
+      () => Object.values(chunks).forEach((load) => load().catch(() => {})),
+      PREFETCH_DELAY,
+    )
+    return () => clearTimeout(timer)
   }, [])
 
   // With a vault, the keys are written only in encrypted form. While locked
@@ -415,6 +505,7 @@ export default function App() {
   }
 
   async function selectChat(id: string | null) {
+    if (id !== activeId) closeAside()
     setShowDrawer(false)
     setShowUsage(false)
     setActiveId(id)
@@ -434,15 +525,18 @@ export default function App() {
   // `branch` links the reply to the versions it replaces. `targets` writes it
   // with other models, all at once, without changing the one the conversation
   // uses: the first becomes the current version and the rest sit beside it.
+  // `image` draws an image from the last message instead of replying to it.
   async function generate(
     base: ChatMeta,
     history: Message[],
-    { branch, targets }: { branch?: Branch; targets?: Target[] } = {},
+    { branch, targets, image }: { branch?: Branch; targets?: Target[]; image?: Target } = {},
   ) {
-    const usings: Target[] = targets?.length
-      ? targets
-      : [{ providerId: settings.providerId, model: settings.model }]
-    const problems = usings.map((using) => blocker({ ...settings, ...using }, locked))
+    const usings: Target[] = image
+      ? [image]
+      : targets?.length
+        ? targets
+        : [{ providerId: settings.providerId, model: settings.model }]
+    const problems = image ? [] : usings.map((using) => blocker({ ...settings, ...using }, locked))
     const problem = problems.find(Boolean)
     if (problem && targets) alert(problem.text)
     if (streaming || problem) return
@@ -453,13 +547,14 @@ export default function App() {
       content: '',
       createdAt: now,
       ...using,
+      ...(image ? { imagePrompt: history.at(-1)?.content ?? '' } : {}),
     }))
     const [first, ...others] = replies
     const alts = [...(branch?.alts ?? []), ...others.map((reply) => [reply])]
     const current: Message = alts.length
       ? { ...first, alts, altIndex: branch?.altIndex ?? 0 }
       : first
-    const meta: ChatMeta = { ...base, updatedAt: now, ...(targets ? {} : usings[0]) }
+    const meta: ChatMeta = { ...base, updatedAt: now, ...(targets || image ? {} : usings[0]) }
     commitMetas([meta, ...metasRef.current.filter((c) => c.id !== meta.id)])
     commitThreads({ ...threadsRef.current, [meta.id]: [...history, current] })
     saveMeta(meta)
@@ -474,14 +569,45 @@ export default function App() {
     // The reply may be the current version or one beside it.
     const patcher = (id: string) => (patch: (m: Message) => Message) =>
       patchThread(meta.id, (thread) => patchMessage(thread, id, patch))
-    const system = meta.params?.system?.trim() || settings.systemPrompt
-    let toolset: Awaited<ReturnType<typeof gatherTools>> | null = null
+    const agent = settings.personas.find((p) => p.id === meta.params?.personaId)
+    const tools = toolsFor(settings, agent)
+    const recent = sinceSummary(history)
+    let system = meta.params?.system?.trim() || settings.systemPrompt
+    if (settings.memory) system = withMemories(system, settings.memories)
+    system = withSummary(system, recent.summary)
+    let toolset: ToolSet | null = null
+
+    async function paint(reply: Message, using: Target): Promise<boolean> {
+      const patchReply = patcher(reply.id)
+      try {
+        const drawn = await generateImage(
+          connection(settings, using.providerId),
+          using.model,
+          reply.imagePrompt ?? '',
+          abort.signal,
+        )
+        const attachment: Attachment = {
+          id: crypto.randomUUID(),
+          name: fileName(reply.imagePrompt ?? '', drawn.mime.split('/')[1]),
+          mime: drawn.mime,
+          kind: 'image',
+          data: drawn.data,
+        }
+        patchReply((m) => ({ ...m, content: drawn.revised ?? '', attachments: [attachment] }))
+        return true
+      } catch (err) {
+        if (!abort.signal.aborted) {
+          const error = err instanceof Error ? err.message : String(err)
+          patchReply((m) => ({ ...m, error }))
+        }
+        return false
+      }
+    }
 
     async function write(reply: Message, using: Target): Promise<boolean> {
       const patchReply = patcher(reply.id)
       const via = getProvider(using.providerId)
       const info = modelInfo(settings, via.id, using.model)
-      const { baseUrl, apiKey } = settings.providers[via.id]
       const patchTool = (id: string, fields: Partial<ToolPart>) =>
         patchReply((m) => ({
           ...m,
@@ -489,12 +615,10 @@ export default function App() {
         }))
       try {
         const stream = streamChat({
-          provider: via,
-          baseUrl,
-          apiKey,
+          ...connection(settings, via.id),
           model: using.model,
           system: settings.previewHint ? withPreviewHint(system, t('Abrir preview')) : system,
-          messages: toRequest(history),
+          messages: withFiles(toRequest(recent.messages), agent),
           // An effort level chosen for another provider may not exist in this one.
           params: {
             ...meta.params,
@@ -502,8 +626,8 @@ export default function App() {
           },
           signal: abort.signal,
           tools: toolset?.defs,
-          webSearch: settings.webSearch && !!via.webTools,
-          webFetch: settings.webFetch && via.webTools === 'anthropic',
+          webSearch: tools.webSearch && !!via.webTools,
+          webFetch: tools.webFetch && via.webTools === 'anthropic',
           showThinking: settings.showThinking,
           // Automatic caching is a feature of Anthropic's own API.
           promptCache: settings.promptCache && via.id === 'anthropic',
@@ -569,10 +693,19 @@ export default function App() {
 
     let completed = false
     try {
-      const servers = settings.mcpServers.filter((s) => s.enabled && s.url)
-      toolset = servers.length ? await gatherTools(servers) : null
-      if (toolset?.problems.length) setToolProblems(toolset.problems)
-      const results = await Promise.all(replies.map((reply, i) => write(reply, usings[i])))
+      if (!image) {
+        const servers = settings.mcpServers.filter(
+          (s) => s.url && tools.mcpServers.includes(s.id),
+        )
+        toolset = mergeTools([
+          ...(settings.memory ? [memoryTools()] : []),
+          ...(servers.length ? [await gatherTools(servers)] : []),
+        ])
+        if (toolset?.problems.length) setToolProblems(toolset.problems)
+      }
+      const results = await Promise.all(
+        replies.map((reply, i) => (image ? paint(reply, usings[i]) : write(reply, usings[i]))),
+      )
       completed = results[0]
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err)
@@ -582,17 +715,148 @@ export default function App() {
       persistThread(meta.id)
     }
 
-    if (completed && !targets && settings.autoPreview) {
+    if (completed && !targets && !image && settings.autoPreview) {
       const reply = threadsRef.current[meta.id]?.find((m) => m.id === first.id)
       const block = reply && lastPreviewable(reply.content, AUTO_PREVIEW)
       if (block) latest.current.showArtifact(block.lang, block.code)
     }
 
-    if (completed && !targets && settings.autoTitle && history.length === 1) {
-      const via = getProvider(usings[0].providerId)
-      const { baseUrl, apiKey } = settings.providers[via.id]
-      titleChat(meta.id, { provider: via, baseUrl, apiKey })
+    if (completed && !targets && !image && settings.autoTitle && history.length === 1) {
+      titleChat(meta.id, connection(settings, usings[0].providerId))
     }
+  }
+
+  // Saving and deleting memories, run without asking: the list is in the library.
+  function memoryTools(): ToolSet {
+    return localTools(MEMORY_TOOLS, t('Memória'), (call) => {
+      const { memories, result } = runMemoryTool(settingsRef.current.memories, call)
+      settingsRef.current = { ...settingsRef.current, memories }
+      setSettings((s) => ({ ...s, memories }))
+      return result
+    })
+  }
+
+  // Replaces what came before with a summary the next requests start from.
+  async function summarize() {
+    const meta = findMeta(activeId)
+    const thread = meta && threadsRef.current[meta.id]
+    if (!meta || !thread?.length || streaming || blocker(settings, locked)) return
+    const recent = sinceSummary(thread)
+    const info = modelInfo(settings, provider.id, settings.model)
+    const reply: Message = {
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      content: '',
+      createdAt: Date.now(),
+      summary: true,
+      providerId: provider.id,
+      model: settings.model,
+    }
+    const patchReply = (patch: (m: Message) => Message) =>
+      patchThread(meta.id, (messages) => patchMessage(messages, reply.id, patch))
+    commitThreads({ ...threadsRef.current, [meta.id]: [...thread, reply] })
+    setStreaming(true)
+    setToolProblems([])
+    const abort = new AbortController()
+    abortRef.current = abort
+    try {
+      const system = withSummary(meta.params?.system?.trim() || settings.systemPrompt, recent.summary)
+      const stream = streamChat({
+        ...connection(settings, provider.id),
+        model: settings.model,
+        system,
+        messages: [...toRequest(recent.messages), { role: 'user', content: SUMMARY_PROMPT }],
+        signal: abort.signal,
+      })
+      for await (const event of stream) {
+        if (event.type === 'text') patchReply((m) => ({ ...m, content: m.content + event.text }))
+        if (event.type === 'usage') {
+          const usage = { ...event.usage, context: event.usage.output }
+          patchReply((m) => ({ ...m, usage: { ...usage, cost: costOf(usage, info) } }))
+        }
+      }
+      if (abort.signal.aborted) throw abort.signal.reason
+    } catch (err) {
+      // A summary that did not finish must not stand in for the conversation.
+      patchThread(meta.id, (messages) => messages.filter((m) => m.id !== reply.id))
+      if (!abort.signal.aborted) {
+        setToolProblems([err instanceof Error ? err.message : String(err)])
+      }
+    } finally {
+      setStreaming(false)
+      persistThread(meta.id)
+    }
+  }
+
+  // Asks about part of a reply, with the conversation up to it as context.
+  async function askAside(text: string) {
+    const current = aside
+    const thread = current && threadsRef.current[current.chatId]
+    const at = thread?.findIndex((m) => m.id === current?.replyId) ?? -1
+    if (!current || !thread || at < 0 || asideBusy || blocker(settings, locked)) return
+    const question: Message = { id: crypto.randomUUID(), role: 'user', content: text }
+    const answer: Message = {
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      content: '',
+      providerId: provider.id,
+      model: settings.model,
+    }
+    const exchange = [...current.messages, question]
+    const update = (patch: (m: Message) => Message) =>
+      setAside((open) =>
+        open && open.replyId === current.replyId
+          ? { ...open, messages: open.messages.map((m) => (m.id === answer.id ? patch(m) : m)) }
+          : open,
+      )
+    setAside({ ...current, messages: [...exchange, answer] })
+    setAsideBusy(true)
+    const abort = new AbortController()
+    asideAbort.current = abort
+    const recent = sinceSummary(thread.slice(0, at + 1))
+    const meta = findMeta(current.chatId)
+    const system = withSummary(meta?.params?.system?.trim() || settings.systemPrompt, recent.summary)
+    // The excerpt goes with the first question, which the panel shows apart.
+    const quoted = `> ${current.quote.replace(/\n/g, '\n> ')}`
+    const asked = exchange.map((m, i) =>
+      i === 0 && current.quote
+        ? { ...m, content: `About this part of your reply:\n\n${quoted}\n\n${m.content}` }
+        : m,
+    )
+    try {
+      const info = modelInfo(settings, provider.id, settings.model)
+      const stream = streamChat({
+        ...connection(settings, provider.id),
+        model: settings.model,
+        system: `${system ? `${system}\n\n` : ''}${ASIDE_NOTE}`,
+        messages: toRequest([...recent.messages, ...asked]),
+        signal: abort.signal,
+      })
+      for await (const event of stream) {
+        if (event.type === 'text') update((m) => ({ ...m, content: m.content + event.text }))
+        if (event.type === 'usage') {
+          update((m) => ({ ...m, usage: { ...event.usage, cost: costOf(event.usage, info) } }))
+        }
+      }
+    } catch (err) {
+      if (!abort.signal.aborted) {
+        const error = err instanceof Error ? err.message : String(err)
+        update((m) => ({ ...m, error }))
+      }
+    } finally {
+      setAsideBusy(false)
+    }
+  }
+
+  function openAside(replyId: string, quote: string) {
+    if (!activeId) return
+    asideAbort.current?.abort()
+    setAside({ chatId: activeId, replyId, quote, messages: [] })
+  }
+
+  function closeAside() {
+    asideAbort.current?.abort()
+    setAside(null)
   }
 
   async function titleChat(id: string, conn: Connection) {
@@ -627,6 +891,7 @@ export default function App() {
   function send() {
     const text = draft.trim()
     if ((!text && !attachments.length) || streaming || blocked) return
+    if (imageMode && !text) return
     const existing = findMeta(activeId)
     const history = existing ? threadsRef.current[existing.id] : []
     if (!history) return // still loading
@@ -651,7 +916,12 @@ export default function App() {
     setAttachments([])
     setAttachError('')
     if (!existing) setDraftParams({})
-    generate(base, [...history, user])
+    if (imageMode && painter) {
+      setImageMode(false)
+      generate(base, [...history, user], { image: painter })
+    } else {
+      generate(base, [...history, user])
+    }
   }
 
   function edit(id: string, text: string) {
@@ -670,8 +940,13 @@ export default function App() {
     const index = thread?.findIndex((m) => m.id === id) ?? -1
     if (!meta || !thread || index < 1 || thread[index - 1].role !== 'user') return
     // A reply that failed before writing anything is not kept as a version.
-    const branch = branchAt(thread, index, !!thread[index].content)
+    const replaced = thread[index]
+    const branch = branchAt(thread, index, !!replaced.content || !!replaced.attachments?.length)
     setVersionsAt(targets ? index : null)
+    if (replaced.imagePrompt !== undefined) {
+      if (!painter) return alert(t('Configure uma chave da OpenAI ou do Gemini para gerar imagens.'))
+      return generate(meta, thread.slice(0, index), { branch, image: painter })
+    }
     generate(meta, thread.slice(0, index), { branch, targets })
   }
 
@@ -749,6 +1024,7 @@ export default function App() {
     togglePreview,
     forkChat,
     togglePin,
+    openAside,
   }
   const latest = useRef(actions)
   latest.current = actions
@@ -780,6 +1056,10 @@ export default function App() {
   const onToggleVersions = useCallback((id: string) => latest.current.toggleVersions(id), [])
   const onFork = useCallback((id: string) => latest.current.forkChat(id), [])
   const onTogglePin = useCallback((id: string) => latest.current.togglePin(id), [])
+  const onAside = useCallback(
+    (id: string, quote: string) => latest.current.openAside(id, quote),
+    [],
+  )
   const onApprove = useCallback(
     (callId: string, allowed: boolean) => approvals.current.get(callId)?.(allowed),
     [],
@@ -853,6 +1133,7 @@ export default function App() {
         folders: settings.folders,
         personas: settings.personas,
         prompts: settings.prompts,
+        memories: settings.memories,
       }),
       'application/json',
     )
@@ -885,6 +1166,7 @@ export default function App() {
       folders: merge(s.folders, library.folders),
       personas: merge(s.personas, library.personas),
       prompts: merge(s.prompts, library.prompts),
+      memories: merge(s.memories, library.memories),
     }))
     return t('{imported} de {total} conversas importadas.', {
       imported: fresh.length,
@@ -897,10 +1179,20 @@ export default function App() {
   const personaId = settings.personas.some((p) => p.id === params.personaId)
     ? (params.personaId ?? '')
     : ''
+  const tools = toolsFor(settings, persona)
   const activeTools =
-    (settings.webSearch && provider.webTools ? 1 : 0) +
-    (settings.webFetch && provider.webTools === 'anthropic' ? 1 : 0) +
-    settings.mcpServers.filter((s) => s.enabled && s.url).length
+    (tools.webSearch && provider.webTools ? 1 : 0) +
+    (tools.webFetch && provider.webTools === 'anthropic' ? 1 : 0) +
+    settings.mcpServers.filter((s) => s.url && tools.mcpServers.includes(s.id)).length +
+    (settings.memory ? 1 : 0)
+  const starters = persona?.starters?.filter((s) => s.trim()).length
+    ? persona.starters.filter((s) => s.trim())
+    : [
+        t('Explique um conceito difícil em termos simples'),
+        t('Revise e melhore um texto meu'),
+        t('Crie uma página HTML simples para eu ver no preview'),
+        t('Compare os prós e os contras de duas opções'),
+      ]
 
   const sidebar = (
     <Sidebar
@@ -974,19 +1266,16 @@ export default function App() {
             <div className="mb-1 font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">
               {t('TSRS · pronto')}
             </div>
-            <h1 className="text-xl font-semibold">{t('No que vamos trabalhar?')}</h1>
+            <h1 className="text-xl font-semibold">
+              {persona ? persona.name || t('Sem nome') : t('No que vamos trabalhar?')}
+            </h1>
             <p className="mt-1 max-w-md text-sm text-muted-foreground">
               {t(
                 'Suas conversas e chaves ficam só neste navegador. As mensagens vão direto para o provedor escolhido.',
               )}
             </p>
             <div className="mt-6 grid w-full max-w-xl gap-2 sm:grid-cols-2">
-              {[
-                t('Explique um conceito difícil em termos simples'),
-                t('Revise e melhore um texto meu'),
-                t('Crie uma página HTML simples para eu ver no preview'),
-                t('Compare os prós e os contras de duas opções'),
-              ].map((suggestion) => (
+              {starters.map((suggestion) => (
                 <button
                   key={suggestion}
                   className="rounded-md border bg-card px-3 py-2.5 text-left text-sm hover:border-primary/60 hover:bg-accent"
@@ -1045,6 +1334,7 @@ export default function App() {
                   onToggleVersions={onToggleVersions}
                   onFork={onFork}
                   onTogglePin={onTogglePin}
+                  onAside={onAside}
                 />
               ))}
             </PreviewContext.Provider>
@@ -1068,6 +1358,8 @@ export default function App() {
         onInsertPrompt={(text) => setDraft((d) => (d.trim() ? `${d}\n${text}` : text))}
         onManagePrompts={() => setShowLibrary(true)}
         dictation={dictation}
+        imageMode={imageMode}
+        onImageMode={painter || imageMode ? setImageMode : undefined}
       >
         {blocked && (
           <p className="notice rounded-md border border-warning/50 px-3 py-2 text-xs text-warning">
@@ -1085,9 +1377,16 @@ export default function App() {
         {context !== undefined && context >= CONTEXT_WARNING && (
           <p className="notice rounded-md border border-warning/50 px-3 py-2 text-xs text-warning">
             {t(
-              'Esta conversa já ocupa {percent}% do contexto do modelo. Comece uma nova conversa para evitar erros e reduzir o custo.',
+              'Esta conversa já ocupa {percent}% do contexto do modelo. Resuma a conversa para continuar com menos tokens, ou comece uma nova.',
               { percent: Math.round(context * 100) },
-            )}
+            )}{' '}
+            <button
+              className="underline underline-offset-2 disabled:opacity-50"
+              disabled={streaming}
+              onClick={summarize}
+            >
+              {t('Resumir a conversa')}
+            </button>
           </p>
         )}
         {[...toolProblems, ...[attachError, dictation.error].filter(Boolean)].map((problem) => (
@@ -1117,6 +1416,7 @@ export default function App() {
   return (
     <TooltipProvider delayDuration={300}>
       <div className="app h-dvh w-full overflow-hidden">
+        <Suspense fallback={null}>
         {isMobile ? (
           <>
             <Sheet open={showDrawer} onOpenChange={setShowDrawer}>
@@ -1148,8 +1448,10 @@ export default function App() {
             )}
           </ResizablePanelGroup>
         )}
+        </Suspense>
       </div>
 
+      <Suspense fallback={null}>
       {showParams && (
         <ParamsPanel
           provider={provider}
@@ -1213,9 +1515,21 @@ export default function App() {
           onClose={() => setShowPalette(false)}
         />
       )}
+      {aside && (
+        <SideChat
+          quote={aside.quote}
+          messages={aside.messages}
+          busy={asideBusy}
+          blocked={blocker(settings, locked)?.text}
+          onSend={askAside}
+          onStop={() => asideAbort.current?.abort()}
+          onClose={closeAside}
+        />
+      )}
       {showUnlock && locked && (
         <UnlockDialog onUnlock={unlock} onClose={() => setShowUnlock(false)} />
       )}
+      </Suspense>
     </TooltipProvider>
   )
 }

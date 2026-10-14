@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from 'react'
-import { ChevronDown, ChevronRight, Plus } from 'lucide-react'
+import { useRef, useState, type ReactNode } from 'react'
+import { ChevronDown, ChevronRight, FileText, Paperclip, Plus, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -10,11 +10,16 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { readAttachment } from './files'
 import { t } from './i18n'
 import { PROVIDERS } from './providers'
-import type { Persona, SavedPrompt, Settings } from './types'
+import type { Memory, Persona, PersonaTools, SavedPrompt, Settings } from './types'
+
+// Settings live in localStorage, which holds a few megabytes at most.
+const MAX_AGENT_FILES = 2_000_000
 
 interface Props {
   settings: Settings
@@ -23,6 +28,240 @@ interface Props {
 }
 
 const hint = 'text-xs text-muted-foreground'
+
+function Check(props: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <label className="flex items-center gap-2 text-sm">
+      <input
+        type="checkbox"
+        className="size-4 accent-primary"
+        checked={props.checked}
+        onChange={(e) => props.onChange(e.target.checked)}
+      />
+      {props.label}
+    </label>
+  )
+}
+
+// What turns a persona into an agent: its own tools, files and starters.
+function AgentFields({
+  persona,
+  settings,
+  onPatch,
+}: {
+  persona: Persona
+  settings: Settings
+  onPatch: (fields: Partial<Persona>) => void
+}) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [error, setError] = useState('')
+  const tools = persona.tools
+  const files = persona.files ?? []
+  const setTools = (fields: Partial<PersonaTools>) =>
+    tools && onPatch({ tools: { ...tools, ...fields } })
+
+  async function attach(list: File[]) {
+    setError('')
+    let added = [...files]
+    for (const file of list) {
+      try {
+        const attachment = await readAttachment(file)
+        const size = [...added, attachment].reduce((sum, a) => sum + a.data.length, 0)
+        if (size > MAX_AGENT_FILES) {
+          throw new Error(t('Os arquivos de uma persona somam no máximo cerca de 1,5 MB.'))
+        }
+        added = [...added, attachment]
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err))
+      }
+    }
+    onPatch({ files: added })
+  }
+
+  return (
+    <>
+      <div className="space-y-2">
+        <label className="flex items-center justify-between gap-4 text-sm font-medium">
+          {t('Ferramentas próprias')}
+          <Switch
+            aria-label={t('Ferramentas próprias')}
+            checked={!!tools}
+            onCheckedChange={(on) =>
+              onPatch({
+                tools: on
+                  ? {
+                      webSearch: settings.webSearch,
+                      webFetch: settings.webFetch,
+                      mcpServers: settings.mcpServers.filter((s) => s.enabled).map((s) => s.id),
+                    }
+                  : undefined,
+              })
+            }
+          />
+        </label>
+        {tools ? (
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+            <Check
+              label={t('Busca na web')}
+              checked={tools.webSearch}
+              onChange={(webSearch) => setTools({ webSearch })}
+            />
+            <Check
+              label={t('Leitura de página')}
+              checked={tools.webFetch}
+              onChange={(webFetch) => setTools({ webFetch })}
+            />
+            {settings.mcpServers.map((server) => (
+              <Check
+                key={server.id}
+                label={server.name || server.url}
+                checked={tools.mcpServers.includes(server.id)}
+                onChange={(on) =>
+                  setTools({
+                    mcpServers: on
+                      ? [...tools.mcpServers, server.id]
+                      : tools.mcpServers.filter((id) => id !== server.id),
+                  })
+                }
+              />
+            ))}
+          </div>
+        ) : (
+          <p className={hint}>
+            {t('Desligado, a persona usa as ferramentas ligadas para todas as conversas.')}
+          </p>
+        )}
+      </div>
+
+      <div className="space-y-1.5">
+        <div className="text-sm font-medium">{t('Arquivos')}</div>
+        <p className={hint}>{t('Enviados com a primeira mensagem de cada pedido, como contexto.')}</p>
+        {files.map((file) => (
+          <div key={file.id} className="flex items-center gap-2 text-sm">
+            <FileText className="size-4 shrink-0 text-muted-foreground" />
+            <span className="min-w-0 flex-1 truncate">{file.name}</span>
+            <button
+              aria-label={t('Remover anexo')}
+              title={t('Remover anexo')}
+              className="rounded p-0.5 hover:bg-accent"
+              onClick={() => onPatch({ files: files.filter((f) => f.id !== file.id) })}
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
+        ))}
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1"
+          onClick={() => fileRef.current?.click()}
+        >
+          <Paperclip className="size-3.5" />
+          {t('Anexar arquivos')}
+        </Button>
+        <input
+          ref={fileRef}
+          type="file"
+          multiple
+          hidden
+          onChange={(e) => {
+            attach([...(e.target.files ?? [])])
+            e.target.value = ''
+          }}
+        />
+        {error && (
+          <p role="alert" className="text-xs text-destructive">
+            {error}
+          </p>
+        )}
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor={`starters-${persona.id}`}>{t('Sugestões iniciais (uma por linha)')}</Label>
+        <Textarea
+          id={`starters-${persona.id}`}
+          rows={3}
+          className="text-sm"
+          value={(persona.starters ?? []).join('\n')}
+          onChange={(e) => onPatch({ starters: e.target.value.split('\n') })}
+        />
+      </div>
+    </>
+  )
+}
+
+function MemoryTab({ settings, onChange }: Pick<Props, 'settings' | 'onChange'>) {
+  const patch = (id: string, text: string) =>
+    onChange((s) => ({ ...s, memories: s.memories.map((m) => (m.id === id ? { ...m, text } : m)) }))
+  const remove = (id: string) =>
+    onChange((s) => ({ ...s, memories: s.memories.filter((m) => m.id !== id) }))
+  return (
+    <div className="space-y-3">
+      <label className="flex items-center justify-between gap-4 rounded-md border p-3 text-sm">
+        {t('Usar memória')}
+        <Switch
+          aria-label={t('Usar memória')}
+          checked={settings.memory}
+          onCheckedChange={(memory) => onChange((s) => ({ ...s, memory }))}
+        />
+      </label>
+      <p className={hint}>
+        {t(
+          'Ligada, o modelo recebe esta lista em toda conversa e pode acrescentar ou apagar fatos sozinho quando você pedir ou quando achar útil. Precisa de um modelo que use ferramentas.',
+        )}
+      </p>
+      {settings.memories.map((memory: Memory) => (
+        <div key={memory.id} className="flex items-center gap-2">
+          <Input
+            aria-label={t('Fato')}
+            value={memory.text}
+            onChange={(e) => patch(memory.id, e.target.value)}
+            onBlur={(e) => !e.target.value.trim() && remove(memory.id)}
+          />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 shrink-0"
+            aria-label={t('Esquecer')}
+            title={t('Esquecer')}
+            onClick={() => remove(memory.id)}
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        </div>
+      ))}
+      {!settings.memories.length && <p className={hint}>{t('Nenhum fato guardado ainda.')}</p>}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1"
+          onClick={() =>
+            onChange((s) => ({
+              ...s,
+              memories: [...s.memories, { id: crypto.randomUUID(), text: '', createdAt: Date.now() }],
+            }))
+          }
+        >
+          <Plus className="size-3.5" />
+          {t('Novo fato')}
+        </Button>
+        {settings.memories.length > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-destructive"
+            onClick={() =>
+              confirm(t('Esquecer todos os fatos?')) && onChange((s) => ({ ...s, memories: [] }))
+            }
+          >
+            {t('Esquecer tudo')}
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}
 
 // A collapsible card whose header button shows the item name.
 function Card(props: {
@@ -85,18 +324,23 @@ export default function LibraryDialog({ settings, onChange, onClose }: Props) {
       <DialogContent className="dialog max-h-[85vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t('Biblioteca')}</DialogTitle>
-          <DialogDescription>{t('Personas e prompts reutilizáveis.')}</DialogDescription>
+          <DialogDescription>{t('Personas, prompts e memória.')}</DialogDescription>
         </DialogHeader>
         <Tabs defaultValue="personas" className="min-w-0">
           <TabsList>
             <TabsTrigger value="personas">Personas</TabsTrigger>
             <TabsTrigger value="prompts">{t('Prompts salvos')}</TabsTrigger>
+            <TabsTrigger value="memory">{t('Memória')}</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="memory">
+            <MemoryTab settings={settings} onChange={onChange} />
+          </TabsContent>
 
           <TabsContent value="personas" className="space-y-3">
             <p className={hint}>
               {t(
-                'Uma persona é um prompt de sistema com nome, opcionalmente ligado a um modelo. Escolha a persona de cada conversa na barra superior.',
+                'Uma persona é um prompt de sistema com nome, opcionalmente ligado a um modelo. Com ferramentas, arquivos e sugestões próprias, vira um agente. Escolha a persona de cada conversa na barra superior.',
               )}
             </p>
             {settings.personas.map((persona) => (
@@ -158,10 +402,16 @@ export default function LibraryDialog({ settings, onChange, onClose }: Props) {
                       <option key={m} value={m} />
                     ))}
                   </datalist>
+                </div>
+                <AgentFields
+                  persona={persona}
+                  settings={settings}
+                  onPatch={(fields) => patchPersona(persona.id, fields)}
+                />
+                <div className="flex justify-end">
                   <Button
                     variant="destructive"
                     size="sm"
-                    className="ml-auto"
                     onClick={() =>
                       onChange((s) => ({
                         ...s,

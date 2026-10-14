@@ -72,6 +72,11 @@ export interface Message {
   sources?: Source[]
   // Kept at the top of the conversation for quick access.
   pinned?: boolean
+  // A summary of everything before it, which replaces those messages in later
+  // requests.
+  summary?: boolean
+  // An image generated from this prompt; the image is in `attachments`.
+  imagePrompt?: string
   // Other versions of the conversation from this message on, left behind by
   // an edit or a regeneration. Each is the rest of a conversation, starting
   // with a message that stands in this one's place.
@@ -108,13 +113,34 @@ export interface Chat extends ChatMeta {
   messages: Message[]
 }
 
-// A named system prompt, optionally tied to a model.
+// Tools an agent uses in place of the ones switched on for every chat.
+export interface PersonaTools {
+  webSearch: boolean
+  webFetch: boolean
+  // Ids of the MCP servers it may call.
+  mcpServers: string[]
+}
+
+// A named system prompt, optionally tied to a model. With tools, files or
+// starters it works as an agent.
 export interface Persona {
   id: string
   name: string
   system: string
   providerId?: string
   model?: string
+  tools?: PersonaTools
+  // Sent with every conversation that uses the persona.
+  files?: Attachment[]
+  // Suggestions shown on an empty conversation.
+  starters?: string[]
+}
+
+// A fact about the user the model chose, or was asked, to remember.
+export interface Memory {
+  id: string
+  text: string
+  createdAt: number
 }
 
 // A reusable piece of text to drop into the composer.
@@ -156,6 +182,11 @@ export interface Provider {
   cacheReadShare?: number
   // Speech-to-text model for dictation, when the provider has one.
   transcription?: string
+  // Model for image generation, when the provider has one.
+  image?: string
+  // The provider's API does not accept calls from a browser; it is reached
+  // through the local proxy by default.
+  needsProxy?: boolean
   // How the provider offers web search (and, for Anthropic, page fetching)
   // run on its own servers; absent when it does not.
   webTools?: 'anthropic' | 'openrouter'
@@ -199,6 +230,8 @@ export interface ProviderSettings {
   baseUrl: string
   models: string[]
   modelInfo?: Record<string, ModelInfo>
+  // Send requests through the local proxy; unset follows `needsProxy`.
+  proxy?: boolean
 }
 
 // How the interface looks; applied as a class and data attributes on <html>.
@@ -237,6 +270,15 @@ export interface Settings {
   previewHint: boolean
   // Empty means "use the chat's own model".
   titleModel: string
+  // Let the model save facts about the user and read them in every chat.
+  memory: boolean
+  memories: Memory[]
+  // Who draws images: a provider with an image model or 'auto' (the first
+  // such provider with a key). An empty model uses the provider's default.
+  imageProvider: string
+  imageModel: string
+  // Address of the local proxy (npm run proxy) for providers without CORS.
+  proxyUrl: string
   // Present when the API keys are password-protected; the keys are then
   // stored only inside it.
   vault?: Vault

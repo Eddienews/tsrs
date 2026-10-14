@@ -8,6 +8,21 @@ export default defineConfig({
   // Imported only when a chat is exported as HTML; listed so the dev server
   // does not discover it mid-session and reload the page.
   optimizeDeps: { include: ['react-dom/server'] },
+  build: {
+    rolldownOptions: {
+      output: {
+        // Libraries change less often than the app, so they get chunks of
+        // their own that the browser keeps cached across releases.
+        codeSplitting: {
+          groups: [
+            // The server renderer is only for HTML export, which loads it on demand.
+            { name: 'react', test: /node_modules[\\/](react|react-dom|scheduler)[\\/](?!.*server)/ },
+            { name: 'ui', test: /node_modules[\\/](@radix-ui|lucide-react|react-resizable-panels)[\\/]/ },
+          ],
+        },
+      },
+    },
+  },
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },

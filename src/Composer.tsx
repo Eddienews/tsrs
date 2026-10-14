@@ -3,6 +3,7 @@ import {
   BookMarked,
   FileText,
   FileType2,
+  ImageIcon,
   Loader2,
   Mic,
   Paperclip,
@@ -39,6 +40,9 @@ interface Props {
   onInsertPrompt: (text: string) => void
   onManagePrompts: () => void
   dictation: Dictation
+  // The next message asks for an image; the toggle is hidden without a handler.
+  imageMode: boolean
+  onImageMode?: (on: boolean) => void
   // Warnings shown above the field.
   children?: ReactNode
 }
@@ -144,7 +148,11 @@ export default function Composer(p: Props) {
           ref={fieldRef}
           rows={1}
           value={p.value}
-          placeholder={t('Escreva sua mensagem… (Enter envia, Shift+Enter quebra a linha)')}
+          placeholder={
+            p.imageMode
+              ? t('Descreva a imagem que você quer gerar…')
+              : t('Escreva sua mensagem… (Enter envia, Shift+Enter quebra a linha)')
+          }
           className="block w-full resize-none bg-transparent px-3.5 py-3 text-[0.95rem] outline-none placeholder:text-muted-foreground"
           onChange={(e) => p.onChange(e.target.value)}
           onPaste={(e) => {
@@ -236,6 +244,22 @@ export default function Composer(p: Props) {
               )}
             </PopoverContent>
           </Popover>
+          {p.onImageMode && (
+            <Button
+              variant={p.imageMode ? 'secondary' : 'ghost'}
+              size="sm"
+              className={cn('h-8 gap-1.5 text-xs', p.imageMode && 'text-primary')}
+              aria-pressed={p.imageMode}
+              title={t('Gerar uma imagem com a próxima mensagem')}
+              onClick={() => {
+                p.onImageMode?.(!p.imageMode)
+                fieldRef.current?.focus()
+              }}
+            >
+              <ImageIcon className="size-4" />
+              {t('Imagem')}
+            </Button>
+          )}
           {p.dictation.available && (
             <Button
               variant="ghost"

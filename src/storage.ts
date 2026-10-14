@@ -47,6 +47,11 @@ export function defaultSettings(): Settings {
     showThinking: true,
     promptCache: true,
     titleModel: '',
+    memory: false,
+    memories: [],
+    imageProvider: 'auto',
+    imageModel: '',
+    proxyUrl: 'http://localhost:8787',
   }
 }
 

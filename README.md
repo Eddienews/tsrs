@@ -13,6 +13,7 @@ npm run dev      # http://localhost:5173
 npm run build    # checagem de tipos + build de produção em dist/
 npm test         # testes unitários (vitest)
 npm run test:e2e # testes de ponta a ponta (Playwright, com um provedor falso)
+npm run proxy    # proxy local opcional para provedores sem CORS (OpenCode)
 ```
 
 Os testes de ponta a ponta precisam de um Chromium: rode
@@ -42,6 +43,17 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
 - Biblioteca de personas (prompts de sistema com nome, opcionalmente ligados a
   um modelo) e de prompts salvos para inserir na mensagem, com campos
   `{{nome}}` preenchidos na hora de inserir.
+- Agentes: uma persona pode ter ferramentas próprias, arquivos enviados como
+  contexto em todo pedido e sugestões iniciais na tela da conversa vazia.
+- Memória (opcional): o modelo guarda fatos sobre você com uma ferramenta, e a
+  lista, que você vê e edita na Biblioteca, vai em toda conversa.
+- Resumo do contexto: quando a conversa se aproxima do limite do modelo, um
+  botão a resume; dali em diante só o resumo e as mensagens seguintes são
+  enviados.
+- Geração de imagens pela OpenAI (GPT Image) ou pelo Gemini (Imagen), com o
+  botão Imagem do campo de envio.
+- Pergunta à parte: selecione um trecho da resposta e pergunte sobre ele num
+  painel lateral, sem acrescentar nada à conversa.
 - Preview: blocos de código HTML, SVG, JavaScript, Markdown, React (JSX/TSX) e
   Mermaid abrem em um painel ao lado da conversa, com abas de código e console e tamanhos de tela; a barra
   de endereço também abre páginas por URL (por exemplo, `localhost:3000`).
@@ -55,7 +67,7 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
 - Parâmetros por conversa: prompt de sistema, temperatura, máximo de tokens e
   nível de raciocínio.
 - Exportar uma conversa em Markdown; backup e restauração de tudo em JSON
-  (conversas, pastas, personas e prompts; sem as chaves de API); exportar uma
+  (conversas, pastas, personas, prompts e memória; sem as chaves de API); exportar uma
   conversa como página HTML; apagar tudo o que o app guardou no navegador.
 - Raciocínio do modelo, recolhido acima da resposta, quando o provedor envia
   (Anthropic a partir dos modelos 4.6, OpenRouter, Ollama, DeepSeek).
@@ -73,8 +85,9 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
 ## Provedores
 
 Anthropic, OpenAI, Google Gemini, OpenRouter, DeepSeek, Mistral, xAI (Grok),
-Groq, Perplexity, Command Code, Ollama (local), LM Studio (local) e qualquer
-endpoint compatível com a API de chat da OpenAI ("Custom").
+Groq, Perplexity, Command Code, OpenCode Zen e Go (pelo proxy local), Ollama
+(local), LM Studio (local) e qualquer endpoint compatível com a API de chat da
+OpenAI ("Custom").
 
 O Command Code aparece duas vezes, com a mesma chave: "Command Code" para os
 modelos no formato da OpenAI e "Command Code (Claude)" para os modelos Claude,
@@ -83,6 +96,13 @@ que ele só serve no formato da Anthropic. A API dele exige o plano Pro.
 Na Anthropic, o cache de prompt fica ligado por padrão: a parte da conversa já
 enviada é cobrada a cerca de 10% do preço nas mensagens seguintes. O rodapé de
 cada resposta mostra quantos tokens vieram do cache.
+
+As APIs do OpenCode não aceitam chamadas do navegador. Para usá-las, rode
+`npm run proxy` na pasta do TSRS: o proxy escuta só em `localhost:8787`, atende
+só a origem do app (`--origin` para outra) e só repassa para `opencode.ai`
+(`--allow host` acrescenta outros). Ele vem ligado nos provedores do OpenCode e
+pode ser ligado nos locais e no Custom. O plano gratuito do Zen só funciona
+dentro do próprio OpenCode.
 
 Cada provedor é uma linha na tabela de `src/providers.ts`: URL base, caminhos,
 cabeçalhos (com `{apiKey}` como placeholder) e o formato da API (`openai` ou
@@ -98,6 +118,11 @@ cabeçalhos (com `{apiKey}` como placeholder) e o formato da API (`openai` ou
 | `src/crypto.ts`          | Criptografia das chaves de API                              |
 | `src/mcp.ts`             | Conexão com servidores MCP                                  |
 | `src/tools.ts`           | Ferramentas oferecidas ao modelo em cada requisição         |
+| `src/memory.ts`          | Ferramentas e prompt da memória                             |
+| `src/summary.ts`         | Resumo do contexto                                          |
+| `src/images.ts`          | Escolha do provedor e do modelo de imagem                   |
+| `src/SideChat.tsx`       | Painel da pergunta à parte                                  |
+| `proxy/cors-proxy.mjs`   | Proxy local para provedores sem CORS                        |
 | `src/ToolsDialog.tsx`    | Ferramentas web e servidores MCP                            |
 | `src/usage.ts`           | Contagem de tokens, custo e uso do contexto                 |
 | `src/report.ts`          | Totais de uso por dia e por modelo                          |
@@ -110,7 +135,8 @@ cabeçalhos (com `{apiKey}` como placeholder) e o formato da API (`openai` ou
 | `src/Sidebar.tsx`        | Busca, pastas, conversas fixadas e menus                    |
 | `src/ChatTopBar.tsx`     | Modelo, persona, uso de tokens e atalhos da conversa        |
 | `src/MessageView.tsx`    | Mensagem, edição, versões e ações                           |
-| `src/Markdown.tsx`       | Markdown das respostas e blocos de código                   |
+| `src/Markdown.tsx`       | Markdown das respostas (carregado logo após abrir o app)    |
+| `src/MarkdownRenderer.tsx` | Renderização do Markdown e blocos de código               |
 | `src/ToolCallBlock.tsx`  | Chamada de ferramenta e pedido de permissão                 |
 | `src/Composer.tsx`       | Campo de envio, anexos e prompts salvos                     |
 | `src/PreviewPanel.tsx`   | Painel de preview                                           |
@@ -123,7 +149,7 @@ cabeçalhos (com `{apiKey}` como placeholder) e o formato da API (`openai` ou
 | `src/ParamsPanel.tsx`    | Parâmetros da conversa                                      |
 | `src/SettingsDialog.tsx` | Chaves, URLs base, títulos, segurança e dados               |
 | `src/UnlockDialog.tsx`   | Pedido de senha para desbloquear as chaves                  |
-| `src/LibraryDialog.tsx`  | Personas e prompts salvos                                   |
+| `src/LibraryDialog.tsx`  | Personas, agentes, prompts salvos e memória                 |
 | `src/CompareDialog.tsx`  | Escolha do modelo para comparar uma resposta                |
 | `public/sw.js`           | Service worker: app disponível sem conexão                  |
 | `e2e/`                   | Testes de ponta a ponta e o provedor falso que eles usam    |
@@ -160,7 +186,13 @@ Próximos passos em [ROADMAP.md](ROADMAP.md).
   aparecem em branco; o botão de abrir em nova aba contorna isso. O que está
   aberto no painel não é guardado entre sessões.
 - PDFs dependem do suporte do provedor e do modelo escolhidos.
-- Provedores que não liberam CORS para o navegador precisam de um proxy.
+- Provedores que não liberam CORS para o navegador precisam do proxy local
+  (`npm run proxy`), que não roda no app instalado sem a pasta do projeto.
+- Os arquivos de um agente ficam junto das configurações, no `localStorage`, e
+  somam no máximo cerca de 1,5 MB.
+- O custo das imagens geradas não entra na conta da conversa.
+- A memória e os agentes com ferramentas precisam de um modelo que use
+  ferramentas.
 
 ## Licença
 

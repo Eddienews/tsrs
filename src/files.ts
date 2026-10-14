@@ -1,5 +1,5 @@
 import { locale, t } from './i18n'
-import type { Attachment, Chat, Folder, Persona, SavedPrompt } from './types'
+import type { Attachment, Chat, Folder, Memory, Persona, SavedPrompt } from './types'
 
 export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 
@@ -69,6 +69,7 @@ export interface Library {
   folders: Folder[]
   personas: Persona[]
   prompts: SavedPrompt[]
+  memories: Memory[]
 }
 
 // Backups hold conversations and the library; API keys never leave the browser.
@@ -107,5 +108,6 @@ export function parseBackup(text: string): Library & { chats: Chat[] } {
     folders: list<Folder>(data.folders, 'name'),
     personas: list<Persona>(data.personas, 'system'),
     prompts: list<SavedPrompt>(data.prompts, 'text'),
+    memories: list<Memory>(data.memories, 'text'),
   }
 }
