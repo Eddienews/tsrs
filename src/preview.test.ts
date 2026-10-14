@@ -56,3 +56,18 @@ test('finds the last previewable block of a reply', () => {
   expect(lastPreviewable('```python\nprint(1)\n```')).toBeNull()
   expect(lastPreviewable('sem código')).toBeNull()
 })
+
+test('builds React and Mermaid documents that load pinned libraries', () => {
+  const react = previewDocument('tsx', 'export default () => <p>oi</p> // </script>')!
+  expect(react).toContain('<script type="importmap">')
+  expect(react).toMatch(/@babel\/standalone@\d+\.\d+\.\d+\//)
+  expect(react).toMatch(/esm\.sh\/react@\d+\.\d+\.\d+/)
+  // The code is embedded as a string that cannot close the script tag.
+  expect(react).not.toContain('// </script>')
+  expect(react).toContain('\\u003c/script>')
+  const mermaid = previewDocument('mermaid', 'graph TD\n  A --> B<br>')!
+  expect(mermaid).toContain('<pre class="mermaid">graph TD\n  A --&gt; B&lt;br&gt;</pre>')
+  expect(mermaid).toMatch(/mermaid@\d+\.\d+\.\d+/)
+  expect(artifactName('tsx', 1)).toBe('preview-1.tsx')
+  expect(artifactName('mermaid', 2)).toBe('preview-2.mmd')
+})

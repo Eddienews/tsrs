@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  Brain,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -67,6 +68,29 @@ function IconAction(props: {
       </TooltipTrigger>
       <TooltipContent>{props.label}</TooltipContent>
     </Tooltip>
+  )
+}
+
+// The model's reasoning, folded away unless the user opens it.
+function Thinking({ text, live }: { text: string; live: boolean }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="thinking mb-2">
+      <button
+        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        {live ? <span className="live-dot" aria-hidden /> : <Brain className="size-3.5" />}
+        {live ? t('Pensando…') : t('Raciocínio')}
+        <ChevronRight className={cn('size-3 transition-transform', open && 'rotate-90')} />
+      </button>
+      {open && (
+        <p className="mt-1.5 max-h-80 overflow-y-auto whitespace-pre-wrap border-l-2 pl-3 text-sm text-muted-foreground">
+          {text}
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -211,6 +235,9 @@ function MessageView(props: Props) {
         </div>
       ) : (
         <div className={cn('w-full', streaming && '[&_.prose-tsrs:last-child>p:last-child]:caret')}>
+          {message.thinking && (
+            <Thinking text={message.thinking} live={streaming && !message.content} />
+          )}
           {message.parts ? (
             message.parts.map((part, index) =>
               part.type === 'text' ? (
@@ -225,7 +252,7 @@ function MessageView(props: Props) {
         </div>
       )}
 
-      {pending && (
+      {pending && !message.thinking && (
         <p className="flex items-center gap-2 text-xs text-muted-foreground">
           <span className="live-dot" aria-hidden /> {t('Pensando…')}
         </p>

@@ -55,10 +55,14 @@ export interface ChatRequest extends Connection {
   // Provider-side tools, for providers that have them.
   webSearch?: boolean
   webFetch?: boolean
+  // Ask for the model's reasoning, where the provider only sends it on request.
+  showThinking?: boolean
 }
 
 export type StreamEvent =
   | { type: 'text'; text: string }
+  // Part of the model's reasoning, shown apart from the reply.
+  | { type: 'thinking'; text: string }
   // Cumulative over the requests made so far for this reply.
   | { type: 'usage'; usage: Usage }
   | { type: 'truncated' }
@@ -284,6 +288,16 @@ function anthropicWebTools(req: ChatRequest): unknown[] {
   ]
 }
 
+// Claude models from 4.6 on think adaptively and, from 4.7 on, leave the
+// reasoning text out unless asked for a summary of it.
+export function adaptiveThinking(model: string): boolean {
+  const match = /claude-(?:opus|sonnet|haiku|fable|mythos)-(\d+)(?:-(\d{1,2})(?!\d))?/.exec(model)
+  if (!match) return false
+  const major = Number(match[1])
+  const minor = Number(match[2] ?? 0)
+  return major > 4 || (major === 4 && minor >= 6)
+}
+
 // `wire` is the conversation in the provider's own format, which grows by one
 // round of tool calls at a time while a reply is being written.
 function body(req: ChatRequest, wire: unknown[]): unknown {
@@ -307,6 +321,9 @@ function body(req: ChatRequest, wire: unknown[]): unknown {
       stream: true,
       ...temperature,
       ...(params.effort ? { output_config: { effort: params.effort } } : {}),
+      ...(req.showThinking && adaptiveThinking(req.model)
+        ? { thinking: { type: 'adaptive', display: 'summarized' } }
+        : {}),
       ...(tools.length ? { tools } : {}),
     }
   }
@@ -395,6 +412,9 @@ function anthropicTurn(): Turn {
       } else if (event.type === 'content_block_delta') {
         const delta = event.delta ?? {}
         if (delta.type === 'text_delta') events.push({ type: 'text', text: delta.text })
+        if (delta.type === 'thinking_delta' && delta.thinking) {
+          events.push({ type: 'thinking', text: delta.thinking })
+        }
         if (!block) return events
         if (delta.type === 'text_delta') {
           block.text += delta.text
@@ -456,6 +476,9 @@ function openaiTurn(): Turn {
     decode(event) {
       const events: StreamEvent[] = []
       const choice = event.choices?.[0]
+      // OpenRouter and Ollama call it `reasoning`; DeepSeek and vLLM, `reasoning_content`.
+      const reasoning = choice?.delta?.reasoning ?? choice?.delta?.reasoning_content
+      if (typeof reasoning === 'string' && reasoning) events.push({ type: 'thinking', text: reasoning })
       if (choice?.delta?.content) {
         content += choice.delta.content
         events.push({ type: 'text', text: choice.delta.content })

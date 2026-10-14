@@ -47,6 +47,8 @@ export interface Message {
   // When the message was written, in ms; absent on messages from older versions.
   createdAt?: number
   attachments?: Attachment[]
+  // The model's reasoning, when the provider sent it.
+  thinking?: string
   // Text and tool calls in the order they happened, for replies that used
   // tools; `content` still holds all of the text.
   parts?: Part[]
@@ -201,6 +203,8 @@ export interface Settings {
   webSearch: boolean
   webFetch: boolean
   autoTitle: boolean
+  // Show the model's reasoning, asking for it where the provider needs that.
+  showThinking: boolean
   // Tell the model that code blocks can be opened in the preview panel.
   previewHint: boolean
   // Empty means "use the chat's own model".

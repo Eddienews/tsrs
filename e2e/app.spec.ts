@@ -297,6 +297,31 @@ test('previews generated code in a sandboxed frame', async ({ page }) => {
   await expect(panel.frameLocator('iframe').getByRole('heading')).toHaveText('Olá do preview')
 })
 
+test('previews React and Mermaid, and explains when the libraries cannot load', async ({
+  page,
+}) => {
+  // The libraries come from public CDNs; here they are unreachable on purpose.
+  await page.route(/esm\.sh|cdn\.jsdelivr\.net|cdn\.tailwindcss\.com/, (route) => route.abort())
+  await connect(page)
+  await send(page, 'um componente')
+  const buttons = reply(page).getByRole('button', { name: 'Abrir preview' })
+  await expect(buttons).toHaveCount(2)
+
+  const panel = page.locator('.preview')
+  await buttons.first().click()
+  await expect(panel.getByRole('tab', { name: 'preview-1.tsx' })).toBeVisible()
+  await expect(panel.frameLocator('iframe').locator('pre')).toContainText(
+    'Não foi possível carregar as bibliotecas do preview',
+  )
+  await buttons.nth(1).click()
+  await expect(panel.getByRole('tab', { name: 'preview-2.mmd' })).toBeVisible()
+  await expect(panel.frameLocator('iframe').locator('pre').last()).toContainText(
+    'Não foi possível carregar',
+  )
+  await panel.getByRole('tab', { name: /Console/ }).click()
+  await expect(panel).toContainText('Não foi possível carregar as bibliotecas do preview')
+})
+
 test('fills the fields of a saved prompt and switches the theme', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Biblioteca' }).click()
@@ -355,6 +380,21 @@ test('sums up usage per day and per model', async ({ page }) => {
   await page.getByRole('button', { name: 'Conversa', exact: true }).click()
   await expect(view).toHaveCount(0)
   await expect(composer(page)).toBeVisible()
+})
+
+test('shows the reasoning folded above the reply', async ({ page }) => {
+  await connect(page)
+  await send(page, 'pense antes de responder')
+  const thinking = reply(page).locator('.thinking')
+  await expect(thinking.getByRole('button', { name: 'Raciocínio' })).toBeVisible()
+  await expect(thinking).not.toContainText('Primeiro')
+  await thinking.getByRole('button', { name: 'Raciocínio' }).click()
+  await expect(thinking).toContainText('Primeiro, o pedido. Depois, a resposta.')
+  await expect(reply(page)).toContainText('Resposta 1.')
+  // Kept with the conversation, but never sent back to the model.
+  await send(page, 'e agora?')
+  const sent = provider.chats.at(-1)!.body.messages
+  expect(JSON.stringify(sent)).not.toContain('Primeiro')
 })
 
 test('explains a failure and retries', async ({ page }) => {
@@ -427,6 +467,31 @@ test('exports, deletes and restores a backup; chats survive a reload', async ({ 
   await chatRow(page, 'Saudação inicial').click()
   await expect(page.locator('.message.user')).toHaveText(/guarde isto/)
   await expect(reply(page)).toContainText('Resposta 1.')
+})
+
+test('deletes everything after confirming', async ({ page, context }) => {
+  await connect(page, 'sk-secret')
+  await send(page, 'apague isto')
+  await expect(chatRow(page, 'Saudação inicial')).toBeVisible()
+  // Another tab holds the database open; deleting must not wait for it.
+  const other = await context.newPage()
+  await other.goto('/')
+  await expect(other.locator('.chat-item')).toHaveCount(1)
+
+  await openSettings(page, 'Dados')
+  page.once('dialog', (dialog) => dialog.dismiss())
+  await page.getByRole('button', { name: 'Apagar tudo' }).click()
+  await expect(page.locator('.chat-item')).toHaveCount(1)
+
+  page.once('dialog', (dialog) => dialog.accept())
+  await page.getByRole('button', { name: 'Apagar tudo' }).click()
+  await expect(page.getByText('No que vamos trabalhar?')).toBeVisible()
+  await expect(page.locator('.chat-item')).toHaveCount(0)
+  expect(await page.evaluate(() => localStorage.getItem('tsrs:settings') ?? '')).not.toContain(
+    'sk-secret',
+  )
+  await other.reload()
+  await expect(other.locator('.chat-item')).toHaveCount(0)
 })
 
 test('keeps API keys encrypted behind a password', async ({ page }) => {
