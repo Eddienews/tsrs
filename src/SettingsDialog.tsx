@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Download, Eye, EyeOff, Lock, RefreshCw, Upload } from 'lucide-react'
+import { Download, Eye, EyeOff, Lock, RefreshCw, Trash2, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -32,6 +32,8 @@ interface Props {
   onExport: () => void
   // Resolves to a summary line to show the user; rejects with a readable error.
   onImport: (file: File) => Promise<string>
+  // Asks for confirmation, then removes everything stored by the app.
+  onDeleteEverything: () => void
   onClose: () => void
 }
 
@@ -293,6 +295,21 @@ export default function SettingsDialog(props: Props) {
                 </div>
                 <div className="space-y-1.5">
                   <label className="flex items-center justify-between gap-4 rounded-md border p-3 text-sm">
+                    {t('Mostrar o raciocínio do modelo')}
+                    <Switch
+                      aria-label={t('Mostrar o raciocínio do modelo')}
+                      checked={settings.showThinking}
+                      onCheckedChange={(showThinking) => onChange((s) => ({ ...s, showThinking }))}
+                    />
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    {t(
+                      'Aparece recolhido acima da resposta, quando o provedor envia. Nos modelos Claude 4.6 ou mais novos, pede um resumo do raciocínio, sem custo extra.',
+                    )}
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="flex items-center justify-between gap-4 rounded-md border p-3 text-sm">
                     {t('Avisar o modelo sobre o preview')}
                     <Switch
                       aria-label={t('Avisar o modelo sobre o preview')}
@@ -505,6 +522,23 @@ export default function SettingsDialog(props: Props) {
                       'O backup contém conversas, pastas, personas e prompts. Chaves de API não são exportadas.',
                     )}
                 </p>
+                <div className="rounded-md border border-destructive/40 p-3">
+                  <h3 className="text-sm font-medium text-destructive">{t('Apagar tudo')}</h3>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {t(
+                      'Remove deste navegador todas as conversas, chaves de API e configurações. Não pode ser desfeito; exporte um backup antes se quiser guardar as conversas.',
+                    )}
+                  </p>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="mt-2 gap-1.5"
+                    onClick={props.onDeleteEverything}
+                  >
+                    <Trash2 className="size-3.5" />
+                    {t('Apagar tudo')}
+                  </Button>
+                </div>
               </div>
             )}
 

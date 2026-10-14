@@ -36,8 +36,8 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
 - Biblioteca de personas (prompts de sistema com nome, opcionalmente ligados a
   um modelo) e de prompts salvos para inserir na mensagem, com campos
   `{{nome}}` preenchidos na hora de inserir.
-- Preview: blocos de código HTML, SVG, JavaScript e Markdown abrem em um painel
-  ao lado da conversa, com abas de código e console e tamanhos de tela; a barra
+- Preview: blocos de código HTML, SVG, JavaScript, Markdown, React (JSX/TSX) e
+  Mermaid abrem em um painel ao lado da conversa, com abas de código e console e tamanhos de tela; a barra
   de endereço também abre páginas por URL (por exemplo, `localhost:3000`).
 - Paleta de comandos (Ctrl/⌘+K) para ir a conversas, trocar de modelo e abrir
   telas.
@@ -49,7 +49,10 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
 - Parâmetros por conversa: prompt de sistema, temperatura, máximo de tokens e
   nível de raciocínio.
 - Exportar uma conversa em Markdown; backup e restauração de tudo em JSON
-  (conversas, pastas, personas e prompts; sem as chaves de API).
+  (conversas, pastas, personas e prompts; sem as chaves de API); apagar tudo o
+  que o app guardou no navegador.
+- Raciocínio do modelo, recolhido acima da resposta, quando o provedor envia
+  (Anthropic a partir dos modelos 4.6, OpenRouter, Ollama, DeepSeek).
 - Tokens e custo estimado por resposta e por conversa, com aviso quando o
   contexto do modelo está quase cheio.
 - Tela de uso: tokens, custo e respostas por dia e por modelo, nos últimos 7,
@@ -132,8 +135,9 @@ mensagens são lidas quando a conversa é aberta.
 - A busca, a exportação em Markdown e o total de tokens consideram só a versão
   atual de cada conversa, não as versões alternativas.
 - Preview: o código gerado roda em um frame isolado, sem acesso às chaves e às
-  conversas, mas com acesso à rede. React, TypeScript e Mermaid não são
-  renderizados. Muitos sites proíbem ser exibidos dentro de outra página e
+  conversas, mas com acesso à rede. React e Mermaid carregam bibliotecas de CDNs
+  públicas (esm.sh, jsDelivr e o CDN do Tailwind), então precisam de internet;
+  pacotes npm importados pelo componente vêm do esm.sh. Muitos sites proíbem ser exibidos dentro de outra página e
   aparecem em branco; o botão de abrir em nova aba contorna isso. O que está
   aberto no painel não é guardado entre sessões.
 - PDFs dependem do suporte do provedor e do modelo escolhidos.

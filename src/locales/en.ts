@@ -253,6 +253,19 @@ export const en: Record<string, string> = {
   Entrada: 'Input',
   Resultado: 'Result',
 
+  // Deleting everything
+  'Apagar tudo': 'Delete everything',
+  'Remove deste navegador todas as conversas, chaves de API e configurações. Não pode ser desfeito; exporte um backup antes se quiser guardar as conversas.':
+    'Removes every chat, API key and setting from this browser. This cannot be undone; export a backup first if you want to keep the chats.',
+  'Apagar todas as conversas, chaves de API e configurações deste navegador?':
+    'Delete every chat, API key and setting from this browser?',
+
+  // Reasoning
+  Raciocínio: 'Reasoning',
+  'Mostrar o raciocínio do modelo': "Show the model's reasoning",
+  'Aparece recolhido acima da resposta, quando o provedor envia. Nos modelos Claude 4.6 ou mais novos, pede um resumo do raciocínio, sem custo extra.':
+    'Shown folded above the reply when the provider sends it. On Claude 4.6 and newer models, asks for a summary of the reasoning at no extra cost.',
+
   // Comparison
   'Comparar com outros modelos': 'Compare with other models',
   'Até {count} modelos respondem à mesma pergunta ao mesmo tempo. As respostas ficam lado a lado e o modelo da conversa não muda.':
@@ -282,6 +295,8 @@ export const en: Record<string, string> = {
     '{count} older replies, from before messages had a date, appear on the day of their chat’s last activity.',
 
   // Preview panel
+  'Não foi possível carregar as bibliotecas do preview. Verifique a conexão com a internet.':
+    'Could not load the libraries the preview needs. Check the internet connection.',
   'Avisar o modelo sobre o preview': 'Tell the model about the preview',
   'Acrescenta ao prompt de sistema uma nota dizendo que blocos de código HTML, SVG, JavaScript e Markdown podem ser abertos no preview.':
     'Adds a note to the system prompt saying that HTML, SVG, JavaScript and Markdown code blocks can be opened in the preview.',

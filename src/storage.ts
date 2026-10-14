@@ -42,6 +42,7 @@ export function defaultSettings(): Settings {
     webFetch: false,
     autoTitle: true,
     previewHint: true,
+    showThinking: true,
     titleModel: '',
   }
 }
@@ -88,10 +89,31 @@ function db(): Promise<IDBDatabase> {
         }
       }
     }
-    open.onsuccess = () => resolve(open.result)
+    open.onsuccess = () => {
+      // Let another tab delete or upgrade the database; this one reopens it on
+      // its next read or write.
+      open.result.onversionchange = () => {
+        open.result.close()
+        dbPromise = undefined
+      }
+      resolve(open.result)
+    }
     open.onerror = () => reject(open.error)
   })
   return dbPromise
+}
+
+// Removes every conversation and the settings, API keys included.
+export async function deleteEverything(): Promise<void> {
+  const open = dbPromise
+  dbPromise = undefined
+  if (open) (await open.catch(() => null))?.close()
+  await new Promise<void>((resolve, reject) => {
+    const request = indexedDB.deleteDatabase(DB_NAME)
+    request.onsuccess = () => resolve()
+    request.onerror = () => reject(request.error)
+  })
+  localStorage.removeItem(SETTINGS_KEY)
 }
 
 async function run<T>(

@@ -39,6 +39,13 @@ const PAGE = `<!doctype html>
   </body>
 </html>`
 
+const COMPONENT = `import { useState } from 'react'
+
+export default function Contador() {
+  const [n, setN] = useState<number>(0)
+  return <button onClick={() => setN(n + 1)}>Cliques: {n}</button>
+}`
+
 export async function startMockProvider(): Promise<MockProvider> {
   const chats: RecordedRequest[] = []
   let failure: { status: number; headers: Record<string, string> } | null = null
@@ -78,11 +85,18 @@ export async function startMockProvider(): Promise<MockProvider> {
       const done = { choices: [{ delta: {}, finish_reason: 'tool_calls' }] }
       return res.end(`data: ${JSON.stringify(done)}\n\ndata: [DONE]\n\n`)
     }
+    if (!isTitle && String(last.content).includes('pense')) {
+      const thought = { choices: [{ delta: { reasoning: 'Primeiro, o pedido. ' } }] }
+      const more = { choices: [{ delta: { reasoning_content: 'Depois, a resposta.' } }] }
+      res.write(`data: ${JSON.stringify(thought)}\n\ndata: ${JSON.stringify(more)}\n\n`)
+    }
     const parts = isTitle
       ? ['"Saudação ', 'inicial".']
       : last.role === 'tool'
         ? [`A ferramenta respondeu: ${last.content}`]
-        : String(last.content).includes('página')
+        : String(last.content).includes('componente')
+          ? ['Aqui:\n\n', '```tsx\n' + COMPONENT + '\n```\n\n```mermaid\ngraph TD\n  A[Início] --> B[Fim]\n```']
+          : String(last.content).includes('página')
           ? ['Aqui está:\n\n', '```html\n' + PAGE + '\n```']
           : [`Resposta ${++replies}. `, 'Sou um **mock**.\n\n', '```js\nconst x = "oi"\n```']
     for (const content of parts) {

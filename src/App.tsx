@@ -32,6 +32,7 @@ import Sidebar from './Sidebar'
 import {
   SETTINGS_KEY,
   deleteChat,
+  deleteEverything,
   loadChats,
   loadMetas,
   loadSettings,
@@ -496,6 +497,7 @@ export default function App() {
           tools: toolset?.defs,
           webSearch: settings.webSearch && !!via.webTools,
           webFetch: settings.webFetch && via.webTools === 'anthropic',
+          showThinking: settings.showThinking,
           async runTool(call) {
             if (!toolset) throw new Error(`No tool named ${call.name}.`)
             if (!toolset.autoApprove(call.name)) {
@@ -513,6 +515,10 @@ export default function App() {
         for await (const event of stream) {
           if (event.type === 'text') {
             patchReply((m) => withText(m, event.text))
+          } else if (event.type === 'thinking') {
+            if (settings.showThinking) {
+              patchReply((m) => ({ ...m, thinking: (m.thinking ?? '') + event.text }))
+            }
           } else if (event.type === 'tool') {
             const { part } = event
             const label = part.provider
@@ -759,6 +765,16 @@ export default function App() {
       chatToMarkdown({ ...chat, messages: thread }),
       'text/markdown',
     )
+  }
+
+  async function eraseEverything() {
+    if (!confirm(t('Apagar todas as conversas, chaves de API e configurações deste navegador?'))) return
+    abortRef.current?.abort()
+    settings.mcpServers.forEach((server) => forget(server.id))
+    // Written settings would bring the deleted ones back before the reload.
+    adopted.current = settings
+    await deleteEverything()
+    location.reload()
   }
 
   async function exportBackup() {
@@ -1060,6 +1076,7 @@ export default function App() {
           onResetVault={resetVault}
           onExport={exportBackup}
           onImport={importBackup}
+          onDeleteEverything={eraseEverything}
           onClose={() => setShowSettings(false)}
         />
       )}

@@ -1,3 +1,5 @@
+import { t } from './i18n'
+
 // Something shown in the preview panel: a code block from a reply, or a page
 // opened by address.
 export interface Artifact {
@@ -24,7 +26,19 @@ const EXTENSIONS: Record<string, string> = {
   md: 'md',
   js: 'js',
   javascript: 'js',
+  jsx: 'jsx',
+  tsx: 'tsx',
+  react: 'jsx',
+  mermaid: 'mmd',
+  mmd: 'mmd',
 }
+
+// Libraries the React and Mermaid previews load from public CDNs, pinned.
+const REACT = 'https://esm.sh/react@19.0.0'
+const REACT_DOM = 'https://esm.sh/react-dom@19.0.0'
+const BABEL = 'https://cdn.jsdelivr.net/npm/@babel/standalone@7.26.4/babel.min.js'
+const TAILWIND = 'https://cdn.tailwindcss.com/3.4.16'
+const MERMAID = 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs'
 
 export function previewable(lang: string): boolean {
   return lang.toLowerCase() in EXTENSIONS
@@ -71,6 +85,98 @@ function withBridge(html: string): string {
   return BRIDGE + html
 }
 
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+// A value written into an inline script, which must not close the script tag.
+function scriptValue(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, '\\u003c')
+}
+
+// Shows an error in the frame and in the console tab.
+function errorHelper(): string {
+  return `
+const show = (error) => {
+  const text = error && error.message ? error.message : String(error)
+  console.error(text)
+  const pre = document.createElement('pre')
+  pre.style.cssText = 'color:#b91c1c;white-space:pre-wrap;font:13px ui-monospace,monospace;padding:16px'
+  pre.textContent = text
+  document.body.append(pre)
+}
+const offline = ${scriptValue(t('Não foi possível carregar as bibliotecas do preview. Verifique a conexão com a internet.'))}`
+}
+
+// Compiles the component in the frame (JSX and TypeScript), loads its imports
+// from esm.sh and renders its default export, or `App`.
+function reactDocument(code: string): string {
+  const imports = {
+    react: REACT,
+    'react/': `${REACT}/`,
+    'react-dom': REACT_DOM,
+    'react-dom/': `${REACT_DOM}/`,
+  }
+  const run = `
+const source = ${scriptValue(code)}
+${errorHelper()}
+try {
+  if (typeof Babel === 'undefined') throw new Error(offline)
+  let { code } = Babel.transform(source, {
+    filename: 'App.tsx',
+    presets: [['react', { runtime: 'automatic' }], ['typescript', { isTSX: true, allExtensions: true }]],
+  })
+  code = code
+    .replace(/^\\s*import\\s+['"][^'"]+\\.css['"];?\\s*$/gm, '')
+    .replace(/(\\bfrom\\s*|\\bimport\\s*\\(?\\s*)(['"])([^'"./][^'"]*)\\2/g, (match, before, quote, name) =>
+      /^(https?:|react(-dom)?(\\/|$))/.test(name)
+        ? match
+        : before + quote + 'https://esm.sh/' + name + '?external=react,react-dom' + quote)
+  const url = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }))
+  // A missing library or package fails here, with a message that names only the blob.
+  const mod = await import(url).catch((error) => {
+    throw new Error(offline + '\\n\\n' + (error && error.message ? error.message : error))
+  })
+  const App = mod.default ?? mod.App
+  if (typeof App === 'function') {
+    const [{ createElement }, { createRoot }] = await Promise.all([import('react'), import('react-dom/client')])
+    createRoot(document.getElementById('root')).render(createElement(App))
+  }
+} catch (error) {
+  show(error)
+}`
+  return withBridge(
+    '<!doctype html><html><head>' +
+      `<script type="importmap">${scriptValue({ imports })}</script>` +
+      `<script src="${TAILWIND}"></script><script src="${BABEL}"></script>` +
+      '<style>body{margin:0;font-family:system-ui,sans-serif}</style></head>' +
+      `<body><div id="root"></div><script type="module">${run}</script></body></html>`,
+  )
+}
+
+function mermaidDocument(code: string): string {
+  const run = `
+${errorHelper()}
+let mermaid
+try {
+  mermaid = (await import('${MERMAID}')).default
+} catch {
+  show(new Error(offline))
+}
+if (mermaid) {
+  mermaid.initialize({ startOnLoad: false, securityLevel: 'strict' })
+  try {
+    await mermaid.run()
+  } catch (error) {
+    show(error)
+  }
+}`
+  return withBridge(
+    '<!doctype html><html><head><style>body{margin:0;padding:16px;font-family:system-ui,sans-serif}</style></head>' +
+      `<body><pre class="mermaid">${escapeHtml(code)}</pre><script type="module">${run}</script></body></html>`,
+  )
+}
+
 // The HTML document that renders a code block, or null when the language is
 // not one that runs in a frame.
 export function previewDocument(lang: string, code: string): string | null {
@@ -81,6 +187,11 @@ export function previewDocument(lang: string, code: string): string | null {
       return withBridge(
         `<!doctype html><body style="margin:0;display:grid;place-items:center;min-height:100vh">${code}</body>`,
       )
+    case 'jsx':
+    case 'tsx':
+      return reactDocument(code)
+    case 'mmd':
+      return mermaidDocument(code)
     case 'js':
       return withBridge(
         `<!doctype html><body><script>${code.replace(/<\/script/gi, '<\\/script')}</script></body>`,
@@ -113,12 +224,14 @@ export function normalizeUrl(text: string): string | null {
 // name of the button in the interface's language.
 export function withPreviewHint(system: string, button: string): string {
   const hint =
-    'The user is reading this conversation in an app with a built-in preview panel. ' +
-    `Every fenced code block tagged html, svg, javascript or markdown gets a "${button}" button ` +
-    'that renders it in that panel. When asked to show, build or preview a page, drawing or ' +
-    'script, write one complete, self-contained block (CSS and scripts inline) and point to that ' +
-    'button. Do not say you cannot show a preview, and do not suggest saving files or using ' +
-    'other sites to see the result.'
+    'The user is reading this conversation in an app with a built-in preview panel. Every ' +
+    'fenced code block tagged html, svg, javascript, jsx, tsx, mermaid or markdown gets a ' +
+    `"${button}" button that renders it in that panel. When asked to show, build or preview a ` +
+    'page, drawing, diagram or script, write one complete, self-contained block (CSS and ' +
+    'scripts inline) and point to that button. A React component goes in one jsx or tsx ' +
+    'block that default-exports it; it may import npm packages and use Tailwind classes. Do ' +
+    'not say you cannot show a preview, and do not suggest saving files or using other sites ' +
+    'to see the result.'
   return system.trim() ? `${system.trim()}\n\n${hint}` : hint
 }
 

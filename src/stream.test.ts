@@ -93,6 +93,21 @@ describe('streamChat, OpenAI format', () => {
     })
   })
 
+  it('reads reasoning under either field name', async () => {
+    stubFetch(
+      sse([
+        'data: {"choices":[{"delta":{"reasoning":"hmm "}}]}\n\n',
+        'data: {"choices":[{"delta":{"reasoning_content":"ok"}}]}\n\n',
+        'data: {"choices":[{"delta":{"content":"pronto"}}]}\n\n',
+      ]),
+    )
+    expect(await collect(request('openrouter'))).toEqual([
+      { type: 'thinking', text: 'hmm ' },
+      { type: 'thinking', text: 'ok' },
+      { type: 'text', text: 'pronto' },
+    ])
+  })
+
   it('omits the auth header for keyless providers', async () => {
     const fetch = stubFetch(sse(['data: [DONE]\n\n']))
     await collect(request('ollama', { apiKey: '' }))
@@ -135,6 +150,7 @@ describe('streamChat, Anthropic format', () => {
       ]),
     )
     expect(await collect(request('anthropic'))).toEqual([
+      { type: 'thinking', text: 'x' },
       { type: 'text', text: 'oi' },
       { type: 'truncated' },
       { type: 'usage', usage: { input: 12, output: 4 } },
@@ -149,6 +165,24 @@ describe('streamChat, Anthropic format', () => {
     expect(body).not.toHaveProperty('temperature')
     expect(body.max_tokens).toBeGreaterThan(0)
     expect((fetch.mock.calls[0][1].headers as Record<string, string>)['x-api-key']).toBe('secret')
+  })
+
+  it('asks for summarized thinking only on models that think adaptively', async () => {
+    for (const [model, asked] of [
+      ['claude-haiku-5-5', true],
+      ['claude-opus-4-6', true],
+      ['claude-sonnet-4-5-20250929', false],
+      ['claude-3-7-sonnet-latest', false],
+    ] as const) {
+      const fetch = stubFetch(sse([]))
+      await collect(request('anthropic', { model, showThinking: true }))
+      expect(sentBody(fetch).thinking).toEqual(
+        asked ? { type: 'adaptive', display: 'summarized' } : undefined,
+      )
+    }
+    const fetch = stubFetch(sse([]))
+    await collect(request('anthropic', { model: 'claude-haiku-5-5' }))
+    expect(sentBody(fetch)).not.toHaveProperty('thinking')
   })
 
   it('puts documents and images before the text', async () => {
