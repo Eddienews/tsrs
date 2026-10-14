@@ -79,7 +79,10 @@ function Field(props: {
 }
 
 export default function SyncSection({ settings, onChange, locked, sync }: Props) {
-  const [kind, setKind] = useState<SyncKind>(sync.supported ? 'folder' : 'webdav')
+  // Starts on the place in use, so that disconnecting shows its form, filled in.
+  const [kind, setKind] = useState<SyncKind>(
+    sync.connected ?? (sync.supported ? 'folder' : 'webdav'),
+  )
   const [webdav, setWebdav] = useState<WebdavSync>(
     settings.sync.webdav ?? { url: '', user: '', password: '' },
   )

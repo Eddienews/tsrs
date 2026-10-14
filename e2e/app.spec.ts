@@ -1023,12 +1023,12 @@ test('syncs two devices through a WebDAV server', async ({ page, browser }) => {
       await on.getByLabel('Endereço da pasta').fill(`${dav.url}/tsrs`)
       await on.getByLabel('Usuário').fill('eddie')
       await on.getByLabel('Senha ou senha de app').fill(password)
-      await on.getByRole('button', { name: 'Conectar' }).click()
+      await on.getByRole('button', { name: 'Conectar', exact: true }).click()
     }
     await connectDav(page, 'errada')
     await expect(page.getByRole('alert')).toHaveText(/recusou o acesso \(401\)/)
     await page.getByLabel('Senha ou senha de app').fill('certa')
-    await page.getByRole('button', { name: 'Conectar' }).click()
+    await page.getByRole('button', { name: 'Conectar', exact: true }).click()
     await expect(page.getByText(`WebDAV: ${dav.url}/tsrs`)).toBeVisible()
     await expect(page.locator('.sync-status')).toHaveText('1 enviados, 0 recebidos, 0 apagados.')
     expect([...dav.files.keys()].sort()).toEqual([
@@ -1048,7 +1048,8 @@ test('syncs two devices through a WebDAV server', async ({ page, browser }) => {
     // Disconnecting forgets the server.
     await openSettings(other, 'Sincronização')
     await other.getByRole('button', { name: 'Desconectar' }).click()
-    await expect(other.getByRole('button', { name: 'Conectar' })).toBeVisible()
+    await expect(other.getByRole('button', { name: 'Conectar', exact: true })).toBeVisible()
+    await expect(other.getByLabel('Endereço da pasta')).toHaveValue(`${dav.url}/tsrs`)
     await other.context().close()
   } finally {
     await dav.close()
