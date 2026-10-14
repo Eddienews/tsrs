@@ -25,6 +25,39 @@ function wireName(server: McpServer, tool: string, taken: Set<string>): string {
   return name
 }
 
+// Tools the app runs itself, which never ask for permission.
+export function localTools(
+  defs: ToolDef[],
+  label: string,
+  run: (call: ToolCall) => ToolResult,
+): ToolSet {
+  const owns = (name: string) => defs.some((d) => d.name === name)
+  return {
+    defs,
+    problems: [],
+    label: (name) => (owns(name) ? label : name),
+    autoApprove: owns,
+    async run(call) {
+      return owns(call.name) ? run(call) : { content: `No tool named ${call.name}.`, isError: true }
+    },
+  }
+}
+
+// One set offering the tools of all of them; the first that has a tool runs it.
+export function mergeTools(sets: ToolSet[]): ToolSet | null {
+  if (!sets.length) return null
+  const owner = (name: string) => sets.find((s) => s.defs.some((d) => d.name === name))
+  return {
+    defs: sets.flatMap((s) => s.defs),
+    problems: sets.flatMap((s) => s.problems),
+    label: (name) => owner(name)?.label(name) ?? name,
+    autoApprove: (name) => owner(name)?.autoApprove(name) ?? false,
+    run: (call, signal) =>
+      owner(call.name)?.run(call, signal) ??
+      Promise.resolve({ content: `No tool named ${call.name}.`, isError: true }),
+  }
+}
+
 export async function gatherTools(servers: McpServer[]): Promise<ToolSet> {
   const routes = new Map<string, { server: McpServer; tool: string }>()
   const defs: ToolDef[] = []

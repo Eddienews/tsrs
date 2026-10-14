@@ -1,6 +1,10 @@
 import {
   AlertTriangle,
   Brain,
+  Download,
+  ImageIcon,
+  MessageSquareQuote,
+  ScrollText,
   GitBranch,
   Pin,
   PinOff,
@@ -18,7 +22,7 @@ import {
   RefreshCw,
   Scissors,
 } from 'lucide-react'
-import { memo, useState, type ReactNode } from 'react'
+import { memo, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -51,12 +55,16 @@ interface Props {
   // Starts a new conversation with everything up to this message.
   onFork: (id: string) => void
   onTogglePin: (id: string) => void
+  // Opens a side question about the reply, or about the selected part of it.
+  onAside: (id: string, quote: string) => void
 }
 
 function IconAction(props: {
   label: string
   disabled?: boolean
   pressed?: boolean
+  // Keep the text selection, which a click would otherwise clear.
+  keepSelection?: boolean
   onClick: () => void
   children: ReactNode
 }) {
@@ -70,6 +78,7 @@ function IconAction(props: {
           aria-label={props.label}
           aria-pressed={props.pressed}
           disabled={props.disabled}
+          onMouseDown={props.keepSelection ? (e) => e.preventDefault() : undefined}
           onClick={props.onClick}
         >
           {props.children}
@@ -77,6 +86,31 @@ function IconAction(props: {
       </TooltipTrigger>
       <TooltipContent>{props.label}</TooltipContent>
     </Tooltip>
+  )
+}
+
+// A summary that stands in for the messages above it in later requests.
+function Summary({ message, live }: { message: Message; live: boolean }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="summary w-full rounded-md border border-dashed bg-card px-3 py-2">
+      <button
+        className="flex w-full items-center gap-1.5 text-left text-xs text-muted-foreground hover:text-foreground"
+        aria-expanded={open || live}
+        onClick={() => setOpen(!open)}
+      >
+        {live ? <span className="live-dot" aria-hidden /> : <ScrollText className="size-3.5" />}
+        {live
+          ? t('Resumindo a conversa…')
+          : t('Conversa resumida até aqui: as mensagens acima não são mais enviadas ao modelo.')}
+        <ChevronRight className={cn('ml-auto size-3 shrink-0 transition-transform', (open || live) && 'rotate-90')} />
+      </button>
+      {(open || live) && message.content && (
+        <div className="mt-2 border-t pt-2">
+          <Markdown content={message.content} />
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -129,6 +163,15 @@ function MessageView(props: Props) {
   const isUser = message.role === 'user'
   const pending = streaming && !message.content && !message.parts?.length
   const speaking = useSpeaking(message.id)
+  const articleRef = useRef<HTMLElement>(null)
+  const image = message.imagePrompt !== undefined
+
+  // Text selected inside this reply, if any.
+  function selection(): string {
+    const selected = window.getSelection()
+    const node = selected?.anchorNode
+    return node && articleRef.current?.contains(node) ? selected.toString().trim() : ''
+  }
 
   if (draft !== null) {
     return (
@@ -166,10 +209,11 @@ function MessageView(props: Props) {
 
   return (
     <article
+      ref={articleRef}
       id={`message-${message.id}`}
       className={cn('message group flex scroll-mt-16 flex-col gap-1', message.role, isUser && 'items-end')}
     >
-      {message.attachments?.length ? (
+      {message.attachments?.length && !image ? (
         <div className="flex flex-wrap justify-end gap-2">
           {message.attachments.map((a) => (
             <div
@@ -199,7 +243,33 @@ function MessageView(props: Props) {
           <Pin className="size-3" /> {t('Fixada')}
         </span>
       )}
-      {isUser ? (
+      {message.summary ? (
+        <Summary message={message} live={streaming} />
+      ) : image ? (
+        <figure className="generated w-full">
+          {message.attachments?.map((a) => (
+            <div key={a.id} className="group/image relative w-fit">
+              <img
+                src={`data:${a.mime};base64,${a.data}`}
+                alt={message.imagePrompt}
+                className="max-h-[32rem] max-w-full rounded-md border"
+              />
+              <a
+                href={`data:${a.mime};base64,${a.data}`}
+                download={a.name}
+                aria-label={t('Baixar imagem')}
+                title={t('Baixar imagem')}
+                className="absolute right-2 top-2 rounded-md border bg-background/90 p-1.5 opacity-0 transition-opacity group-hover/image:opacity-100 focus:opacity-100"
+              >
+                <Download className="size-4" />
+              </a>
+            </div>
+          ))}
+          {message.content && (
+            <figcaption className="mt-1.5 text-xs text-muted-foreground">{message.content}</figcaption>
+          )}
+        </figure>
+      ) : isUser ? (
         message.content && (
           <div className="max-w-[85%] whitespace-pre-wrap rounded-lg bg-surface-2 px-3.5 py-2 text-[0.95rem]">
             {message.content}
@@ -295,9 +365,10 @@ function MessageView(props: Props) {
           </ol>
         </div>
       ) : null}
-      {pending && !message.thinking && (
+      {pending && !message.thinking && !message.summary && (
         <p className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="live-dot" aria-hidden /> {t('Pensando…')}
+          {image ? <ImageIcon className="size-3.5 animate-pulse" /> : <span className="live-dot" aria-hidden />}
+          {image ? t('Gerando imagem…') : t('Pensando…')}
         </p>
       )}
       {message.truncated && (
@@ -367,7 +438,7 @@ function MessageView(props: Props) {
               {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
             </IconAction>
           )}
-          {!isUser && message.content && canSpeak() && (
+          {!isUser && !image && message.content && canSpeak() && (
             <IconAction
               label={speaking ? t('Parar a leitura') : t('Ler em voz alta')}
               pressed={speaking}
@@ -380,22 +451,35 @@ function MessageView(props: Props) {
               {speaking ? <Square className="size-3.5" /> : <Volume2 className="size-3.5" />}
             </IconAction>
           )}
-          <IconAction
-            label={message.pinned ? t('Desafixar') : t('Fixar')}
-            pressed={!!message.pinned}
-            disabled={busy}
-            onClick={() => props.onTogglePin(message.id)}
-          >
-            {message.pinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
-          </IconAction>
-          <IconAction
-            label={t('Ramificar a partir daqui')}
-            disabled={busy}
-            onClick={() => props.onFork(message.id)}
-          >
-            <GitBranch className="size-3.5" />
-          </IconAction>
-          {isUser ? (
+          {!isUser && !image && !message.summary && message.content && (
+            <IconAction
+              label={t('Perguntar à parte')}
+              keepSelection
+              onClick={() => props.onAside(message.id, selection())}
+            >
+              <MessageSquareQuote className="size-3.5" />
+            </IconAction>
+          )}
+          {!message.summary && (
+            <>
+              <IconAction
+                label={message.pinned ? t('Desafixar') : t('Fixar')}
+                pressed={!!message.pinned}
+                disabled={busy}
+                onClick={() => props.onTogglePin(message.id)}
+              >
+                {message.pinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
+              </IconAction>
+              <IconAction
+                label={t('Ramificar a partir daqui')}
+                disabled={busy}
+                onClick={() => props.onFork(message.id)}
+              >
+                <GitBranch className="size-3.5" />
+              </IconAction>
+            </>
+          )}
+          {message.summary ? null : isUser ? (
             <IconAction
               label={t('Editar')}
               disabled={busy}
@@ -414,13 +498,15 @@ function MessageView(props: Props) {
                   <RefreshCw className="size-3.5" />
                 </IconAction>
               )}
-              <IconAction
-                label={t('Comparar')}
-                disabled={busy}
-                onClick={() => props.onCompare(message.id)}
-              >
-                <Columns3 className="size-3.5" />
-              </IconAction>
+              {!image && (
+                <IconAction
+                  label={t('Comparar')}
+                  disabled={busy}
+                  onClick={() => props.onCompare(message.id)}
+                >
+                  <Columns3 className="size-3.5" />
+                </IconAction>
+              )}
               {total > 1 && (
                 <IconAction
                   label={t('Lado a lado')}

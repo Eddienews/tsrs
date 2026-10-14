@@ -15,6 +15,8 @@ export interface Connection {
   provider: Provider
   baseUrl: string
   apiKey: string
+  // Local proxy the request goes through, for providers without CORS.
+  proxy?: string
 }
 
 export interface RequestMessage {
@@ -81,7 +83,8 @@ const MAX_ROUNDS = 12
 const ANTHROPIC_MAX_TOKENS = 64000
 
 function url(conn: Connection, path: string): string {
-  return conn.baseUrl.replace(/\/+$/, '') + path
+  const target = conn.baseUrl.replace(/\/+$/, '') + path
+  return conn.proxy ? `${conn.proxy.replace(/\/+$/, '')}/${target}` : target
 }
 
 function headers(conn: Connection): Record<string, string> {
@@ -121,12 +124,19 @@ async function failure(res: Response): Promise<Error> {
 }
 
 // fetch that turns network failures and error statuses into readable errors.
-async function request(target: string, init: RequestInit): Promise<Response> {
+async function request(target: string, init: RequestInit, conn?: Connection): Promise<Response> {
   let res: Response
   try {
     res = await fetch(target, init)
   } catch (err) {
     if (init.signal?.aborted) throw err
+    if (conn?.proxy) {
+      throw new Error(
+        t('Não foi possível conectar ao proxy local em {url}. Inicie-o com npm run proxy.', {
+          url: conn.proxy,
+        }),
+      )
+    }
     let host = target
     try {
       host = new URL(target).host
@@ -591,12 +601,13 @@ export async function* streamChat(req: ChatRequest): AsyncGenerator<StreamEvent>
   const total: Usage = { input: 0, output: 0 }
 
   for (let round = 1; ; round++) {
-    const res = await request(url(req, req.provider.chatPath), {
+    const init: RequestInit = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers(req) },
       body: JSON.stringify(body(req, wire)),
       signal: req.signal,
-    })
+    }
+    const res = await request(url(req, req.provider.chatPath), init, req)
     const turn = anthropic ? anthropicTurn() : openaiTurn()
     for await (const data of sseData(res)) {
       if (!data || data === '[DONE]') continue
@@ -691,18 +702,56 @@ export async function transcribe(conn: Connection, audio: Blob, language: string
   form.append('file', audio, `dictation.${audio.type.includes('ogg') ? 'ogg' : 'webm'}`)
   form.append('model', conn.provider.transcription ?? '')
   form.append('language', language)
-  const res = await request(url(conn, '/audio/transcriptions'), {
-    method: 'POST',
-    headers: headers(conn),
-    body: form,
-  })
+  const init = { method: 'POST', headers: headers(conn), body: form }
+  const res = await request(url(conn, '/audio/transcriptions'), init, conn)
   const json = await res.json()
   return String(json.text ?? '').trim()
 }
 
+export interface GeneratedImage {
+  mime: string
+  // Base64.
+  data: string
+  // The prompt as the provider rewrote it, when it did.
+  revised?: string
+}
+
+// Draws one image with the provider's image model.
+export async function generateImage(
+  conn: Connection,
+  model: string,
+  prompt: string,
+  signal?: AbortSignal,
+): Promise<GeneratedImage> {
+  const payload = {
+    model,
+    prompt,
+    n: 1,
+    // GPT Image always answers in base64 and rejects the field; Gemini requires it.
+    ...(conn.provider.id === 'openai' ? {} : { response_format: 'b64_json' }),
+  }
+  const init: RequestInit = {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...headers(conn) },
+    body: JSON.stringify(payload),
+    signal,
+  }
+  const res = await request(url(conn, '/images/generations'), init, conn)
+  const json = await res.json()
+  const image = json.data?.[0]
+  if (!image?.b64_json) throw new Error(t('O provedor não devolveu nenhuma imagem.'))
+  const format = String(json.output_format ?? 'png')
+  return {
+    mime: `image/${format === 'jpg' ? 'jpeg' : format}`,
+    data: image.b64_json,
+    ...(image.revised_prompt ? { revised: image.revised_prompt } : {}),
+  }
+}
+
 export async function listModels(conn: Connection): Promise<ModelList> {
   if (!conn.provider.modelsPath) return { ids: conn.provider.defaultModels, info: {} }
-  const res = await request(url(conn, conn.provider.modelsPath), { headers: headers(conn) })
+  const init = { headers: headers(conn) }
+  const res = await request(url(conn, conn.provider.modelsPath), init, conn)
   const json = await res.json()
   const info: Record<string, ModelInfo> = {}
   for (const model of json.data ?? []) {

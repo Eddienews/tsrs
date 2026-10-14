@@ -1,4 +1,5 @@
-import type { ModelInfo, Provider } from './types'
+import type { Connection } from './stream'
+import type { ModelInfo, Provider, Settings } from './types'
 
 const openaiCompatible: Omit<Provider, 'id' | 'name' | 'baseUrl' | 'keyRequired'> = {
   format: 'openai',
@@ -44,6 +45,7 @@ export const PROVIDERS: Provider[] = [
     keyRequired: true,
     maxTokensField: 'max_completion_tokens',
     transcription: 'gpt-4o-mini-transcribe',
+    image: 'gpt-image-2',
   },
   {
     ...openaiCompatible,
@@ -51,6 +53,7 @@ export const PROVIDERS: Provider[] = [
     name: 'Google Gemini',
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
     keyRequired: true,
+    image: 'imagen-4.0-generate-001',
   },
   {
     ...openaiCompatible,
@@ -131,6 +134,25 @@ export const PROVIDERS: Provider[] = [
     temperature: false,
     streamUsage: false,
   },
+  // OpenCode's gateways answer only to the OpenCode app, not to browsers.
+  {
+    ...openaiCompatible,
+    id: 'opencode-zen',
+    name: 'OpenCode Zen',
+    baseUrl: 'https://opencode.ai/zen/v1',
+    keyRequired: true,
+    efforts: [],
+    needsProxy: true,
+  },
+  {
+    ...openaiCompatible,
+    id: 'opencode-go',
+    name: 'OpenCode Go',
+    baseUrl: 'https://opencode.ai/zen/go/v1',
+    keyRequired: true,
+    efforts: [],
+    needsProxy: true,
+  },
   {
     ...openaiCompatible,
     id: 'ollama',
@@ -158,6 +180,18 @@ export const PROVIDERS: Provider[] = [
 
 export function getProvider(id: string): Provider {
   return PROVIDERS.find((p) => p.id === id) ?? PROVIDERS[0]
+}
+
+export function usesProxy(settings: Settings, provider: Provider): boolean {
+  return settings.providers[provider.id]?.proxy ?? !!provider.needsProxy
+}
+
+// What a request to the provider needs, with the proxy when it goes through one.
+export function connection(settings: Settings, providerId: string): Connection {
+  const provider = getProvider(providerId)
+  const { baseUrl, apiKey } = settings.providers[provider.id]
+  const proxy = usesProxy(settings, provider) ? settings.proxyUrl.trim() : ''
+  return { provider, baseUrl, apiKey, ...(proxy ? { proxy } : {}) }
 }
 
 // Fallback for models whose provider does not report limits and prices.

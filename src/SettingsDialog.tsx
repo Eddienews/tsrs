@@ -15,7 +15,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
 import { LANGUAGES, t, type Language } from './i18n'
-import { PROVIDERS } from './providers'
+import { connection, PROVIDERS, usesProxy } from './providers'
 import { listModels } from './stream'
 import type { Appearance, Provider, ProviderSettings, Settings } from './types'
 
@@ -138,10 +138,9 @@ export default function SettingsDialog(props: Props) {
   }
 
   async function loadModels(provider: Provider) {
-    const conn = settings.providers[provider.id]
     setStatus((s) => ({ ...s, [provider.id]: t('Carregando…') }))
     try {
-      const list = await listModels({ provider, baseUrl: conn.baseUrl, apiKey: conn.apiKey })
+      const list = await listModels(connection(settings, provider.id))
       patch(provider.id, { models: list.ids, modelInfo: list.info })
       setStatus((s) => ({
         ...s,
@@ -200,6 +199,23 @@ export default function SettingsDialog(props: Props) {
           </nav>
 
           <div className="min-w-0 flex-1 space-y-4 overflow-y-auto p-5">
+            {section === 'providers' && (
+              <div className="proxy space-y-1.5 rounded-md border border-dashed p-3">
+                <Label htmlFor="proxy-url">{t('Proxy local')}</Label>
+                <Input
+                  id="proxy-url"
+                  type="url"
+                  className="font-mono text-xs"
+                  value={settings.proxyUrl}
+                  onChange={(e) => onChange((s) => ({ ...s, proxyUrl: e.target.value.trim() }))}
+                />
+                <p className={hint}>
+                  {t(
+                    'Alguns provedores (como o OpenCode) não aceitam chamadas do navegador. Rode npm run proxy na pasta do TSRS e ligue o proxy no provedor; para outros endereços, inicie com --allow host.',
+                  )}
+                </p>
+              </div>
+            )}
             {section === 'providers' &&
               PROVIDERS.map((provider) => {
                 const conn = settings.providers[provider.id]
@@ -255,6 +271,16 @@ export default function SettingsDialog(props: Props) {
                         onChange={(e) => patch(provider.id, { baseUrl: e.target.value.trim() })}
                       />
                     </div>
+                    {(provider.needsProxy || !provider.keyRequired || provider.id === 'custom') && (
+                      <label className="flex items-center justify-between gap-4 text-sm">
+                        {t('Usar o proxy local')}
+                        <Switch
+                          aria-label={t('Usar o proxy local')}
+                          checked={usesProxy(settings, provider)}
+                          onCheckedChange={(proxy) => patch(provider.id, { proxy })}
+                        />
+                      </label>
+                    )}
                     <div className="flex flex-wrap items-center gap-3">
                       <Button
                         variant="outline"
@@ -342,6 +368,42 @@ export default function SettingsDialog(props: Props) {
                   <p className="text-xs text-muted-foreground">
                     {t(
                       'O áudio vai para o provedor escolhido, que cobra pela transcrição. No automático, usa a OpenAI ou o Groq se houver chave e, senão, o navegador (no Chrome, o áudio vai para o Google).',
+                    )}
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="image-provider">{t('Geração de imagens')}</Label>
+                  <div className="flex flex-wrap gap-2">
+                    <select
+                      id="image-provider"
+                      className="select-native"
+                      value={settings.imageProvider}
+                      onChange={(e) =>
+                        onChange((s) => ({ ...s, imageProvider: e.target.value, imageModel: '' }))
+                      }
+                    >
+                      <option value="auto">{t('Automático')}</option>
+                      {PROVIDERS.filter((p) => p.image).map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                    {settings.imageProvider !== 'auto' && (
+                      <Input
+                        aria-label={t('Modelo de imagem')}
+                        className="h-9 min-w-40 flex-1 font-mono text-xs"
+                        placeholder={PROVIDERS.find((p) => p.id === settings.imageProvider)?.image}
+                        value={settings.imageModel}
+                        onChange={(e) =>
+                          onChange((s) => ({ ...s, imageModel: e.target.value.trim() }))
+                        }
+                      />
+                    )}
+                  </div>
+                  <p className={hint}>
+                    {t(
+                      'O botão Imagem, ao lado de Prompts, transforma a próxima mensagem num pedido de imagem. No automático, usa a OpenAI ou o Gemini, o que tiver chave. O custo da imagem não entra na conta da conversa.',
                     )}
                   </p>
                 </div>

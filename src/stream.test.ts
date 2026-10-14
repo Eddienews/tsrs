@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getProvider } from './providers'
-import { completeText, listModels, streamChat, type ChatRequest, type StreamEvent } from './stream'
+import { connection, getProvider } from './providers'
+import { defaultSettings } from './storage'
+import {
+  completeText,
+  generateImage,
+  listModels,
+  streamChat,
+  type ChatRequest,
+  type StreamEvent,
+} from './stream'
 
 // A streaming response whose body arrives in the given chunks.
 function sse(chunks: string[], init: ResponseInit = {}): Response {
@@ -461,6 +469,51 @@ describe('errors', () => {
   it('surfaces an error event sent mid-stream', async () => {
     stubFetch(sse(['data: {"error":{"message":"overloaded"}}\n\n']))
     await expect(collect(request('openai'))).rejects.toThrow('overloaded')
+  })
+})
+
+describe('local proxy', () => {
+  it('sends requests through the proxy with the full provider URL', async () => {
+    const fetch = stubFetch(sse(['data: [DONE]\n\n']))
+    await collect(request('openai', { proxy: 'http://localhost:8787/' }))
+    expect(fetch.mock.calls[0][0]).toBe('http://localhost:8787/https://example.test/v1/chat/completions')
+  })
+
+  it('is on by default only for providers that need it', () => {
+    const settings = defaultSettings()
+    settings.providers['opencode-zen'].apiKey = 'k'
+    expect(connection(settings, 'opencode-zen').proxy).toBe('http://localhost:8787')
+    expect(connection(settings, 'openai').proxy).toBeUndefined()
+    settings.providers.openai.proxy = true
+    expect(connection(settings, 'openai').proxy).toBe('http://localhost:8787')
+    settings.providers['opencode-zen'].proxy = false
+    expect(connection(settings, 'opencode-zen').proxy).toBeUndefined()
+  })
+
+  it('says so when the proxy is not running', async () => {
+    stubFetch(new TypeError('Failed to fetch'))
+    await expect(collect(request('openai', { proxy: 'http://localhost:8787' }))).rejects.toThrow(
+      'Não foi possível conectar ao proxy local em http://localhost:8787',
+    )
+  })
+})
+
+describe('generateImage', () => {
+  it('asks Gemini for base64 and reads the format OpenAI reports', async () => {
+    const fetch = stubFetch(
+      new Response(JSON.stringify({ data: [{ b64_json: 'AAA' }], output_format: 'jpeg' })),
+    )
+    const image = await generateImage(request('gemini'), 'imagen', 'um gato')
+    expect(image).toEqual({ mime: 'image/jpeg', data: 'AAA' })
+    expect(fetch.mock.calls[0][0]).toBe('https://example.test/v1/images/generations')
+    expect(sentBody(fetch)).toEqual({ model: 'imagen', prompt: 'um gato', n: 1, response_format: 'b64_json' })
+  })
+
+  it('fails clearly when no image comes back', async () => {
+    stubFetch(new Response(JSON.stringify({ data: [] })))
+    await expect(generateImage(request('openai'), 'gpt-image-2', 'x')).rejects.toThrow(
+      'O provedor não devolveu nenhuma imagem.',
+    )
   })
 })
 

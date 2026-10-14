@@ -27,6 +27,7 @@ describe('backup', () => {
       folders,
       personas: [{ id: 'p', name: 'Revisor', system: 'Revise.' }],
       prompts: [{ id: 's', title: 'Resumo', text: 'Resuma:' }],
+      memories: [{ id: 'm', text: 'Usa Linux', createdAt: 1 }],
     }
     expect(parseBackup(buildBackup([chat], library))).toEqual({ chats: [chat], ...library })
   })
@@ -39,7 +40,13 @@ describe('backup', () => {
 
   it('drops malformed entries', () => {
     const text = JSON.stringify({ app: 'tsrs', version: 1, chats: [chat, { id: 1 }, null] })
-    expect(parseBackup(text)).toEqual({ chats: [chat], folders: [], personas: [], prompts: [] })
+    expect(parseBackup(text)).toEqual({
+      chats: [chat],
+      folders: [],
+      personas: [],
+      prompts: [],
+      memories: [],
+    })
   })
 })
 

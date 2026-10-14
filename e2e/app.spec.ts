@@ -655,6 +655,138 @@ test('migrates conversations stored by the first version', async ({ page }) => {
   await expect(reply(page)).toContainText('resposta antiga')
 })
 
+test('remembers facts through the memory tool and lists them in the library', async ({ page }) => {
+  await connect(page)
+  await page.getByRole('button', { name: 'Biblioteca' }).click()
+  await page.getByRole('tab', { name: 'Memória' }).click()
+  await page.getByRole('switch', { name: 'Usar memória' }).click()
+  await page.getByTitle('Fechar').click()
+
+  await send(page, 'use a ferramenta para lembrar')
+  await expect(reply(page)).toContainText('A ferramenta respondeu: Saved.')
+  await expect(reply(page)).toContainText('Memória')
+  const first = provider.chats[0].body
+  expect(first.tools.map((t: any) => t.function.name)).toEqual(['memory_save', 'memory_delete'])
+  expect(first.messages[0].content).toContain('(none yet)')
+
+  await page.getByRole('button', { name: 'Nova conversa' }).click()
+  await send(page, 'oi')
+  expect(provider.chats.at(-1)!.body.messages[0].content).toContain('- Gosta de café')
+
+  await page.getByRole('button', { name: 'Biblioteca' }).click()
+  await page.getByRole('tab', { name: 'Memória' }).click()
+  await expect(page.getByLabel('Fato')).toHaveValue('Gosta de café')
+  await page.getByRole('button', { name: 'Esquecer', exact: true }).click()
+  await expect(page.getByText('Nenhum fato guardado ainda.')).toBeVisible()
+})
+
+test('summarizes a long chat and continues from the summary', async ({ page }) => {
+  await connect(page)
+  await send(page, 'primeira')
+  // The mock reports 900 of the model's 1,000 tokens.
+  await page.getByRole('button', { name: 'Resumir a conversa' }).click()
+  await expect(page.locator('.summary')).toContainText('Conversa resumida até aqui')
+  await expect(page.getByRole('button', { name: 'Resumir a conversa' })).toBeHidden()
+  const asked = provider.chats.at(-1)!.body.messages
+  expect(asked.at(-1).content).toMatch(/^Summarize the conversation so far/)
+  expect(asked.at(-2).content).toContain('Resposta 1.')
+
+  await send(page, 'segunda')
+  const { messages } = provider.chats.at(-1)!.body
+  expect(messages).toHaveLength(2)
+  expect(messages[0].content).toContain('Summary of the earlier part of this conversation')
+  expect(messages[0].content).toContain('Resposta 2.')
+  expect(messages[1].content).toBe('segunda')
+  // The summary survives a reload.
+  await page.reload()
+  await chatRow(page, 'Saudação inicial').click()
+  await expect(page.locator('.summary')).toBeVisible()
+})
+
+test('generates an image and regenerates it', async ({ page }) => {
+  await connect(page)
+  await openSettings(page)
+  const openai = page.locator('[data-provider=openai]')
+  await openai.getByLabel('URL base').fill(provider.url)
+  await openai.getByLabel(/Chave de API/).fill('sk-image')
+  await closeSettings(page)
+
+  await page.getByRole('button', { name: 'Imagem' }).click()
+  await page.getByPlaceholder(/Descreva a imagem/).fill('um gato laranja')
+  await page.getByPlaceholder(/Descreva a imagem/).press('Enter')
+  const image = reply(page).locator('figure img')
+  await expect(image).toHaveAttribute('src', /^data:image\/png;base64,iVBOR/)
+  await expect(reply(page).locator('figcaption')).toHaveText('Um gato laranja, de perfil')
+  expect(provider.images[0]).toEqual({ model: 'gpt-image-2', prompt: 'um gato laranja', n: 1 })
+  // The image mode lasts for one message.
+  await expect(composer(page)).toBeVisible()
+
+  await reply(page).hover()
+  await reply(page).getByRole('button', { name: 'Regenerar' }).click()
+  await expect(reply(page)).toContainText('2/2')
+  expect(provider.images).toHaveLength(2)
+
+  // A later message sends the image as its prompt, not as a picture.
+  await send(page, 'gostei')
+  const { messages } = provider.chats.at(-1)!.body
+  expect(messages.at(-2)).toEqual({
+    role: 'assistant',
+    content: '[Generated an image for the prompt: um gato laranja]',
+  })
+})
+
+test('asks a side question about part of a reply', async ({ page }) => {
+  await connect(page)
+  await send(page, 'primeira')
+  await reply(page).locator('strong', { hasText: 'mock' }).selectText()
+  await reply(page).getByRole('button', { name: 'Perguntar à parte' }).click()
+  const panel = page.locator('.side-chat')
+  await expect(panel.locator('blockquote')).toHaveText('mock')
+  const question = panel.getByRole('textbox', { name: 'Pergunta' })
+  await question.fill('o que é isso?')
+  await question.press('Enter')
+  await expect(panel).toContainText('Resposta 2.')
+
+  const { messages } = provider.chats.at(-1)!.body
+  expect(messages[0].content).toContain('side question')
+  expect(messages.at(-1).content).toBe('About this part of your reply:\n\n> mock\n\no que é isso?')
+  await page.keyboard.press('Escape')
+  await expect(panel).toBeHidden()
+  // The conversation itself is unchanged.
+  await expect(page.locator('.message')).toHaveCount(2)
+})
+
+test('an agent brings its own tools, files and starters', async ({ page }) => {
+  await connect(page)
+  await page.getByRole('button', { name: 'Biblioteca' }).click()
+  await page.getByRole('button', { name: 'Nova persona' }).click()
+  await page.getByLabel('Nome').fill('Revisor')
+  await page.getByLabel('Prompt de sistema').fill('Revise textos.')
+  await page.getByRole('switch', { name: 'Ferramentas próprias' }).click()
+  await page.locator('.dialog input[type=file]').setInputFiles({
+    name: 'guia.md',
+    mimeType: 'text/markdown',
+    buffer: Buffer.from('Use voz ativa.'),
+  })
+  await expect(page.getByText('guia.md')).toBeVisible()
+  await page.getByLabel('Sugestões iniciais (uma por linha)').fill('Revise meu e-mail\nEncurte um parágrafo')
+  await page.getByTitle('Fechar').click()
+
+  await page.getByTitle('Persona desta conversa').click()
+  await page.getByRole('menuitemradio', { name: 'Revisor' }).click()
+  await expect(page.getByRole('heading', { name: 'Revisor' })).toBeVisible()
+  await page.getByRole('button', { name: 'Revise meu e-mail' }).click()
+  await composer(page).press('Enter')
+  await expect(reply(page)).toContainText('Resposta 1.')
+  await send(page, 'de novo')
+
+  const { messages } = provider.chats.at(-1)!.body
+  expect(messages[0].content).toMatch(/^Revise textos\./)
+  // The file goes with the first message of every request.
+  expect(messages[1].content).toBe('Revise meu e-mail\n\n<file name="guia.md">\nUse voz ativa.\n</file>')
+  expect(messages[3].content).toBe('de novo')
+})
+
 test.describe('English interface', () => {
   test.use({ locale: 'en-US' })
 

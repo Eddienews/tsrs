@@ -32,19 +32,14 @@ cada seção é a ordem sugerida.
 - [x] Opção de abrir o preview sozinho
 - [x] Tokens de cache dos provedores no formato OpenAI (o desconto só entra no
       custo quando o preço de cache do provedor é conhecido)
-
-## Próximos: médios
-
-- [ ] OpenCode Zen e OpenCode Go: as APIs não aceitam chamadas do navegador (sem
-      CORS no endpoint de chat), e o plano gratuito do Zen só funciona dentro do
-      OpenCode. Precisariam de um proxy local opcional, que também serviria a
-      outros provedores sem CORS
-- [ ] Memória: o modelo guarda fatos sobre você numa lista que você vê e edita
-- [ ] Agentes: personas com modelo, ferramentas, arquivos e sugestões iniciais
-- [ ] Resumo do contexto quando a conversa se aproxima do limite do modelo
-- [ ] Geração de imagens (OpenAI gpt-image e Gemini)
-- [ ] Chat lateral: perguntar sobre um trecho da resposta sem poluir a conversa
-- [ ] Dividir o pacote do app (hoje ~900 kB) para abrir mais rápido
+- [x] Proxy local opcional (`npm run proxy`) e os provedores OpenCode Zen e Go
+- [x] Memória: o modelo guarda fatos sobre você numa lista que você vê e edita
+- [x] Agentes: personas com modelo, ferramentas, arquivos e sugestões iniciais
+- [x] Resumo do contexto quando a conversa se aproxima do limite do modelo
+- [x] Geração de imagens (OpenAI GPT Image e Gemini Imagen)
+- [x] Pergunta à parte: perguntar sobre um trecho da resposta sem poluir a conversa
+- [x] Pacote dividido: o app abre com ~550 kB de JavaScript (eram ~930 kB); o
+      Markdown, o realce de sintaxe e as telas chegam logo depois
 
 ## Próximos: grandes
 
@@ -62,6 +57,11 @@ cada seção é a ordem sugerida.
 - [ ] Botão de instalar o app (PWA)
 - [ ] Ditado com a OpenAI ou o Groq e leitura em voz alta (no Linux, o navegador
       precisa de vozes instaladas, por exemplo pelo speech-dispatcher)
+- [ ] OpenCode Zen e Go pelo proxy local, com uma chave paga
+- [ ] Geração de imagens na OpenAI (`gpt-image-2`) e no Gemini
+      (`imagen-4.0-generate-001`); os nomes dos modelos podem mudar
+- [ ] Memória com um modelo real: se ele salva fatos úteis sem exagerar
+- [ ] Resumo do contexto numa conversa longa de verdade
 
 ## Fora do escopo
 
