@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   Cpu,
   Library,
   Lock,
@@ -28,6 +29,7 @@ export type PaletteAction =
   | 'tools'
   | 'library'
   | 'settings'
+  | 'usage'
   | 'theme'
   | 'lock'
 
@@ -52,6 +54,7 @@ export default function CommandPalette(p: Props) {
     ['preview', t('Abrir ou fechar o preview'), PanelRight],
     ['tools', t('Ferramentas'), Wrench],
     ['library', t('Biblioteca'), Library],
+    ['usage', t('Uso'), BarChart3],
     ['settings', t('Configurações'), SettingsIcon],
     ['theme', t('Alternar tema'), SunMoon],
   ]

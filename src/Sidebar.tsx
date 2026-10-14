@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   ChevronRight,
   Download,
   Folder as FolderIcon,
@@ -47,7 +48,7 @@ interface Props {
   onSearch: (needle: string) => Promise<string[]>
   onFoldersChange: (folders: Folder[]) => void
   onDeleteFolder: (folder: Folder) => void
-  onOpen: (what: 'library' | 'tools' | 'settings') => void
+  onOpen: (what: 'library' | 'tools' | 'usage' | 'settings') => void
   onToggleTheme: () => void
 }
 
@@ -257,6 +258,7 @@ export default function Sidebar(props: Props) {
   const footer = [
     ['library', Library, t('Biblioteca')],
     ['tools', Wrench, t('Ferramentas')],
+    ['usage', BarChart3, t('Uso')],
     ['settings', SettingsIcon, t('Configurações')],
   ] as const
 
@@ -344,7 +346,7 @@ export default function Sidebar(props: Props) {
         )}
       </nav>
 
-      <div className="grid grid-cols-4 gap-1 border-t p-2">
+      <div className="grid grid-cols-5 gap-1 border-t p-2">
         {footer.map(([key, Icon, label]) => (
           <Button
             key={key}

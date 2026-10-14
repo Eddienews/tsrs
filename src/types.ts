@@ -44,6 +44,8 @@ export interface Message {
   id: string
   role: Role
   content: string
+  // When the message was written, in ms; absent on messages from older versions.
+  createdAt?: number
   attachments?: Attachment[]
   // Text and tool calls in the order they happened, for replies that used
   // tools; `content` still holds all of the text.
