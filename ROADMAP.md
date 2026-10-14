@@ -49,11 +49,11 @@ cada seção é a ordem sugerida.
 
 ## Próximos
 
-- [ ] Base de conhecimento com embeddings (busca por sentido, não só por
+- [x] Base de conhecimento com embeddings (busca por sentido, não só por
       palavras), usando a API de embeddings do provedor
-- [ ] Ferramenta de busca na base para o modelo refinar a pergunta sozinho
-- [ ] Sincronização da biblioteca item a item, em vez de inteira
-- [ ] Sincronização sem pasta (WebDAV ou armazenamento S3 do próprio usuário),
+- [x] Ferramenta de busca na base para o modelo refinar a pergunta sozinho
+- [x] Sincronização da biblioteca item a item, em vez de inteira
+- [x] Sincronização sem pasta (WebDAV ou armazenamento S3 do próprio usuário),
       para navegadores sem acesso a pastas, como Firefox e Safari
 
 ## A confirmar com provedor real
@@ -73,6 +73,11 @@ cada seção é a ordem sugerida.
 - [ ] Sincronização entre dois dispositivos reais, por Dropbox, Drive ou Syncthing
 - [ ] Canvas com um modelo real: se ele prefere editar trechos a reescrever tudo
 - [ ] Qualidade da busca na base de conhecimento com documentos reais
+- [ ] Embeddings com chaves reais (OpenAI, Gemini, OpenRouter, Mistral, Ollama)
+- [ ] Ferramenta `knowledge_search` com um modelo real: se ele busca de novo
+      quando os trechos não bastam
+- [ ] WebDAV num Nextcloud de verdade (pelo proxy local) e S3 na AWS ou no R2
+      (testados só com WsgiDAV e rclone locais)
 
 ## Fora do escopo
 

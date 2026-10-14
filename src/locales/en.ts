@@ -452,8 +452,6 @@ export const en: Record<string, string> = {
     'The folder has a {file} that is not from TSRS.',
   'Bases de conhecimento': 'Knowledge bases',
   'Canvas': 'Canvas',
-  'Com senha, os arquivos da pasta ficam criptografados. Use a mesma senha em todos os dispositivos; ela é definida na primeira sincronização da pasta e não pode ser trocada depois (para trocar, use outra pasta).':
-    'With a password, the files in the folder are encrypted. Use the same password on every device; it is set on the folder\'s first sync and cannot be changed later (to change it, use another folder).',
   'Conhecimento': 'Knowledge',
   '{count} trechos': '{count} passages',
   'Crie bases de conhecimento na Biblioteca.': 'Create knowledge bases in the Library.',
@@ -463,8 +461,8 @@ export const en: Record<string, string> = {
   'Desconectar': 'Disconnect',
   'Desfazer a última mudança': 'Undo the last change',
   'Documento': 'Document',
-  'Documentos guardados neste navegador e buscados por palavras, sem API. Ligue uma base numa conversa (em Parâmetros) ou numa persona, e os trechos que mais combinam com cada pergunta vão junto com ela.':
-    'Documents kept in this browser and searched by words, without any API. Turn a base on for a chat (in Parameters) or a persona, and the passages that best match each question go with it.',
+  'Documentos guardados neste navegador. Ligue uma base numa conversa (em Parâmetros) ou numa persona, e os trechos que mais combinam com cada pergunta vão junto com ela. O modelo também pode buscar de novo na base, com outras palavras.':
+    'Documents kept in this browser. Turn a base on for a chat (in Parameters) or a persona, and the passages that best match each question go with it. The model can also search the base again, with other words.',
   'Escolher pasta': 'Choose folder',
   'Escreva aqui, ou peça ao modelo para escrever.':
     'Write here, or ask the model to write.',
@@ -472,8 +470,6 @@ export const en: Record<string, string> = {
     'This folder is password-protected. Enter the sync password.',
   'Esta pasta não usa senha. Apague a senha da sincronização ou escolha outra pasta.':
     'This folder has no password. Clear the sync password or choose another folder.',
-  'Este navegador não deixa sites gravarem numa pasta. Use o Chrome, o Edge ou outro navegador baseado no Chromium.':
-    'This browser does not let sites write to a folder. Use Chrome, Edge or another Chromium-based browser.',
   'Excluir a base': 'Delete the base',
   'Excluir a base "{name}" e os documentos dela?':
     'Delete the base "{name}" and its documents?',
@@ -508,17 +504,73 @@ export const en: Record<string, string> = {
   'Senha da sincronização (opcional)': 'Sync password (optional)',
   '{sent} enviados, {received} recebidos, {removed} apagados.':
     '{sent} sent, {received} received, {removed} deleted.',
-  'Sincroniza ao abrir o app, alguns segundos depois de cada mudança e a cada dois minutos. Vale a mudança mais recente de cada conversa; a biblioteca é sincronizada inteira, então edite-a num dispositivo de cada vez.':
-    'Syncs when the app opens, a few seconds after each change and every two minutes. The latest change to each chat wins; the library syncs as a whole, so edit it on one device at a time.',
   'Sincronização': 'Sync',
   'Sincronizando…': 'Syncing…',
   'Sincronizar agora': 'Sync now',
-  'Sincronize conversas, biblioteca e documentos entre dispositivos por uma pasta que um serviço como Dropbox, Google Drive, OneDrive ou Syncthing mantém igual em todos eles. O TSRS não tem servidor: só lê e grava arquivos nessa pasta. As chaves de API e as configurações não vão para a pasta.':
-    'Sync chats, the library and documents between devices through a folder that a service such as Dropbox, Google Drive, OneDrive or Syncthing keeps the same on all of them. TSRS has no server: it only reads and writes files in that folder. API keys and settings do not go to the folder.',
   'Sobre este trecho do canvas:': 'About this passage of the canvas:',
   'Testar uma busca': 'Try a search',
   'Texto do canvas': 'Canvas text',
   'Título do canvas': 'Canvas title',
   'Última sincronização: {time}': 'Last sync: {time}',
   'Ver formatado': 'View formatted',
+  // Search by meaning and the knowledge search tool
+  '"{name}" não foi indexado por sentido: {error}': '"{name}" was not indexed by meaning: {error}',
+  'A busca por sentido falhou ({error}); usei só a busca por palavras.':
+    'Search by meaning failed ({error}); only words were searched.',
+  'Busca na base': 'Knowledge search',
+  'Indexado por sentido': 'Indexed by meaning',
+  'Busca por sentido': 'Search by meaning',
+  'Desligada': 'Off',
+  'Modelo de embeddings': 'Embedding model',
+  'Encontra também trechos que dizem a mesma coisa com outras palavras. O texto dos documentos vai uma vez ao provedor para virar vetores, e cada pergunta vai também. Custa pouco, mas não é grátis.':
+    'Also finds passages that say the same thing in other words. The documents\' text goes to the provider once to become vectors, and so does each question. It costs little, but it is not free.',
+  'Nenhum provedor de embeddings com chave. Configure a OpenAI, o Gemini, o OpenRouter ou a Mistral.':
+    'No embedding provider has a key. Set up OpenAI, Gemini, OpenRouter or Mistral.',
+  'Indexando…': 'Indexing…',
+  'Indexar por sentido': 'Index by meaning',
+  '1 documento ainda não foi indexado.': '1 document is not indexed yet.',
+  '{count} documentos ainda não foram indexados.': '{count} documents are not indexed yet.',
+  'O provedor não devolveu os vetores pedidos.': 'The provider did not return the requested vectors.',
+  'Informe a chave de API deste provedor nas configurações.':
+    'Enter this provider\'s API key in the settings.',
+  'Informe o modelo de embeddings.': 'Enter the embedding model.',
+  // Syncing through WebDAV or S3
+  'WebDAV: {url}': 'WebDAV: {url}',
+  'S3: {bucket}': 'S3: {bucket}',
+  'Sincronize conversas, biblioteca e documentos entre dispositivos por uma pasta que um serviço como Dropbox, Google Drive, OneDrive ou Syncthing mantém igual em todos eles, por um servidor WebDAV (Nextcloud, um NAS…) ou por um bucket S3 seu. O TSRS não tem servidor: só lê e grava arquivos ali. As chaves de API e as configurações não vão junto.':
+    'Sync chats, the library and documents between devices through a folder that a service such as Dropbox, Google Drive, OneDrive or Syncthing keeps the same on all of them, a WebDAV server (Nextcloud, a NAS…) or an S3 bucket of your own. TSRS has no server: it only reads and writes files there. API keys and settings do not go with them.',
+  'Com senha, os arquivos ficam criptografados. Use a mesma senha em todos os dispositivos; ela é definida na primeira sincronização e não pode ser trocada depois (para trocar, use outro lugar).':
+    'With a password, the files are encrypted. Use the same password on every device; it is set on the first sync and cannot be changed later (to change it, use another place).',
+  'Sincronizar por': 'Sync through',
+  'Pasta': 'Folder',
+  'Este navegador não deixa sites gravarem numa pasta. Use o Chrome, o Edge ou outro navegador baseado no Chromium, ou sincronize por WebDAV ou S3.':
+    'This browser does not let sites write to a folder. Use Chrome, Edge or another Chromium-based browser, or sync through WebDAV or S3.',
+  'Endereço da pasta': 'Folder address',
+  'Usuário': 'User',
+  'Senha ou senha de app': 'Password or app password',
+  'A pasta é criada se não existir. O servidor precisa aceitar chamadas deste endereço (CORS); o Nextcloud e muitos outros não aceitam, e então é preciso o proxy local.':
+    'The folder is created if it does not exist. The server must accept calls from this address (CORS); Nextcloud and many others do not, and then the local proxy is needed.',
+  'Endpoint (vazio para a AWS)': 'Endpoint (empty for AWS)',
+  'Região': 'Region',
+  'Bucket': 'Bucket',
+  'Pasta no bucket': 'Folder in the bucket',
+  'Access key': 'Access key',
+  'Secret key': 'Secret key',
+  'O bucket precisa aceitar chamadas deste endereço (CORS). Regras para copiar:':
+    'The bucket must accept calls from this address (CORS). Rules to copy:',
+  'Use uma chave que só acesse este bucket. No Cloudflare R2, a região é auto.':
+    'Use a key that can reach only this bucket. On Cloudflare R2, the region is auto.',
+  'Passar pelo proxy local': 'Go through the local proxy',
+  'Inicie o proxy permitindo o servidor: npm run proxy -- --allow {host}':
+    'Start the proxy allowing the server: npm run proxy -- --allow {host}',
+  'Conectar': 'Connect',
+  'Sincroniza ao abrir o app, alguns segundos depois de cada mudança e a cada dois minutos. Vale a mudança mais recente de cada conversa e de cada item da biblioteca.':
+    'Syncs when the app opens, a few seconds after each change and every two minutes. The latest change of each chat and of each library item wins.',
+  'Não foi possível conectar a {host}. O servidor precisa aceitar chamadas deste endereço (CORS), ou use o proxy local.':
+    'Could not connect to {host}. The server must accept calls from this address (CORS), or use the local proxy.',
+  'O servidor recusou o acesso ({status}). Confira o usuário e a senha ou as chaves.':
+    'The server refused access ({status}). Check the user and password or the keys.',
+  'Não foi possível criar a pasta no servidor': 'Could not create the folder on the server',
+  'Não foi possível listar a pasta no servidor': 'Could not list the folder on the server',
+  'Não foi possível listar o bucket': 'Could not list the bucket',
 }

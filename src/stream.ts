@@ -5,6 +5,7 @@ import type {
   ModelInfo,
   Part,
   Provider,
+  Reference,
   Role,
   Source,
   ToolPart,
@@ -44,6 +45,8 @@ export interface ToolCall {
 export interface ToolResult {
   content: string
   isError: boolean
+  // Knowledge base passages the tool found, shown with the reply.
+  references?: Reference[]
 }
 
 export interface ChatRequest extends Connection {
@@ -746,6 +749,31 @@ export async function generateImage(
     data: image.b64_json,
     ...(image.revised_prompt ? { revised: image.revised_prompt } : {}),
   }
+}
+
+// Turns texts into vectors with the provider's embedding model, in order.
+export async function embed(
+  conn: Connection,
+  model: string,
+  input: string[],
+  signal?: AbortSignal,
+): Promise<number[][]> {
+  const init: RequestInit = {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...headers(conn) },
+    body: JSON.stringify({ model, input }),
+    signal,
+  }
+  const res = await request(url(conn, '/embeddings'), init, conn)
+  const json = await res.json()
+  const data: { index?: number; embedding?: unknown }[] = Array.isArray(json.data) ? json.data : []
+  const vectors = [...data]
+    .sort((x, y) => (x.index ?? 0) - (y.index ?? 0))
+    .map((item) => item.embedding)
+  if (vectors.length !== input.length || !vectors.every(Array.isArray)) {
+    throw new Error(t('O provedor não devolveu os vetores pedidos.'))
+  }
+  return vectors as number[][]
 }
 
 export async function listModels(conn: Connection): Promise<ModelList> {

@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
 import { startMockMcp } from './mock-mcp'
 import { startMockProvider, type MockProvider } from './mock-provider'
+import { startMockWebdav } from './mock-webdav'
 
 let provider: MockProvider
 
@@ -828,6 +829,52 @@ test('answers from a knowledge base', async ({ page }) => {
   await expect(reply(page).locator('.references')).toContainText('30 dias de férias por ano')
 })
 
+test('searches a knowledge base by meaning and with a tool', async ({ page }) => {
+  await connect(page)
+  await page.getByRole('button', { name: 'Biblioteca' }).click()
+  await page.getByRole('tab', { name: 'Conhecimento' }).click()
+  await page.getByRole('button', { name: 'Nova base' }).click()
+  await page.getByLabel('Nome da base').fill('Manual')
+  await page.getByLabel('Adicionar documentos').setInputFiles([
+    { name: 'ferias.md', mimeType: 'text/markdown', buffer: Buffer.from('Cada pessoa tem 30 dias de férias por ano.') },
+    { name: 'reembolso.md', mimeType: 'text/markdown', buffer: Buffer.from('O reembolso de despesas sai em 10 dias.') },
+  ])
+  await expect(page.locator('.knowledge-base')).toContainText('reembolso.md')
+  // By words alone, a question in other words finds nothing.
+  await page.getByLabel('Testar uma busca').fill('descanso anual')
+  await expect(page.getByText('Nenhum trecho encontrado.')).toBeVisible()
+
+  await page.getByLabel('Busca por sentido').selectOption('custom')
+  await expect(page.getByText('Informe o modelo de embeddings.')).toBeVisible()
+  await page.getByLabel('Modelo de embeddings').fill('mock-embed')
+  await expect(page.getByText('2 documentos ainda não foram indexados.')).toBeVisible()
+  await page.getByRole('button', { name: 'Indexar por sentido' }).click()
+  await expect(page.locator('.knowledge-base .indexed')).toHaveCount(2)
+  await expect(page.getByRole('button', { name: 'Indexar por sentido' })).toBeHidden()
+  expect(provider.embedded).toContain('Cada pessoa tem 30 dias de férias por ano.')
+  await expect(page.locator('.search-hit').first()).toContainText('30 dias de férias')
+  await page.getByTitle('Fechar').click()
+
+  await page.locator('.toolbar').getByRole('button', { name: 'Parâmetros' }).click()
+  await page.getByRole('checkbox', { name: 'Manual' }).check()
+  await page.keyboard.press('Escape')
+  await send(page, 'Como funciona o descanso anual?')
+  const question = provider.chats[0].body.messages.at(-1).content
+  expect(question).toContain('30 dias de férias por ano')
+  expect(provider.embedded).toContain('Como funciona o descanso anual?')
+
+  // The model searches the base again with words of its own.
+  await send(page, 'use a ferramenta de busca')
+  const offered = provider.chats[1].body.tools.map((tool: any) => tool.function.name)
+  expect(offered).toEqual(['knowledge_search'])
+  const answer = provider.chats[2].body.messages.at(-1)
+  expect(answer.role).toBe('tool')
+  expect(answer.content).toContain('<passage index="1" document="ferias.md">')
+  await expect(reply(page).last()).toContainText('Busca na base')
+  await reply(page).last().locator('.references button').click()
+  await expect(reply(page).last().locator('.references')).toContainText('30 dias de férias por ano')
+})
+
 test('writes in the canvas with the model and by hand', async ({ page }) => {
   await connect(page)
   await page.getByRole('button', { name: 'Canvas', exact: true }).click()
@@ -894,7 +941,7 @@ test('syncs through a folder and restores everything after a wipe', async ({ pag
   })
   expect(files).toEqual([
     expect.stringMatching(/^chat~[\w-]+~\d+\.json$/),
-    expect.stringMatching(/^library~\d+\.json$/),
+    expect.stringMatching(/^item~prompt~[\w-]+~\d+\.json$/),
     'tsrs-sync.json',
   ])
   await closeSettings(page)
@@ -917,6 +964,51 @@ test('syncs through a folder and restores everything after a wipe', async ({ pag
   await expect(reply(page)).toContainText('Resposta 1.')
   await page.getByRole('button', { name: 'Prompts', exact: true }).click()
   await expect(page.locator('.menu')).toContainText('Guardado na pasta')
+})
+
+test('syncs two devices through a WebDAV server', async ({ page, browser }) => {
+  const dav = await startMockWebdav('eddie', 'certa')
+  try {
+    await connect(page)
+    await send(page, 'para o servidor')
+    await expect(chatRow(page, 'Saudação inicial')).toBeVisible()
+
+    async function connectDav(on: Page, password: string) {
+      await openSettings(on, 'Sincronização')
+      await on.getByRole('radio', { name: 'WebDAV' }).click()
+      await on.getByLabel('Endereço da pasta').fill(`${dav.url}/tsrs`)
+      await on.getByLabel('Usuário').fill('eddie')
+      await on.getByLabel('Senha ou senha de app').fill(password)
+      await on.getByRole('button', { name: 'Conectar' }).click()
+    }
+    await connectDav(page, 'errada')
+    await expect(page.getByRole('alert')).toHaveText(/recusou o acesso \(401\)/)
+    await page.getByLabel('Senha ou senha de app').fill('certa')
+    await page.getByRole('button', { name: 'Conectar' }).click()
+    await expect(page.getByText(`WebDAV: ${dav.url}/tsrs`)).toBeVisible()
+    await expect(page.locator('.sync-status')).toHaveText('1 enviados, 0 recebidos, 0 apagados.')
+    expect([...dav.files.keys()].sort()).toEqual([
+      expect.stringMatching(/^\/tsrs\/chat~[\w-]+~\d+\.json$/),
+      '/tsrs/tsrs-sync.json',
+    ])
+
+    // Another device, with nothing of its own.
+    const other = await (await browser.newContext()).newPage()
+    await other.goto('/')
+    await connectDav(other, 'certa')
+    await expect(other.locator('.sync-status')).toHaveText('0 enviados, 1 recebidos, 0 apagados.')
+    await closeSettings(other)
+    await chatRow(other, 'Saudação inicial').click()
+    await expect(reply(other)).toContainText('Resposta 1.')
+
+    // Disconnecting forgets the server.
+    await openSettings(other, 'Sincronização')
+    await other.getByRole('button', { name: 'Desconectar' }).click()
+    await expect(other.getByRole('button', { name: 'Conectar' })).toBeVisible()
+    await other.context().close()
+  } finally {
+    await dav.close()
+  }
 })
 
 test.describe('English interface', () => {

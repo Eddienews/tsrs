@@ -46,6 +46,7 @@ export const PROVIDERS: Provider[] = [
     maxTokensField: 'max_completion_tokens',
     transcription: 'gpt-4o-mini-transcribe',
     image: 'gpt-image-2',
+    embedding: 'text-embedding-3-small',
   },
   {
     ...openaiCompatible,
@@ -54,6 +55,7 @@ export const PROVIDERS: Provider[] = [
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
     keyRequired: true,
     image: 'imagen-4.0-generate-001',
+    embedding: 'gemini-embedding-001',
   },
   {
     ...openaiCompatible,
@@ -62,6 +64,7 @@ export const PROVIDERS: Provider[] = [
     baseUrl: 'https://openrouter.ai/api/v1',
     keyRequired: true,
     webTools: 'openrouter',
+    embedding: 'openai/text-embedding-3-small',
   },
   {
     ...openaiCompatible,
@@ -78,6 +81,7 @@ export const PROVIDERS: Provider[] = [
     baseUrl: 'https://api.mistral.ai/v1',
     keyRequired: true,
     efforts: [],
+    embedding: 'mistral-embed',
     // Usage comes in the last chunk anyway; the API rejects fields it does not know.
     streamUsage: false,
   },
@@ -160,6 +164,7 @@ export const PROVIDERS: Provider[] = [
     baseUrl: 'http://localhost:11434/v1',
     keyRequired: false,
     efforts: [],
+    embedding: 'nomic-embed-text',
   },
   {
     ...openaiCompatible,

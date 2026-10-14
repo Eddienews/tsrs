@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chunk, search, tokenize, withReferences } from './knowledge'
+import { chunk, decodeVector, encodeVector, search, tokenize, withReferences } from './knowledge'
 import type { KnowledgeDoc } from './types'
 
 const doc = (id: string, chunks: string[]): KnowledgeDoc => ({
@@ -34,6 +34,12 @@ describe('chunk', () => {
   })
 })
 
+describe('vectors', () => {
+  it('are stored scaled to length 1', () => {
+    expect([...decodeVector(encodeVector([3, 4]))].map((v) => +v.toFixed(3))).toEqual([0.6, 0.8])
+  })
+})
+
 describe('search', () => {
   const docs = [
     doc('ferias', ['Política de férias: 30 dias por ano.', 'Horário de trabalho das 9h às 18h.']),
@@ -53,8 +59,23 @@ describe('search', () => {
     expect(search([], 'férias')).toEqual([])
   })
 
+  it('also ranks by meaning when the documents have vectors', () => {
+    const vectors = (data: number[][]) => ({ model: 'p/m', data: data.map(encodeVector) })
+    const indexed = [
+      { ...docs[0], vectors: vectors([[1, 0], [0, 1]]) },
+      { ...docs[1], vectors: vectors([[0.6, 0.8], [0, 1]]) },
+    ]
+    // "Descanso" shares no word with the passages, only their meaning.
+    const meaning = { model: 'p/m', vector: decodeVector(encodeVector([1, 0])) }
+    const hits = search(indexed, 'descanso anual', { meaning })
+    expect(hits[0].text).toBe('Política de férias: 30 dias por ano.')
+    expect(hits).toHaveLength(4)
+    // Vectors of another model are left out.
+    expect(search(indexed, 'descanso anual', { meaning: { ...meaning, model: 'x/y' } })).toEqual([])
+  })
+
   it('limits the number of passages', () => {
-    expect(search(docs, 'férias dias', 1)).toHaveLength(1)
+    expect(search(docs, 'férias dias', { limit: 1 })).toHaveLength(1)
   })
 })
 

@@ -29,7 +29,7 @@ function wireName(server: McpServer, tool: string, taken: Set<string>): string {
 export function localTools(
   defs: ToolDef[],
   label: string,
-  run: (call: ToolCall) => ToolResult,
+  run: (call: ToolCall, signal?: AbortSignal) => ToolResult | Promise<ToolResult>,
 ): ToolSet {
   const owns = (name: string) => defs.some((d) => d.name === name)
   return {
@@ -37,8 +37,10 @@ export function localTools(
     problems: [],
     label: (name) => (owns(name) ? label : name),
     autoApprove: owns,
-    async run(call) {
-      return owns(call.name) ? run(call) : { content: `No tool named ${call.name}.`, isError: true }
+    async run(call, signal) {
+      return owns(call.name)
+        ? run(call, signal)
+        : { content: `No tool named ${call.name}.`, isError: true }
     },
   }
 }
