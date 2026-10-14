@@ -22,6 +22,7 @@ import {
   isScript,
   normalizeUrl,
   previewDocument,
+  urlSandbox,
   type Artifact,
   type ConsoleEntry,
 } from './preview'
@@ -331,7 +332,7 @@ export default function PreviewPanel(p: Props) {
                     key={frameKey}
                     title={artifact.name}
                     src={artifact.code}
-                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                    sandbox={urlSandbox(artifact.code, location.origin)}
                     referrerPolicy="no-referrer"
                     className="size-full border-0 bg-white"
                   />

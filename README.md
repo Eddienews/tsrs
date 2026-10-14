@@ -16,9 +16,11 @@ npm run test:e2e # testes de ponta a ponta (Playwright, com um provedor falso)
 npm run proxy    # proxy local opcional para provedores sem CORS (OpenCode)
 ```
 
-Os testes de ponta a ponta precisam de um Chromium: rode
-`npx playwright install chromium` uma vez, ou aponte `CHROMIUM_PATH` para o
-navegador do sistema.
+Os testes de ponta a ponta usam o Chromium do Playwright, se instalado
+(`npx playwright install chromium`), ou senão o Google Chrome do sistema, no
+Linux, no Windows e no macOS. Para outro navegador, aponte `CHROMIUM_PATH` para
+ele (por exemplo `/usr/bin/chromium` ou
+`/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`).
 
 Abra **Configurações**, informe a chave do provedor, clique em **Carregar
 modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
@@ -196,10 +198,10 @@ Próximos passos em [ROADMAP.md](ROADMAP.md).
   e, senão, uma tabela de preços que pode estar desatualizada. Sem preço
   conhecido, só os tokens são mostrados.
 - A sincronização por pasta precisa de um navegador que grave em pastas
-  (Chrome, Edge e outros baseados no Chromium); nos outros, use WebDAV ou S3.
-  O servidor ou bucket precisa aceitar chamadas do navegador (CORS), ou ser
-  acessado pelo proxy local. Vale a mudança mais recente de cada conversa e de
-  cada item da biblioteca.
+  (Chrome, Edge, Arc e outros baseados no Chromium); no Safari e no Firefox,
+  use WebDAV ou S3. O servidor ou bucket precisa aceitar chamadas do navegador
+  (CORS), ou ser acessado pelo proxy local. Vale a mudança mais recente de cada
+  conversa e de cada item da biblioteca.
 - Sem busca por sentido, a base de conhecimento só acha palavras: sinônimos e
   paráfrases ficam de fora. Com ela, os documentos e as perguntas vão ao
   provedor de embeddings. PDFs que são só imagem (escaneados) não têm texto.

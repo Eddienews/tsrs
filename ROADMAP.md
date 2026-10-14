@@ -62,9 +62,10 @@ cada seção é a ordem sugerida.
 - [ ] Resumo do raciocínio na Anthropic
 - [ ] Cache de prompt na Anthropic (conferir "do cache" no rodapé da resposta)
 - [ ] Os provedores novos, incluindo Command Code (CORS verificado; conversa ainda não)
-- [ ] Botão de instalar o app (PWA)
-- [ ] Ditado com a OpenAI ou o Groq e leitura em voz alta (no Linux, o navegador
-      precisa de vozes instaladas, por exemplo pelo speech-dispatcher)
+- [ ] Botão de instalar o app (PWA); no Safari do Mac, "Adicionar ao Dock"
+- [ ] Ditado com a OpenAI ou o Groq e leitura em voz alta (só no Linux o
+      navegador precisa de vozes instaladas, por exemplo pelo speech-dispatcher;
+      o Windows e o macOS já trazem as do sistema)
 - [ ] OpenCode Zen e Go pelo proxy local, com uma chave paga
 - [ ] Geração de imagens na OpenAI (`gpt-image-2`) e no Gemini
       (`imagen-4.0-generate-001`); os nomes dos modelos podem mudar
