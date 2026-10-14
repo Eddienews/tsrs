@@ -152,27 +152,45 @@ test('keeps earlier versions after an edit and a regeneration', async ({ page })
   await expect(reply(page)).toContainText('1/2')
 })
 
-test('compares a reply with another model side by side', async ({ page }) => {
+test('compares a reply with other models side by side', async ({ page }) => {
   await connect(page)
   await send(page, 'qual é melhor?')
   await reply(page).hover()
   await reply(page).getByRole('button', { name: 'Comparar' }).click()
   const dialog = page.locator('.dialog.narrow')
-  await dialog.getByPlaceholder('Modelo').fill('mock-b')
+  await dialog.getByRole('checkbox', { name: /mock-b/ }).click()
+  await dialog.getByRole('checkbox', { name: /mock-a/ }).click()
+  // A model that is not in the list, used with the conversation's provider.
+  await dialog.getByLabel('Modelo').fill('mock-c')
+  await dialog.getByRole('checkbox', { name: /Usar “mock-c”/ }).click()
+  await expect(dialog).toContainText('4 colunas')
   await dialog.getByRole('button', { name: 'Gerar' }).click()
 
   const columns = page.locator('.versions > section')
-  await expect(columns).toHaveCount(2)
-  await expect(columns.nth(0)).toContainText('mock-a')
-  await expect(columns.nth(0)).toContainText('Resposta 1.')
-  await expect(columns.nth(1)).toContainText('mock-b')
-  await expect(columns.nth(1)).toContainText('Resposta 2.')
-  expect(provider.chats.map((c) => c.body.model)).toEqual(['mock-a', 'mock-b'])
+  await expect(columns).toHaveCount(4)
+  for (const [index, model] of ['mock-a', 'mock-b', 'mock-a', 'mock-c'].entries()) {
+    await expect(columns.nth(index)).toContainText(model)
+    await expect(columns.nth(index)).toContainText(/Resposta \d\./)
+  }
+  expect(provider.chats.map((c) => c.body.model).sort()).toEqual([
+    'mock-a',
+    'mock-a',
+    'mock-b',
+    'mock-c',
+  ])
   // The conversation keeps its own model.
   await expect(modelPicker(page)).toContainText('mock-a')
 
-  await columns.nth(0).getByRole('button', { name: 'Usar esta' }).click()
-  await expect(columns.nth(0)).toHaveClass(/\bcurrent\b/)
+  await columns.nth(3).getByRole('button', { name: 'Usar esta' }).click()
+  await expect(columns.nth(3)).toHaveClass(/\bcurrent\b/)
+
+  // All four versions are kept.
+  await page.reload()
+  await chatRow(page, 'Saudação inicial').click()
+  await expect(reply(page)).toContainText('4/4')
+  await reply(page).hover()
+  await reply(page).getByRole('button', { name: 'Lado a lado' }).click()
+  await expect(columns).toHaveCount(4)
 })
 
 test('applies a persona and inserts a saved prompt', async ({ page }) => {

@@ -4,7 +4,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useIsMobile } from '@/lib/use-mobile'
 import { applyAppearance } from './appearance'
-import { branchAt, switchVersion, versions, type Branch } from './branches'
+import { branchAt, patchMessage, switchVersion, versions, type Branch } from './branches'
 import ChatTopBar from './ChatTopBar'
 import CommandPalette, { type PaletteAction } from './CommandPalette'
 import CompareDialog from './CompareDialog'
@@ -423,30 +423,37 @@ export default function App() {
   }
 
   // Streams a reply to `history`, whose last message must be the user's turn.
-  // `branch` links the reply to the versions it replaces; `target` writes it
-  // with another model without changing the one the conversation uses.
+  // `branch` links the reply to the versions it replaces. `targets` writes it
+  // with other models, all at once, without changing the one the conversation
+  // uses: the first becomes the current version and the rest sit beside it.
   async function generate(
     base: ChatMeta,
     history: Message[],
-    { branch, target }: { branch?: Branch; target?: Target } = {},
+    { branch, targets }: { branch?: Branch; targets?: Target[] } = {},
   ) {
-    const using: Target = target ?? { providerId: settings.providerId, model: settings.model }
-    const problem = blocker({ ...settings, ...using }, locked)
-    if (problem && target) alert(problem.text)
+    const usings: Target[] = targets?.length
+      ? targets
+      : [{ providerId: settings.providerId, model: settings.model }]
+    const problems = usings.map((using) => blocker({ ...settings, ...using }, locked))
+    const problem = problems.find(Boolean)
+    if (problem && targets) alert(problem.text)
     if (streaming || problem) return
-    const via = getProvider(using.providerId)
-    const info = modelInfo(settings, via.id, using.model)
-    const reply: Message = {
+    const now = Date.now()
+    const replies: Message[] = usings.map((using) => ({
       id: crypto.randomUUID(),
       role: 'assistant',
       content: '',
-      createdAt: Date.now(),
+      createdAt: now,
       ...using,
-      ...branch,
-    }
-    const meta: ChatMeta = { ...base, updatedAt: Date.now(), ...(target ? {} : using) }
+    }))
+    const [first, ...others] = replies
+    const alts = [...(branch?.alts ?? []), ...others.map((reply) => [reply])]
+    const current: Message = alts.length
+      ? { ...first, alts, altIndex: branch?.altIndex ?? 0 }
+      : first
+    const meta: ChatMeta = { ...base, updatedAt: now, ...(targets ? {} : usings[0]) }
     commitMetas([meta, ...metasRef.current.filter((c) => c.id !== meta.id)])
-    commitThreads({ ...threadsRef.current, [meta.id]: [...history, reply] })
+    commitThreads({ ...threadsRef.current, [meta.id]: [...history, current] })
     saveMeta(meta)
     setActiveId(meta.id)
     setStreaming(true)
@@ -456,93 +463,112 @@ export default function App() {
     abort.signal.addEventListener('abort', () => approvals.current.forEach((answer) => answer(false)))
     setToolProblems([])
 
-    const patchReply = (patch: (m: Message) => Message) =>
-      patchThread(meta.id, (thread) => thread.map((m) => (m.id === reply.id ? patch(m) : m)))
-    const { baseUrl, apiKey } = settings.providers[via.id]
-    const conn: Connection = { provider: via, baseUrl, apiKey }
+    // The reply may be the current version or one beside it.
+    const patcher = (id: string) => (patch: (m: Message) => Message) =>
+      patchThread(meta.id, (thread) => patchMessage(thread, id, patch))
+    const system = meta.params?.system?.trim() || settings.systemPrompt
+    let toolset: Awaited<ReturnType<typeof gatherTools>> | null = null
+
+    async function write(reply: Message, using: Target): Promise<boolean> {
+      const patchReply = patcher(reply.id)
+      const via = getProvider(using.providerId)
+      const info = modelInfo(settings, via.id, using.model)
+      const { baseUrl, apiKey } = settings.providers[via.id]
+      const patchTool = (id: string, fields: Partial<ToolPart>) =>
+        patchReply((m) => ({
+          ...m,
+          parts: m.parts?.map((p) => (p.type === 'tool' && p.id === id ? { ...p, ...fields } : p)),
+        }))
+      try {
+        const stream = streamChat({
+          provider: via,
+          baseUrl,
+          apiKey,
+          model: using.model,
+          system: settings.previewHint ? withPreviewHint(system, t('Abrir preview')) : system,
+          messages: toRequest(history),
+          // An effort level chosen for another provider may not exist in this one.
+          params: {
+            ...meta.params,
+            effort: via.efforts.includes(meta.params?.effort ?? '') ? meta.params?.effort : undefined,
+          },
+          signal: abort.signal,
+          tools: toolset?.defs,
+          webSearch: settings.webSearch && !!via.webTools,
+          webFetch: settings.webFetch && via.webTools === 'anthropic',
+          async runTool(call) {
+            if (!toolset) throw new Error(`No tool named ${call.name}.`)
+            if (!toolset.autoApprove(call.name)) {
+              patchTool(call.id, { status: 'approval' })
+              const allowed = await new Promise<boolean>((answer) =>
+                approvals.current.set(call.id, answer),
+              )
+              approvals.current.delete(call.id)
+              if (!allowed) return { content: 'The user declined this tool call.', isError: true }
+              patchTool(call.id, { status: 'running' })
+            }
+            return toolset.run(call, abort.signal)
+          },
+        })
+        for await (const event of stream) {
+          if (event.type === 'text') {
+            patchReply((m) => withText(m, event.text))
+          } else if (event.type === 'tool') {
+            const { part } = event
+            const label = part.provider
+              ? (PROVIDER_TOOLS[part.name]?.() ?? part.name)
+              : (toolset?.label(part.name) ?? part.name)
+            patchReply((m) => withTool(m, part, label))
+          } else if (event.type === 'usage') {
+            const cost = costOf(event.usage, info)
+            patchReply((m) => ({ ...m, usage: { ...event.usage, cost } }))
+          } else {
+            patchReply((m) => ({ ...m, truncated: true }))
+          }
+        }
+        return true
+      } catch (err) {
+        if (!abort.signal.aborted) {
+          const error = err instanceof Error ? err.message : String(err)
+          patchReply((m) => ({ ...m, error }))
+        }
+        return false
+      } finally {
+        // A reply that stopped midway leaves no call waiting or running.
+        patchReply((m) =>
+          m.parts?.some((p) => p.type === 'tool' && p.status !== 'done')
+            ? {
+                ...m,
+                parts: m.parts.map((p) =>
+                  p.type === 'tool' && p.status !== 'done'
+                    ? { ...p, status: 'done' as const, error: true }
+                    : p,
+                ),
+              }
+            : m,
+        )
+      }
+    }
+
     let completed = false
-
-    const patchTool = (id: string, fields: Partial<ToolPart>) =>
-      patchReply((m) => ({
-        ...m,
-        parts: m.parts?.map((p) => (p.type === 'tool' && p.id === id ? { ...p, ...fields } : p)),
-      }))
-
     try {
       const servers = settings.mcpServers.filter((s) => s.enabled && s.url)
-      const toolset = servers.length ? await gatherTools(servers) : null
+      toolset = servers.length ? await gatherTools(servers) : null
       if (toolset?.problems.length) setToolProblems(toolset.problems)
-      const system = meta.params?.system?.trim() || settings.systemPrompt
-      const stream = streamChat({
-        ...conn,
-        model: using.model,
-        system: settings.previewHint ? withPreviewHint(system, t('Abrir preview')) : system,
-        messages: toRequest(history),
-        // An effort level chosen for another provider may not exist in this one.
-        params: {
-          ...meta.params,
-          effort: via.efforts.includes(meta.params?.effort ?? '') ? meta.params?.effort : undefined,
-        },
-        signal: abort.signal,
-        tools: toolset?.defs,
-        webSearch: settings.webSearch && !!via.webTools,
-        webFetch: settings.webFetch && via.webTools === 'anthropic',
-        async runTool(call) {
-          if (!toolset) throw new Error(`No tool named ${call.name}.`)
-          if (!toolset.autoApprove(call.name)) {
-            patchTool(call.id, { status: 'approval' })
-            const allowed = await new Promise<boolean>((answer) =>
-              approvals.current.set(call.id, answer),
-            )
-            approvals.current.delete(call.id)
-            if (!allowed) return { content: 'The user declined this tool call.', isError: true }
-            patchTool(call.id, { status: 'running' })
-          }
-          return toolset.run(call, abort.signal)
-        },
-      })
-      for await (const event of stream) {
-        if (event.type === 'text') {
-          patchReply((m) => withText(m, event.text))
-        } else if (event.type === 'tool') {
-          const { part } = event
-          const label = part.provider
-            ? (PROVIDER_TOOLS[part.name]?.() ?? part.name)
-            : (toolset?.label(part.name) ?? part.name)
-          patchReply((m) => withTool(m, part, label))
-        } else if (event.type === 'usage') {
-          const cost = costOf(event.usage, info)
-          patchReply((m) => ({ ...m, usage: { ...event.usage, cost } }))
-        } else {
-          patchReply((m) => ({ ...m, truncated: true }))
-        }
-      }
-      completed = true
+      const results = await Promise.all(replies.map((reply, i) => write(reply, usings[i])))
+      completed = results[0]
     } catch (err) {
-      if (!abort.signal.aborted) {
-        const error = err instanceof Error ? err.message : String(err)
-        patchReply((m) => ({ ...m, error }))
-      }
+      const error = err instanceof Error ? err.message : String(err)
+      replies.forEach((reply) => patcher(reply.id)((m) => ({ ...m, error })))
     } finally {
-      // A reply that stopped midway leaves no call waiting or running.
-      patchReply((m) =>
-        m.parts?.some((p) => p.type === 'tool' && p.status !== 'done')
-          ? {
-              ...m,
-              parts: m.parts.map((p) =>
-                p.type === 'tool' && p.status !== 'done'
-                  ? { ...p, status: 'done' as const, error: true }
-                  : p,
-              ),
-            }
-          : m,
-      )
       setStreaming(false)
       persistThread(meta.id)
     }
 
-    if (completed && settings.autoTitle && history.length === 1) {
-      titleChat(meta.id, conn)
+    if (completed && !targets && settings.autoTitle && history.length === 1) {
+      const via = getProvider(usings[0].providerId)
+      const { baseUrl, apiKey } = settings.providers[via.id]
+      titleChat(meta.id, { provider: via, baseUrl, apiKey })
     }
   }
 
@@ -615,15 +641,15 @@ export default function App() {
     generate(meta, [...thread.slice(0, index), { ...edited, ...branchAt(thread, index) }])
   }
 
-  function regenerate(id: string, target?: Target) {
+  function regenerate(id: string, targets?: Target[]) {
     const meta = findMeta(activeId)
     const thread = meta && threadsRef.current[meta.id]
     const index = thread?.findIndex((m) => m.id === id) ?? -1
     if (!meta || !thread || index < 1 || thread[index - 1].role !== 'user') return
     // A reply that failed before writing anything is not kept as a version.
     const branch = branchAt(thread, index, !!thread[index].content)
-    setVersionsAt(target ? index : null)
-    generate(meta, thread.slice(0, index), { branch, target })
+    setVersionsAt(targets ? index : null)
+    generate(meta, thread.slice(0, index), { branch, targets })
   }
 
   function switchTo(id: string, version: number) {
@@ -1056,8 +1082,8 @@ export default function App() {
       {compareId && (
         <CompareDialog
           settings={settings}
-          onCompare={(target) => {
-            regenerate(compareId, target)
+          onCompare={(targets) => {
+            regenerate(compareId, targets)
             setCompareId(null)
           }}
           onClose={() => setCompareId(null)}

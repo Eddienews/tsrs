@@ -168,10 +168,6 @@ export const en: Record<string, string> = {
   'Novo prompt': 'New prompt',
 
   // Compare
-  'Comparar com outro modelo': 'Compare with another model',
-  'O modelo escolhido responde à mesma pergunta. As versões ficam lado a lado e o modelo da conversa não muda.':
-    'The chosen model answers the same question. The versions are shown side by side and the chat model does not change.',
-  Provedor: 'Provider',
   Gerar: 'Generate',
 
   // Tools
@@ -256,6 +252,13 @@ export const en: Record<string, string> = {
   'Solte os arquivos para anexar': 'Drop files to attach',
   Entrada: 'Input',
   Resultado: 'Result',
+
+  // Comparison
+  'Comparar com outros modelos': 'Compare with other models',
+  'Até {count} modelos respondem à mesma pergunta ao mesmo tempo. As respostas ficam lado a lado e o modelo da conversa não muda.':
+    'Up to {count} models answer the same question at the same time. The answers sit side by side and the chat keeps its model.',
+  'Remover {model}': 'Remove {model}',
+  '{count} colunas': '{count} columns',
 
   // Usage screen
   Uso: 'Usage',

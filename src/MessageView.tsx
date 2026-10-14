@@ -158,7 +158,13 @@ function MessageView(props: Props) {
           </div>
         )
       ) : versions ? (
-        <div className="versions -mx-2 grid w-[calc(100%+1rem)] grid-cols-1 gap-2 md:grid-cols-2 xl:-mx-24 xl:w-[calc(100%+12rem)]">
+        <div
+          className={cn(
+            'versions -mx-2 grid w-[calc(100%+1rem)] grid-cols-1 gap-2 md:grid-cols-2 xl:-mx-24 xl:w-[calc(100%+12rem)]',
+            versions.length === 3 && 'xl:grid-cols-3',
+            versions.length >= 4 && 'xl:grid-cols-4',
+          )}
+        >
           {versions.map((version, index) => (
             <section
               key={version.id}
@@ -167,7 +173,7 @@ function MessageView(props: Props) {
                 index === current && 'current border-primary/60',
               )}
             >
-              <header className="flex items-center gap-2 border-b px-3 py-2">
+              <header className="flex h-10 items-center gap-2 border-b px-3">
                 <strong className="truncate font-mono text-xs font-medium">
                   {version.model ?? t('Versão {number}', { number: index + 1 })}
                 </strong>
@@ -186,7 +192,13 @@ function MessageView(props: Props) {
                 )}
               </header>
               <div className="flex-1 px-3 py-2">
-                <Markdown content={version.content} />
+                {busy && !version.content && !version.error && !version.parts?.length ? (
+                  <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="live-dot" aria-hidden /> {t('Pensando…')}
+                  </p>
+                ) : (
+                  <Markdown content={version.content} />
+                )}
                 {version.error && <p className="error text-sm text-destructive">{version.error}</p>}
               </div>
               {version.usage && (

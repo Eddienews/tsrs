@@ -36,3 +36,26 @@ export function switchVersion(thread: Message[], index: number, target: number):
   const alts = all.filter((_, i) => i !== target)
   return [...thread.slice(0, index), { ...chosen[0], alts, altIndex: target }, ...chosen.slice(1)]
 }
+
+// The thread with `patch` applied to the message `id`, wherever it is: on the
+// current path or inside a version kept beside it.
+export function patchMessage(
+  thread: Message[],
+  id: string,
+  patch: (message: Message) => Message,
+): Message[] {
+  let found = false
+  const walk = (messages: Message[]): Message[] =>
+    messages.map((message) => {
+      if (found) return message
+      if (message.id === id) {
+        found = true
+        return patch(message)
+      }
+      if (!message.alts) return message
+      const alts = message.alts.map((alt) => (found ? alt : walk(alt)))
+      return found ? { ...message, alts } : message
+    })
+  const next = walk(thread)
+  return found ? next : thread
+}

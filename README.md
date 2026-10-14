@@ -28,8 +28,8 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
 - Editar e reenviar uma mensagem, regenerar a resposta e tentar de novo após um erro.
 - Versões: editar ou regenerar guarda a versão anterior da conversa, e as
   setas ‹ › em cada mensagem alternam entre elas.
-- Comparar modelos: outro modelo responde à mesma pergunta e as respostas
-  aparecem lado a lado.
+- Comparar modelos: até três outros modelos respondem à mesma pergunta ao mesmo
+  tempo, e as respostas aparecem em colunas lado a lado.
 - Ferramentas: servidores MCP remotos (HTTP), com pedido de permissão a cada
   chamada, e busca na web e leitura de páginas executadas pelo provedor
   (Anthropic; busca também no OpenRouter).
@@ -131,7 +131,6 @@ mensagens são lidas quando a conversa é aberta.
 - Textos já gravados (erros, rótulos de ferramentas) não mudam ao trocar o idioma.
 - A busca, a exportação em Markdown e o total de tokens consideram só a versão
   atual de cada conversa, não as versões alternativas.
-- A comparação gera uma resposta por vez, não em paralelo.
 - Preview: o código gerado roda em um frame isolado, sem acesso às chaves e às
   conversas, mas com acesso à rede. React, TypeScript e Mermaid não são
   renderizados. Muitos sites proíbem ser exibidos dentro de outra página e
