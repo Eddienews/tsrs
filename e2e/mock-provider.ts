@@ -11,6 +11,8 @@ export interface MockProvider {
   url: string
   // Chat requests received, excluding title generation.
   chats: RecordedRequest[]
+  // Audio transcription requests received, as raw multipart bodies.
+  transcriptions: string[]
   // Makes the next chat request fail with this status.
   failNext(status: number, headers?: Record<string, string>): void
   close(): Promise<void>
@@ -18,8 +20,6 @@ export interface MockProvider {
 
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*' }
 
-// An OpenAI-compatible server that streams canned replies and records what
-// the app sent.
 // A page that logs to the console and reports whether it can reach the
 // storage of the app that previews it.
 const PAGE = `<!doctype html>
@@ -46,8 +46,11 @@ export default function Contador() {
   return <button onClick={() => setN(n + 1)}>Cliques: {n}</button>
 }`
 
+// An OpenAI-compatible server that streams canned replies and records what
+// the app sent.
 export async function startMockProvider(): Promise<MockProvider> {
   const chats: RecordedRequest[] = []
+  const transcriptions: string[] = []
   let failure: { status: number; headers: Record<string, string> } | null = null
   let replies = 0
 
@@ -60,6 +63,12 @@ export async function startMockProvider(): Promise<MockProvider> {
     }
     let raw = ''
     for await (const chunk of req) raw += chunk
+    if (req.url === '/v1/audio/transcriptions') {
+      transcriptions.push(raw)
+      return res
+        .writeHead(200, { ...CORS, 'Content-Type': 'application/json' })
+        .end(JSON.stringify({ text: 'ditado de teste' }))
+    }
     const body = JSON.parse(raw)
     const isTitle = raw.includes('Crie um título')
     if (!isTitle) chats.push({ headers: req.headers, body })
@@ -84,6 +93,10 @@ export async function startMockProvider(): Promise<MockProvider> {
       res.write(`data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [call] } }] })}\n\n`)
       const done = { choices: [{ delta: {}, finish_reason: 'tool_calls' }] }
       return res.end(`data: ${JSON.stringify(done)}\n\ndata: [DONE]\n\n`)
+    }
+    if (!isTitle && String(last.content).includes('fontes')) {
+      const cited = { search_results: [{ title: 'Fonte A', url: 'https://a.example/x' }], choices: [] }
+      res.write(`data: ${JSON.stringify(cited)}\n\n`)
     }
     if (!isTitle && String(last.content).includes('pense')) {
       const thought = { choices: [{ delta: { reasoning: 'Primeiro, o pedido. ' } }] }
@@ -111,6 +124,7 @@ export async function startMockProvider(): Promise<MockProvider> {
   return {
     url: `http://127.0.0.1:${port}/v1`,
     chats,
+    transcriptions,
     failNext: (status, headers = {}) => {
       failure = { status, headers }
     },

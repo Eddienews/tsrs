@@ -397,6 +397,66 @@ test('shows the reasoning folded above the reply', async ({ page }) => {
   expect(JSON.stringify(sent)).not.toContain('Primeiro')
 })
 
+test('branches, pins, cites sources and exports as HTML', async ({ page }) => {
+  await connect(page)
+  await send(page, 'primeira com fontes')
+  await expect(reply(page).locator('.sources')).toContainText('Fonte A')
+  await expect(reply(page).locator('.sources a')).toHaveAttribute('href', 'https://a.example/x')
+
+  await reply(page).hover()
+  await reply(page).getByRole('button', { name: 'Fixar' }).click()
+  await expect(page.getByRole('navigation', { name: 'Mensagens fixadas' })).toContainText('Resposta 1.')
+  await expect(reply(page)).toContainText('Fixada')
+
+  const html = page.waitForEvent('download')
+  await chatMenu(page, 'Saudação inicial', 'Exportar HTML')
+  const file = await html
+  expect(file.suggestedFilename()).toBe('Saudação-inicial.html')
+  const exported = await readFile(await file.path(), 'utf8')
+  expect(exported).toContain('primeira com fontes')
+  expect(exported).toContain('<strong>mock</strong>')
+  expect(exported).toContain('https://a.example/x')
+
+  await page.locator('.message.user').hover()
+  await page.locator('.message.user').getByRole('button', { name: 'Ramificar a partir daqui' }).click()
+  await expect(chatRow(page, 'Saudação inicial (ramificação)')).toBeVisible()
+  await expect(page.locator('.message')).toHaveCount(1)
+  await send(page, 'seguindo pela ramificação')
+  // The branch carries the conversation up to the chosen message.
+  expect(provider.chats.at(-1)!.body.messages.map((m: { content: string }) => m.content)).toEqual([
+    expect.stringContaining('The user is reading'),
+    'primeira com fontes',
+    'seguindo pela ramificação',
+  ])
+  // The original conversation is untouched.
+  await chatRow(page, 'Saudação inicial').filter({ hasNotText: 'ramificação' }).click()
+  await expect(page.locator('.message')).toHaveCount(2)
+})
+
+test('dictates through the provider and opens the preview by itself', async ({ page }) => {
+  await connect(page)
+  await openSettings(page)
+  const openai = page.locator('[data-provider=openai]')
+  await openai.getByLabel('URL base').fill(provider.url)
+  await openai.getByLabel(/Chave de API/).fill('sk-audio')
+  await settingsSection(page, 'Geral')
+  await page.getByRole('switch', { name: 'Abrir o preview sozinho' }).click()
+  await closeSettings(page)
+
+  await page.getByRole('button', { name: 'Ditar' }).click()
+  await expect(page.getByRole('button', { name: 'Parar o ditado' })).toBeVisible()
+  await page.waitForTimeout(500)
+  await page.getByRole('button', { name: 'Parar o ditado' }).click()
+  await expect(composer(page)).toHaveValue('ditado de teste')
+  const sent = provider.transcriptions[0]
+  expect(sent).toContain('gpt-4o-mini-transcribe')
+  expect(sent).toMatch(/name="language"\r\n\r\npt/)
+
+  await composer(page).fill('crie uma página')
+  await composer(page).press('Enter')
+  await expect(page.locator('.preview').getByRole('tab', { name: 'preview-1.html' })).toBeVisible()
+})
+
 test('explains a failure and retries', async ({ page }) => {
   await connect(page)
   provider.failNext(429, { 'retry-after': '7', 'Access-Control-Expose-Headers': 'retry-after' })

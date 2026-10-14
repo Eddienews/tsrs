@@ -260,6 +260,33 @@ export const en: Record<string, string> = {
   'Apagar todas as conversas, chaves de API e configurações deste navegador?':
     'Delete every chat, API key and setting from this browser?',
 
+  // Message actions, sources and export
+  '{title} (ramificação)': '{title} (branch)',
+  'Ramificar a partir daqui': 'Branch from here',
+  'Mensagens fixadas': 'Pinned messages',
+  Fixada: 'Pinned',
+  Fontes: 'Sources',
+  'Ler em voz alta': 'Read aloud',
+  'Parar a leitura': 'Stop reading',
+  'Exportar HTML': 'Export HTML',
+  'Abrir o preview sozinho': 'Open the preview automatically',
+  'Abrir o preview sozinho quando a resposta trouxer uma página, imagem SVG, componente React ou diagrama':
+    'Open the preview automatically when a reply brings a page, SVG image, React component or diagram',
+
+  // Dictation
+  Ditar: 'Dictate',
+  'Parar o ditado': 'Stop dictating',
+  Ditado: 'Dictation',
+  Automático: 'Automatic',
+  'Reconhecimento do navegador': 'Browser speech recognition',
+  'O áudio vai para o provedor escolhido, que cobra pela transcrição. No automático, usa a OpenAI ou o Groq se houver chave e, senão, o navegador (no Chrome, o áudio vai para o Google).':
+    'The audio goes to the chosen provider, which charges for the transcription. Automatic uses OpenAI or Groq when there is a key and otherwise the browser (in Chrome, the audio goes to Google).',
+  'O navegador não permitiu usar o microfone ou o reconhecimento de voz.':
+    'The browser did not allow the microphone or speech recognition.',
+  'Nenhuma fala foi detectada.': 'No speech was detected.',
+  'O reconhecimento de voz do navegador não está disponível aqui. Configure uma chave da OpenAI ou do Groq para ditar.':
+    'Browser speech recognition is not available here. Set up an OpenAI or Groq key to dictate.',
+
   // Prompt cache
   'Cache de prompt (Anthropic)': 'Prompt cache (Anthropic)',
   'A Anthropic guarda a conversa por alguns minutos e cobra cerca de 10% do preço pela parte já enviada. A gravação no cache custa 25% a mais, então só não compensa em conversas de uma pergunta.':

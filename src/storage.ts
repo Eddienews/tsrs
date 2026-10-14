@@ -42,6 +42,8 @@ export function defaultSettings(): Settings {
     webFetch: false,
     autoTitle: true,
     previewHint: true,
+    autoPreview: false,
+    dictation: 'auto',
     showThinking: true,
     promptCache: true,
     titleModel: '',

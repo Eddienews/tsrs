@@ -5,6 +5,9 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // Imported only when a chat is exported as HTML; listed so the dev server
+  // does not discover it mid-session and reload the page.
+  optimizeDeps: { include: ['react-dom/server'] },
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },

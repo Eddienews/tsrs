@@ -1,6 +1,11 @@
 import {
   AlertTriangle,
   Brain,
+  GitBranch,
+  Pin,
+  PinOff,
+  Square,
+  Volume2,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -17,7 +22,8 @@ import { memo, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { t } from './i18n'
+import { locale, t } from './i18n'
+import { canSpeak, speak, speakable, stopSpeaking, useSpeaking } from './speech'
 import Markdown, { useCopy } from './Markdown'
 import ToolCallBlock from './ToolCallBlock'
 import type { Message, Usage } from './types'
@@ -42,6 +48,9 @@ interface Props {
   onToggleVersions: (id: string) => void
   // Answers a tool call that is waiting for permission.
   onApprove: (callId: string, allowed: boolean) => void
+  // Starts a new conversation with everything up to this message.
+  onFork: (id: string) => void
+  onTogglePin: (id: string) => void
 }
 
 function IconAction(props: {
@@ -119,6 +128,7 @@ function MessageView(props: Props) {
   const [copied, copy] = useCopy()
   const isUser = message.role === 'user'
   const pending = streaming && !message.content && !message.parts?.length
+  const speaking = useSpeaking(message.id)
 
   if (draft !== null) {
     return (
@@ -155,7 +165,10 @@ function MessageView(props: Props) {
   const line = isUser ? '' : usageLine(message.model, message.usage)
 
   return (
-    <article className={cn('message group flex flex-col gap-1', message.role, isUser && 'items-end')}>
+    <article
+      id={`message-${message.id}`}
+      className={cn('message group flex scroll-mt-16 flex-col gap-1', message.role, isUser && 'items-end')}
+    >
       {message.attachments?.length ? (
         <div className="flex flex-wrap justify-end gap-2">
           {message.attachments.map((a) => (
@@ -181,6 +194,11 @@ function MessageView(props: Props) {
         </div>
       ) : null}
 
+      {message.pinned && (
+        <span className="flex items-center gap-1 text-[11px] text-primary">
+          <Pin className="size-3" /> {t('Fixada')}
+        </span>
+      )}
       {isUser ? (
         message.content && (
           <div className="max-w-[85%] whitespace-pre-wrap rounded-lg bg-surface-2 px-3.5 py-2 text-[0.95rem]">
@@ -258,6 +276,25 @@ function MessageView(props: Props) {
         </div>
       )}
 
+      {!isUser && !versions && message.sources?.length ? (
+        <div className="sources w-full rounded-md border bg-card px-3 py-2 text-xs">
+          <div className="mb-1 uppercase tracking-wider text-muted-foreground">{t('Fontes')}</div>
+          <ol className="list-decimal space-y-0.5 pl-5">
+            {message.sources.map((source) => (
+              <li key={source.url} className="truncate">
+                <a
+                  href={source.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-primary underline-offset-2 hover:underline"
+                >
+                  {source.title || new URL(source.url).host}
+                </a>
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
       {pending && !message.thinking && (
         <p className="flex items-center gap-2 text-xs text-muted-foreground">
           <span className="live-dot" aria-hidden /> {t('Pensando…')}
@@ -330,6 +367,34 @@ function MessageView(props: Props) {
               {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
             </IconAction>
           )}
+          {!isUser && message.content && canSpeak() && (
+            <IconAction
+              label={speaking ? t('Parar a leitura') : t('Ler em voz alta')}
+              pressed={speaking}
+              onClick={() =>
+                speaking
+                  ? stopSpeaking()
+                  : speak(message.id, speakable(message.content), locale())
+              }
+            >
+              {speaking ? <Square className="size-3.5" /> : <Volume2 className="size-3.5" />}
+            </IconAction>
+          )}
+          <IconAction
+            label={message.pinned ? t('Desafixar') : t('Fixar')}
+            pressed={!!message.pinned}
+            disabled={busy}
+            onClick={() => props.onTogglePin(message.id)}
+          >
+            {message.pinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
+          </IconAction>
+          <IconAction
+            label={t('Ramificar a partir daqui')}
+            disabled={busy}
+            onClick={() => props.onFork(message.id)}
+          >
+            <GitBranch className="size-3.5" />
+          </IconAction>
           {isUser ? (
             <IconAction
               label={t('Editar')}

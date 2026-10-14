@@ -54,7 +54,14 @@ describe('usage', () => {
 it('prices cache reads and writes apart from plain input', () => {
   // 1M plain + 1M written + 1M read at $2 input: 2 + 2.5 + 0.2, plus 1M output at $10.
   const usage = { input: 3_000_000, output: 1_000_000, cacheWrite: 1_000_000, cacheRead: 1_000_000 }
-  expect(costOf(usage, { inputPrice: 2, outputPrice: 10 })).toBeCloseTo(14.7)
-  // A known cache price replaces the tenth.
-  expect(costOf(usage, { inputPrice: 2, outputPrice: 10, cacheReadPrice: 0.5 })).toBeCloseTo(15)
+  expect(costOf(usage, { inputPrice: 2, outputPrice: 10, cacheReadPrice: 0.2 })).toBeCloseTo(14.7)
+  // Without a known cache rate, cached input is priced like any other.
+  expect(costOf(usage, { inputPrice: 2, outputPrice: 10 })).toBeCloseTo(16.5)
+})
+
+it('takes the cache rate from the model, then from the provider', () => {
+  const settings = defaultSettings()
+  expect(modelInfo(settings, 'anthropic', 'claude-opus-5-5').cacheReadPrice).toBe(0.2)
+  expect(modelInfo(settings, 'anthropic', 'claude-sonnet-5-5').cacheReadPrice).toBeCloseTo(0.2)
+  expect(modelInfo(settings, 'openai', 'gpt-x').cacheReadPrice).toBeFalsy()
 })

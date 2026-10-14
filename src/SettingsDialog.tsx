@@ -324,6 +324,36 @@ export default function SettingsDialog(props: Props) {
                   </p>
                 </div>
                 <div className="space-y-1.5">
+                  <Label htmlFor="dictation">{t('Ditado')}</Label>
+                  <select
+                    id="dictation"
+                    className="select-native w-full"
+                    value={settings.dictation}
+                    onChange={(e) => onChange((s) => ({ ...s, dictation: e.target.value }))}
+                  >
+                    <option value="auto">{t('Automático')}</option>
+                    <option value="browser">{t('Reconhecimento do navegador')}</option>
+                    {PROVIDERS.filter((p) => p.transcription).map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    {t(
+                      'O áudio vai para o provedor escolhido, que cobra pela transcrição. No automático, usa a OpenAI ou o Groq se houver chave e, senão, o navegador (no Chrome, o áudio vai para o Google).',
+                    )}
+                  </p>
+                </div>
+                <label className="flex items-center justify-between gap-4 rounded-md border p-3 text-sm">
+                  {t('Abrir o preview sozinho quando a resposta trouxer uma página, imagem SVG, componente React ou diagrama')}
+                  <Switch
+                    aria-label={t('Abrir o preview sozinho')}
+                    checked={settings.autoPreview}
+                    onCheckedChange={(autoPreview) => onChange((s) => ({ ...s, autoPreview }))}
+                  />
+                </label>
+                <div className="space-y-1.5">
                   <label className="flex items-center justify-between gap-4 rounded-md border p-3 text-sm">
                     {t('Avisar o modelo sobre o preview')}
                     <Switch

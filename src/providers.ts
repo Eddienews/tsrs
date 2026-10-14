@@ -34,6 +34,7 @@ export const PROVIDERS: Provider[] = [
     temperature: false,
     streamUsage: false,
     webTools: 'anthropic',
+    cacheReadShare: 0.1,
   },
   {
     ...openaiCompatible,
@@ -42,6 +43,7 @@ export const PROVIDERS: Provider[] = [
     baseUrl: 'https://api.openai.com/v1',
     keyRequired: true,
     maxTokensField: 'max_completion_tokens',
+    transcription: 'gpt-4o-mini-transcribe',
   },
   {
     ...openaiCompatible,
@@ -91,6 +93,7 @@ export const PROVIDERS: Provider[] = [
     baseUrl: 'https://api.groq.com/openai/v1',
     keyRequired: true,
     efforts: [],
+    transcription: 'whisper-large-v3-turbo',
   },
   {
     ...openaiCompatible,

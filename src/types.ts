@@ -42,6 +42,11 @@ export interface ToolPart {
   status: 'approval' | 'running' | 'done'
 }
 
+export interface Source {
+  url: string
+  title?: string
+}
+
 export type Part = { type: 'text'; text: string } | ToolPart
 
 export interface Message {
@@ -63,6 +68,10 @@ export interface Message {
   // Provider and model that wrote a reply.
   providerId?: string
   model?: string
+  // Pages the provider cited for this reply (Perplexity, OpenRouter's web search).
+  sources?: Source[]
+  // Kept at the top of the conversation for quick access.
+  pinned?: boolean
   // Other versions of the conversation from this message on, left behind by
   // an edit or a regeneration. Each is the rest of a conversation, starting
   // with a message that stands in this one's place.
@@ -141,6 +150,12 @@ export interface Provider {
   temperature: boolean
   // Whether to ask an OpenAI-format endpoint for token usage in the stream.
   streamUsage: boolean
+  // Price of input read from the prompt cache, as a share of the input price,
+  // when the provider bills it the same way for every model; absent when
+  // unknown, in which case cached input is priced like any other.
+  cacheReadShare?: number
+  // Speech-to-text model for dictation, when the provider has one.
+  transcription?: string
   // How the provider offers web search (and, for Anthropic, page fetching)
   // run on its own servers; absent when it does not.
   webTools?: 'anthropic' | 'openrouter'
@@ -164,7 +179,7 @@ export interface ModelInfo {
   // US dollars per million tokens.
   inputPrice?: number
   outputPrice?: number
-  // Price of input read from the prompt cache; a tenth of `inputPrice` when unset.
+  // Price of input read from the prompt cache; the full input price when unset.
   cacheReadPrice?: number
   // Rate card that replaces the prices above when the prompt is longer than
   // `above` tokens.
@@ -213,6 +228,11 @@ export interface Settings {
   promptCache: boolean
   // Show the model's reasoning, asking for it where the provider needs that.
   showThinking: boolean
+  // Who turns speech into text: a provider with a transcription model, the
+  // browser, or 'auto' (the first such provider with a key, else the browser).
+  dictation: string
+  // Open the preview when a reply ends with a page, drawing or component.
+  autoPreview: boolean
   // Tell the model that code blocks can be opened in the preview panel.
   previewHint: boolean
   // Empty means "use the chat's own model".
