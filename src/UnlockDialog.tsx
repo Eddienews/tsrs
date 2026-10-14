@@ -1,4 +1,15 @@
 import { useState } from 'react'
+import { Eye, EyeOff, Lock } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { t } from './i18n'
 
 interface Props {
@@ -28,39 +39,62 @@ export default function UnlockDialog({ onUnlock, onClose }: Props) {
   }
 
   return (
-    <div className="overlay" onClick={onClose}>
-      <form
-        className="dialog narrow"
-        onClick={(e) => e.stopPropagation()}
-        onSubmit={(e) => {
-          e.preventDefault()
-          submit()
-        }}
-      >
-        <h2>{t('Desbloquear chaves')}</h2>
-        <p className="hint">{t('Suas chaves de API estão protegidas por senha.')}</p>
-        <input
-          type={visible ? 'text' : 'password'}
-          autoFocus
-          autoComplete="current-password"
-          placeholder={t('Senha')}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        <label className="check">
-          <input type="checkbox" checked={visible} onChange={(e) => setVisible(e.target.checked)} />
-          {t('Mostrar senha')}
-        </label>
-        {error && <p className="error">{error}</p>}
-        <div className="row end">
-          <button type="button" onClick={onClose}>
-            {t('Agora não')}
-          </button>
-          <button className="primary" disabled={!password || working}>
-            {working ? t('Verificando…') : t('Desbloquear')}
-          </button>
-        </div>
-      </form>
-    </div>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="dialog narrow sm:max-w-sm">
+        <DialogHeader>
+          <div className="mx-auto mb-1 flex size-9 items-center justify-center rounded-md border sm:mx-0">
+            <Lock className="size-4" />
+          </div>
+          <DialogTitle>{t('Desbloquear chaves')}</DialogTitle>
+          <DialogDescription>
+            {t('Suas chaves de API estão protegidas por senha.')}
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="space-y-3"
+          onSubmit={(e) => {
+            e.preventDefault()
+            submit()
+          }}
+        >
+          <div className="relative">
+            <Input
+              type={visible ? 'text' : 'password'}
+              autoFocus
+              autoComplete="current-password"
+              placeholder={t('Senha')}
+              aria-label={t('Senha')}
+              aria-invalid={!!error}
+              className="pr-9"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute top-0.5 right-0.5 size-8"
+              aria-label={visible ? t('Ocultar senha') : t('Mostrar senha')}
+              onClick={() => setVisible(!visible)}
+            >
+              {visible ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+            </Button>
+          </div>
+          {error && (
+            <p role="alert" className="text-xs text-destructive">
+              {error}
+            </p>
+          )}
+          <DialogFooter className="gap-2 pt-1 sm:space-x-0">
+            <Button type="button" variant="ghost" onClick={onClose}>
+              {t('Agora não')}
+            </Button>
+            <Button type="submit" disabled={!password || working}>
+              {working ? t('Verificando…') : t('Desbloquear')}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }

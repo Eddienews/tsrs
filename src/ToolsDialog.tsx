@@ -1,4 +1,16 @@
 import { useState } from 'react'
+import { ChevronDown, ChevronRight, FileDown, Globe, Plus } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { t } from './i18n'
 import { forget, listTools } from './mcp'
 import type { McpServer, Provider, Settings } from './types'
@@ -13,9 +25,13 @@ interface Props {
   onClose: () => void
 }
 
+const hint = 'text-xs text-muted-foreground'
+
 export default function ToolsDialog({ settings, provider, locked, onChange, onClose }: Props) {
   // Servers added while the dialog is open start expanded.
   const [fresh, setFresh] = useState<string[]>([])
+  // Servers whose card was toggled by hand, which overrides the initial state.
+  const [toggled, setToggled] = useState<Record<string, boolean>>({})
   // Per-server result of the last connection test.
   const [status, setStatus] = useState<Record<string, string>>({})
 
@@ -44,34 +60,48 @@ export default function ToolsDialog({ settings, provider, locked, onChange, onCl
     }
   }
 
-  return (
-    <div className="overlay" onClick={onClose}>
-      <div className="dialog" onClick={(e) => e.stopPropagation()}>
-        <header>
-          <h2>{t('Ferramentas')}</h2>
-          <button className="icon" title={t('Fechar')} onClick={onClose}>
-            ×
-          </button>
-        </header>
+  function addServer() {
+    const id = crypto.randomUUID()
+    setFresh((ids) => [...ids, id])
+    onChange((s) => ({
+      ...s,
+      mcpServers: [
+        ...s.mcpServers,
+        { id, name: '', url: '', token: '', enabled: true, autoApprove: false },
+      ],
+    }))
+  }
 
-        <h3>Web</h3>
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={settings.webSearch}
-            onChange={(e) => onChange((s) => ({ ...s, webSearch: e.target.checked }))}
-          />
-          {t('Busca na web')}
-        </label>
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={settings.webFetch}
-            onChange={(e) => onChange((s) => ({ ...s, webFetch: e.target.checked }))}
-          />
-          {t('Leitura de páginas')}
-        </label>
-        <p className="hint">
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="dialog max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{t('Ferramentas')}</DialogTitle>
+          <DialogDescription>{t('O que o modelo pode usar.')}</DialogDescription>
+        </DialogHeader>
+
+        <h3 className="text-sm font-medium">Web</h3>
+        <div className="divide-y rounded-md border">
+          <label className="flex items-center gap-3 px-3 py-2.5 text-sm">
+            <Globe className="size-4 text-muted-foreground" />
+            <span className="flex-1">{t('Busca na web')}</span>
+            <Switch
+              aria-label={t('Busca na web')}
+              checked={settings.webSearch}
+              onCheckedChange={(webSearch) => onChange((s) => ({ ...s, webSearch }))}
+            />
+          </label>
+          <label className="flex items-center gap-3 px-3 py-2.5 text-sm">
+            <FileDown className="size-4 text-muted-foreground" />
+            <span className="flex-1">{t('Leitura de páginas')}</span>
+            <Switch
+              aria-label={t('Leitura de páginas')}
+              checked={settings.webFetch}
+              onCheckedChange={(webFetch) => onChange((s) => ({ ...s, webFetch }))}
+            />
+          </label>
+        </div>
+        <p className={hint}>
           {t(
             'Executadas pelo próprio provedor e cobradas por ele. A busca funciona com Anthropic e OpenRouter; a leitura de páginas, só com Anthropic.',
           )}{' '}
@@ -82,99 +112,131 @@ export default function ToolsDialog({ settings, provider, locked, onChange, onCl
               })}
         </p>
 
-        <h3>{t('Servidores MCP')}</h3>
-        <p className="hint">
+        <div className="flex items-center justify-between pt-2">
+          <h3 className="text-sm font-medium">{t('Servidores MCP')}</h3>
+          <Button size="sm" variant="outline" className="h-7 gap-1" onClick={addServer}>
+            <Plus className="size-3.5" />
+            {t('Novo servidor')}
+          </Button>
+        </div>
+        <p className={hint}>
           {t(
             'Servidores remotos (HTTP) cujas ferramentas o modelo pode chamar. O servidor precisa aceitar chamadas do navegador (CORS); servidores locais por linha de comando e login por OAuth não são suportados.',
           )}
         </p>
-        {settings.mcpServers.map((server) => (
-          <details key={server.id} open={fresh.includes(server.id)}>
-            <summary>
-              {server.name || t('Sem nome')}
-              {server.enabled && <span className="badge">{t('ativo')}</span>}
-            </summary>
-            <label>
-              {t('Nome')}
-              <input value={server.name} onChange={(e) => patch(server.id, { name: e.target.value })} />
-            </label>
-            <label>
-              URL
-              <input
-                type="url"
-                placeholder={t('https://exemplo.com/mcp')}
-                value={server.url}
-                onChange={(e) => patch(server.id, { url: e.target.value.trim() })}
-              />
-            </label>
-            <label>
-              {t('Token (opcional)')}
-              <input
-                type="password"
-                autoComplete="off"
-                disabled={locked}
-                placeholder={locked ? t('Desbloqueie as chaves para ver ou alterar') : ''}
-                value={server.token}
-                onChange={(e) => patch(server.id, { token: e.target.value.trim() })}
-              />
-            </label>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={server.enabled}
-                onChange={(e) => patch(server.id, { enabled: e.target.checked })}
-              />
-              {t('Usar nas conversas')}
-            </label>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={server.autoApprove}
-                onChange={(e) => patch(server.id, { autoApprove: e.target.checked })}
-              />
-              {t('Executar sem pedir permissão')}
-            </label>
-            <div className="row">
-              <button disabled={!server.url} onClick={() => test(server)}>
-                {t('Testar conexão')}
-              </button>
-              <button
-                className="danger"
-                onClick={() => {
-                  forget(server.id)
-                  onChange((s) => ({
-                    ...s,
-                    mcpServers: s.mcpServers.filter((m) => m.id !== server.id),
-                  }))
-                }}
+        {settings.mcpServers.map((server) => {
+          const expanded = toggled[server.id] ?? fresh.includes(server.id)
+          return (
+            <div key={server.id} data-server={server.id} className="rounded-md border">
+              {/* The whole row toggles; the chevron button carries the state for keyboards. */}
+              <div
+                className="flex cursor-pointer items-center gap-2 px-3 py-2"
+                onClick={() => setToggled((s) => ({ ...s, [server.id]: !expanded }))}
               >
-                {t('Excluir')}
-              </button>
+                <span className="min-w-0 truncate text-sm font-medium">
+                  {server.name || t('Sem nome')}
+                </span>
+                {server.enabled && (
+                  <span className="flex items-center gap-1 text-xs text-success">
+                    <span className="size-1.5 rounded-full bg-success" />
+                    {t('ativo')}
+                  </span>
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="ml-auto size-7"
+                  aria-expanded={expanded}
+                  aria-label={expanded ? t('Ocultar detalhes') : t('Mostrar detalhes')}
+                >
+                  {expanded ? <ChevronDown /> : <ChevronRight />}
+                </Button>
+              </div>
+              {expanded && (
+                <div className="space-y-3 border-t p-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`name-${server.id}`}>{t('Nome')}</Label>
+                    <Input
+                      id={`name-${server.id}`}
+                      value={server.name}
+                      onChange={(e) => patch(server.id, { name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`url-${server.id}`}>URL</Label>
+                    <Input
+                      id={`url-${server.id}`}
+                      type="url"
+                      placeholder={t('https://exemplo.com/mcp')}
+                      className="font-mono text-xs"
+                      value={server.url}
+                      onChange={(e) => patch(server.id, { url: e.target.value.trim() })}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`token-${server.id}`}>{t('Token (opcional)')}</Label>
+                    <Input
+                      id={`token-${server.id}`}
+                      type="password"
+                      autoComplete="off"
+                      disabled={locked}
+                      placeholder={locked ? t('Desbloqueie as chaves para ver ou alterar') : ''}
+                      className="font-mono text-xs"
+                      value={server.token}
+                      onChange={(e) => patch(server.id, { token: e.target.value.trim() })}
+                    />
+                  </div>
+                  <label className="flex items-center justify-between gap-3 text-sm">
+                    {t('Usar nas conversas')}
+                    <Switch
+                      aria-label={t('Usar nas conversas')}
+                      checked={server.enabled}
+                      onCheckedChange={(enabled) => patch(server.id, { enabled })}
+                    />
+                  </label>
+                  <label className="flex items-center justify-between gap-3 text-sm">
+                    {t('Executar sem pedir permissão')}
+                    <Switch
+                      aria-label={t('Executar sem pedir permissão')}
+                      checked={server.autoApprove}
+                      onCheckedChange={(autoApprove) => patch(server.id, { autoApprove })}
+                    />
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!server.url}
+                      onClick={() => test(server)}
+                    >
+                      {t('Testar conexão')}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        forget(server.id)
+                        onChange((s) => ({
+                          ...s,
+                          mcpServers: s.mcpServers.filter((m) => m.id !== server.id),
+                        }))
+                      }}
+                    >
+                      {t('Excluir')}
+                    </Button>
+                  </div>
+                  {status[server.id] && <p className={hint}>{status[server.id]}</p>}
+                </div>
+              )}
             </div>
-            {status[server.id] && <p className="hint">{status[server.id]}</p>}
-          </details>
-        ))}
-        <button
-          onClick={() => {
-            const id = crypto.randomUUID()
-            setFresh((ids) => [...ids, id])
-            onChange((s) => ({
-              ...s,
-              mcpServers: [
-                ...s.mcpServers,
-                { id, name: '', url: '', token: '', enabled: true, autoApprove: false },
-              ],
-            }))
-          }}
-        >
-          {t('Novo servidor')}
-        </button>
-        <p className="hint">
+          )
+        })}
+        <p className={hint}>
           {t(
             'Sem a opção de executar sem permissão, cada chamada aparece na conversa e espera você permitir. O resultado de uma ferramenta é enviado ao modelo.',
           )}
         </p>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

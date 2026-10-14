@@ -1,3 +1,4 @@
+import { defaultAppearance } from './appearance'
 import { detectLanguage } from './i18n'
 import { PROVIDERS } from './providers'
 import type { Chat, ChatMeta, Message, Settings } from './types'
@@ -23,6 +24,7 @@ interface Thread {
 export function defaultSettings(): Settings {
   return {
     language: detectLanguage(),
+    appearance: defaultAppearance(),
     providers: Object.fromEntries(
       PROVIDERS.map((p) => [
         p.id,
@@ -39,6 +41,7 @@ export function defaultSettings(): Settings {
     webSearch: false,
     webFetch: false,
     autoTitle: true,
+    previewHint: true,
     titleModel: '',
   }
 }

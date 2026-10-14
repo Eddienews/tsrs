@@ -1,4 +1,14 @@
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { t } from './i18n'
 import { PROVIDERS } from './providers'
 import type { Settings } from './types'
@@ -16,56 +26,62 @@ export default function CompareDialog({ settings, onCompare, onClose }: Props) {
   const models = settings.providers[providerId].models
 
   return (
-    <div className="overlay" onClick={onClose}>
-      <form
-        className="dialog narrow"
-        onClick={(e) => e.stopPropagation()}
-        onSubmit={(e) => {
-          e.preventDefault()
-          onCompare({ providerId, model: model.trim() })
-        }}
-      >
-        <h2>{t('Comparar com outro modelo')}</h2>
-        <p className="hint">
-          {t(
-            'O modelo escolhido responde à mesma pergunta. As versões ficam lado a lado e o modelo da conversa não muda.',
-          )}
-        </p>
-        <select
-          aria-label={t('Provedor')}
-          value={providerId}
-          onChange={(e) => {
-            setProviderId(e.target.value)
-            setModel('')
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="dialog narrow sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{t('Comparar com outro modelo')}</DialogTitle>
+          <DialogDescription>
+            {t(
+              'O modelo escolhido responde à mesma pergunta. As versões ficam lado a lado e o modelo da conversa não muda.',
+            )}
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="space-y-3"
+          onSubmit={(e) => {
+            e.preventDefault()
+            onCompare({ providerId, model: model.trim() })
           }}
         >
-          {PROVIDERS.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-        <input
-          autoFocus
-          list="compare-models"
-          placeholder={t('Modelo')}
-          value={model}
-          onChange={(e) => setModel(e.target.value)}
-        />
-        <datalist id="compare-models">
-          {models.map((m) => (
-            <option key={m} value={m} />
-          ))}
-        </datalist>
-        <div className="row end">
-          <button type="button" onClick={onClose}>
-            {t('Cancelar')}
-          </button>
-          <button className="primary" disabled={!model.trim()}>
-            {t('Gerar')}
-          </button>
-        </div>
-      </form>
-    </div>
+          <select
+            className="select-native w-full"
+            aria-label={t('Provedor')}
+            value={providerId}
+            onChange={(e) => {
+              setProviderId(e.target.value)
+              setModel('')
+            }}
+          >
+            {PROVIDERS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <Input
+            autoFocus
+            list="compare-models"
+            placeholder={t('Modelo')}
+            aria-label={t('Modelo')}
+            className="font-mono text-xs"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+          />
+          <datalist id="compare-models">
+            {models.map((m) => (
+              <option key={m} value={m} />
+            ))}
+          </datalist>
+          <DialogFooter className="gap-2 pt-1 sm:space-x-0">
+            <Button type="button" variant="ghost" onClick={onClose}>
+              {t('Cancelar')}
+            </Button>
+            <Button type="submit" disabled={!model.trim()}>
+              {t('Gerar')}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }

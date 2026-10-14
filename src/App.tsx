@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
+import { TooltipProvider } from '@/components/ui/tooltip'
+import { useIsMobile } from '@/lib/use-mobile'
+import { applyAppearance } from './appearance'
 import { branchAt, switchVersion, versions, type Branch } from './branches'
+import ChatTopBar from './ChatTopBar'
+import CommandPalette, { type PaletteAction } from './CommandPalette'
 import CompareDialog from './CompareDialog'
+import Composer from './Composer'
 import { deriveKey, newSalt, seal, unseal } from './crypto'
 import {
   buildBackup,
@@ -12,10 +20,13 @@ import {
 } from './files'
 import { setLanguage, t } from './i18n'
 import LibraryDialog from './LibraryDialog'
+import { PreviewContext } from './Markdown'
 import MessageView from './MessageView'
 import ParamsPanel from './ParamsPanel'
 import { forget } from './mcp'
-import { PROVIDERS, getProvider } from './providers'
+import { artifactName, lastPreviewable, withPreviewHint, type Artifact } from './preview'
+import PreviewPanel from './PreviewPanel'
+import { getProvider } from './providers'
 import SettingsDialog from './SettingsDialog'
 import Sidebar from './Sidebar'
 import {
@@ -48,8 +59,6 @@ import {
   CONTEXT_WARNING,
   contextUse,
   costOf,
-  formatCost,
-  formatTokens,
   modelInfo,
   totals,
 } from './usage'
@@ -194,8 +203,17 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [showParams, setShowParams] = useState(false)
   const [showLibrary, setShowLibrary] = useState(false)
-  const [showPrompts, setShowPrompts] = useState(false)
   const [showTools, setShowTools] = useState(false)
+  const [showPalette, setShowPalette] = useState(false)
+  // The conversation list, when it is a drawer on a narrow screen.
+  const [showDrawer, setShowDrawer] = useState(false)
+  const [dragging, setDragging] = useState(false)
+  const isMobile = useIsMobile()
+  // What is open in the preview panel; kept only for the session.
+  const [artifacts, setArtifacts] = useState<Artifact[]>([])
+  const [artifactId, setArtifactId] = useState<string | null>(null)
+  const [showPreview, setShowPreview] = useState(false)
+  const artifactCount = useRef(0)
   // MCP servers that could not be reached for the last reply.
   const [toolProblems, setToolProblems] = useState<string[]>([])
   // Tool calls waiting for the user to allow or deny them, by call id.
@@ -207,7 +225,6 @@ export default function App() {
   const [streaming, setStreaming] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
-  const fileRef = useRef<HTMLInputElement>(null)
 
   const provider = getProvider(settings.providerId)
   const active = metas.find((c) => c.id === activeId) ?? null
@@ -295,6 +312,8 @@ export default function App() {
     bottomRef.current?.scrollIntoView({ block: 'end' })
   }, [messages])
 
+  useEffect(() => applyAppearance(settings.appearance), [settings.appearance])
+
   async function enableVault(password: string) {
     const salt = newSalt()
     const key = await deriveKey(password, salt)
@@ -331,11 +350,61 @@ export default function App() {
     setSettings((s) => ({ ...withoutKeys(s), vault: undefined }))
   }
 
-  function selectProvider(id: string) {
-    setSettings((s) => ({ ...s, providerId: id, model: s.providers[id].models[0] ?? '' }))
+  function selectModel(providerId: string, model: string) {
+    setSettings((s) => ({ ...s, providerId, model }))
+  }
+
+  function toggleTheme() {
+    setSettings((s) => ({
+      ...s,
+      appearance: { ...s.appearance, theme: s.appearance.theme === 'dark' ? 'light' : 'dark' },
+    }))
+  }
+
+  function showArtifact(lang: string, code: string, name?: string) {
+    const open = artifacts.find((a) => a.lang === lang && a.code === code)
+    const artifact = open ?? {
+      id: crypto.randomUUID(),
+      name: name ?? artifactName(lang, ++artifactCount.current),
+      lang,
+      code,
+    }
+    if (!open) setArtifacts((list) => [...list, artifact])
+    setArtifactId(artifact.id)
+    setShowPreview(true)
+  }
+
+  // Opening an empty panel shows the conversation's latest previewable block.
+  function togglePreview() {
+    if (showPreview) return setShowPreview(false)
+    const block = artifacts.length
+      ? null
+      : (messages ?? [])
+          .filter((m) => m.role === 'assistant')
+          .map((m) => lastPreviewable(m.content))
+          .findLast(Boolean)
+    if (block) showArtifact(block.lang, block.code)
+    else setShowPreview(true)
+  }
+
+  function closeArtifact(id: string) {
+    const rest = artifacts.filter((a) => a.id !== id)
+    setArtifacts(rest)
+    if (id === artifactId) setArtifactId(rest.at(-1)?.id ?? null)
+  }
+
+  function runAction(action: PaletteAction) {
+    if (action === 'new') selectChat(null)
+    else if (action === 'preview') togglePreview()
+    else if (action === 'tools') setShowTools(true)
+    else if (action === 'library') setShowLibrary(true)
+    else if (action === 'settings') setShowSettings(true)
+    else if (action === 'theme') toggleTheme()
+    else lock()
   }
 
   async function selectChat(id: string | null) {
+    setShowDrawer(false)
     setActiveId(id)
     setVersionsAt(null)
     const meta = findMeta(id)
@@ -398,10 +467,11 @@ export default function App() {
       const servers = settings.mcpServers.filter((s) => s.enabled && s.url)
       const toolset = servers.length ? await gatherTools(servers) : null
       if (toolset?.problems.length) setToolProblems(toolset.problems)
+      const system = meta.params?.system?.trim() || settings.systemPrompt
       const stream = streamChat({
         ...conn,
         model: using.model,
-        system: meta.params?.system?.trim() || settings.systemPrompt,
+        system: settings.previewHint ? withPreviewHint(system, t('Abrir preview')) : system,
         messages: toRequest(history),
         // An effort level chosen for another provider may not exist in this one.
         params: {
@@ -581,8 +651,31 @@ export default function App() {
 
   // MessageView is memoized, so it gets callbacks whose identity never changes
   // but which always run the latest edit/regenerate.
-  const latest = useRef({ edit, regenerate, switchTo, toggleVersions })
-  latest.current = { edit, regenerate, switchTo, toggleVersions }
+  const actions = { edit, regenerate, switchTo, toggleVersions, showArtifact, selectChat, togglePreview }
+  const latest = useRef(actions)
+  latest.current = actions
+  const openPreview = useCallback(
+    (code: string, lang: string) => latest.current.showArtifact(lang.toLowerCase(), code),
+    [],
+  )
+
+  useEffect(() => {
+    function shortcut(event: KeyboardEvent) {
+      const key = event.key.toLowerCase()
+      if ((event.metaKey || event.ctrlKey) && key === 'k') {
+        event.preventDefault()
+        setShowPalette((open) => !open)
+      } else if ((event.metaKey || event.ctrlKey) && key === '.') {
+        event.preventDefault()
+        latest.current.togglePreview()
+      } else if (event.altKey && key === 'n') {
+        event.preventDefault()
+        latest.current.selectChat(null)
+      }
+    }
+    window.addEventListener('keydown', shortcut)
+    return () => window.removeEventListener('keydown', shortcut)
+  }, [])
   const onEdit = useCallback((id: string, text: string) => latest.current.edit(id, text), [])
   const onRegenerate = useCallback((id: string) => latest.current.regenerate(id), [])
   const onSwitch = useCallback((id: string, v: number) => latest.current.switchTo(id, v), [])
@@ -684,261 +777,237 @@ export default function App() {
   }
 
   const last = messages?.at(-1)
+  const personaId = settings.personas.some((p) => p.id === params.personaId)
+    ? (params.personaId ?? '')
+    : ''
+  const activeTools =
+    (settings.webSearch && provider.webTools ? 1 : 0) +
+    (settings.webFetch && provider.webTools === 'anthropic' ? 1 : 0) +
+    settings.mcpServers.filter((s) => s.enabled && s.url).length
 
-  return (
-    <div className="app">
-      <Sidebar
-        chats={metas}
-        folders={settings.folders}
-        activeId={activeId}
-        onSelect={selectChat}
-        onUpdateChat={updateChat}
-        onDeleteChat={removeChat}
-        onExportChat={exportChat}
-        onSearch={searchThreads}
-        onFoldersChange={(folders) => setSettings((s) => ({ ...s, folders }))}
-        onDeleteFolder={removeFolder}
-        onOpenSettings={() => setShowSettings(true)}
+  const sidebar = (
+    <Sidebar
+      chats={metas}
+      folders={settings.folders}
+      activeId={activeId}
+      theme={settings.appearance.theme}
+      onSelect={selectChat}
+      onUpdateChat={updateChat}
+      onDeleteChat={removeChat}
+      onExportChat={exportChat}
+      onSearch={searchThreads}
+      onFoldersChange={(folders) => setSettings((s) => ({ ...s, folders }))}
+      onDeleteFolder={removeFolder}
+      onOpen={(what) => {
+        setShowDrawer(false)
+        if (what === 'library') setShowLibrary(true)
+        else if (what === 'tools') setShowTools(true)
+        else setShowSettings(true)
+      }}
+      onToggleTheme={toggleTheme}
+    />
+  )
+
+  const chat = (
+    <main
+      className="main flex h-full min-w-0 flex-col bg-background"
+      onDragOver={(e) => {
+        e.preventDefault()
+        if (e.dataTransfer.types.includes('Files')) setDragging(true)
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false)
+      }}
+      onDrop={(e) => {
+        e.preventDefault()
+        setDragging(false)
+        attach([...e.dataTransfer.files])
+      }}
+    >
+      <ChatTopBar
+        settings={settings}
+        provider={provider}
+        personaId={personaId}
+        spent={spent}
+        context={context}
+        activeTools={activeTools}
+        paramsOpen={showParams}
+        previewOpen={showPreview}
+        showMenu={isMobile}
+        onMenu={() => setShowDrawer(true)}
+        onModel={selectModel}
+        onPersona={applyPersona}
+        onTools={() => setShowTools(true)}
+        onParams={() => setShowParams(true)}
+        onTogglePreview={togglePreview}
       />
 
-      <main
-        className="main"
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => {
-          e.preventDefault()
-          attach([...e.dataTransfer.files])
-        }}
-      >
-        <header className="toolbar">
-          <select value={provider.id} onChange={(e) => selectProvider(e.target.value)}>
-            {PROVIDERS.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-          <input
-            className="model"
-            list="models"
-            placeholder={t('modelo')}
-            value={settings.model}
-            onChange={(e) => setSettings((s) => ({ ...s, model: e.target.value }))}
-          />
-          <datalist id="models">
-            {settings.providers[provider.id].models.map((m) => (
-              <option key={m} value={m} />
-            ))}
-          </datalist>
-          {settings.personas.length > 0 && (
-            <select
-              title={t('Persona desta conversa')}
-              value={settings.personas.some((p) => p.id === params.personaId) ? params.personaId : ''}
-              onChange={(e) => applyPersona(e.target.value)}
-            >
-              <option value="">{t('Sem persona')}</option>
-              {settings.personas.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name || t('Sem nome')}
-                </option>
-              ))}
-            </select>
-          )}
-          <button
-            className={showParams ? 'toggled' : undefined}
-            onClick={() => setShowParams((v) => !v)}
-          >
-            {t('Parâmetros')}
-          </button>
-          <button onClick={() => setShowLibrary(true)}>{t('Biblioteca')}</button>
-          <button
-            className={
-              settings.webSearch || settings.webFetch || settings.mcpServers.some((s) => s.enabled)
-                ? 'toggled'
-                : undefined
-            }
-            onClick={() => setShowTools(true)}
-          >
-            {t('Ferramentas')}
-          </button>
-          {spent.tokens > 0 && (
-            <span className="usage" title={t('Total de tokens e custo estimado desta conversa')}>
-              {formatTokens(spent.tokens)} tokens
-              {spent.cost !== undefined && ` · ${formatCost(spent.cost)}`}
-            </span>
-          )}
-        </header>
-        {showParams && (
-          <ParamsPanel
-            provider={provider}
-            params={params}
-            onChange={(next) =>
-              active ? updateChat(active.id, { params: next }) : setDraftParams(next)
-            }
-          />
-        )}
-
-        <section className="messages">
-          {!active && (
-            <div className="empty">
-              <h1>The Signal Room Studio</h1>
-              <p>
-                {t(
-                  'Suas conversas e chaves ficam só neste navegador. As mensagens vão direto para o provedor escolhido.',
-                )}
-              </p>
+      <section className="messages min-h-0 flex-1 overflow-y-auto">
+        {!active && (
+          <div className="flex min-h-full flex-col items-center justify-center px-6 py-8 text-center">
+            <div className="mb-1 font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">
+              {t('TSRS · pronto')}
             </div>
-          )}
-          {active && !messages && <p className="pending">{t('Carregando…')}</p>}
-          {messages?.map((m, index) => (
-            <MessageView
-              key={m.id}
-              message={m}
-              busy={streaming}
-              pending={streaming && m === last && !m.content}
-              lang={settings.language}
-              versions={
-                index === versionsAt && m.alts?.length
-                  ? versions(messages, index).map((v) => (v[0].id === m.id ? m : v[0]))
-                  : undefined
-              }
-              onEdit={onEdit}
-              onRegenerate={onRegenerate}
-              onSwitch={onSwitch}
-              onCompare={setCompareId}
-              onApprove={onApprove}
-              onToggleVersions={onToggleVersions}
-            />
-          ))}
-          <div ref={bottomRef} />
-        </section>
-
-        <footer className="composer">
-          {blocked && (
-            <p className="notice">
-              {blocked.text}{' '}
-              <button
-                className="link"
-                onClick={() =>
-                  blocked.fix === 'unlock' ? setShowUnlock(true) : setShowSettings(true)
-                }
-              >
-                {blocked.fix === 'unlock' ? t('Desbloquear') : t('Abrir configurações')}
-              </button>
-            </p>
-          )}
-          {context !== undefined && context >= CONTEXT_WARNING && (
-            <p className="notice">
+            <h1 className="text-xl font-semibold">{t('No que vamos trabalhar?')}</h1>
+            <p className="mt-1 max-w-md text-sm text-muted-foreground">
               {t(
-                'Esta conversa já ocupa {percent}% do contexto do modelo. Comece uma nova conversa para evitar erros e reduzir o custo.',
-                { percent: Math.round(context * 100) },
+                'Suas conversas e chaves ficam só neste navegador. As mensagens vão direto para o provedor escolhido.',
               )}
             </p>
-          )}
-          {toolProblems.map((problem) => (
-            <p key={problem} className="error">
-              {problem}
-            </p>
-          ))}
-          {attachError && <p className="error">{attachError}</p>}
-          {attachments.length > 0 && (
-            <div className="attachments">
-              {attachments.map((a) => (
-                <span key={a.id} className="chip">
-                  {a.name}
-                  <button
-                    className="icon"
-                    title={t('Remover anexo')}
-                    onClick={() => setAttachments((list) => list.filter((x) => x.id !== a.id))}
-                  >
-                    ×
-                  </button>
-                </span>
+            <div className="mt-6 grid w-full max-w-xl gap-2 sm:grid-cols-2">
+              {[
+                t('Explique um conceito difícil em termos simples'),
+                t('Revise e melhore um texto meu'),
+                t('Crie uma página HTML simples para eu ver no preview'),
+                t('Compare os prós e os contras de duas opções'),
+              ].map((suggestion) => (
+                <button
+                  key={suggestion}
+                  className="rounded-md border bg-card px-3 py-2.5 text-left text-sm hover:border-primary/60 hover:bg-accent"
+                  onClick={() => setDraft(suggestion)}
+                >
+                  {suggestion}
+                </button>
               ))}
             </div>
-          )}
-          <div className="composer-row">
-            <button
-              title={t('Anexar imagens, PDFs ou arquivos de texto')}
-              onClick={() => fileRef.current?.click()}
-            >
-              {t('Anexar')}
-            </button>
-            <div className="anchor">
-              <button
-                title={t('Inserir um prompt salvo')}
-                className={showPrompts ? 'toggled' : undefined}
-                onClick={() => setShowPrompts((v) => !v)}
-              >
-                Prompts
-              </button>
-              {showPrompts && (
-                <div className="menu up">
-                  {settings.prompts.map((p) => (
-                    <button
-                      key={p.id}
-                      title={p.text}
-                      onClick={() => {
-                        setDraft((d) => (d.trim() ? `${d}\n${p.text}` : p.text))
-                        setShowPrompts(false)
-                      }}
-                    >
-                      {p.title || t('Sem título')}
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => {
-                      setShowPrompts(false)
-                      setShowLibrary(true)
-                    }}
-                  >
-                    {settings.prompts.length ? t('Gerenciar prompts…') : t('Criar um prompt…')}
-                  </button>
-                </div>
-              )}
-            </div>
-            <input
-              ref={fileRef}
-              type="file"
-              multiple
-              hidden
-              onChange={(e) => {
-                attach([...(e.target.files ?? [])])
-                e.target.value = ''
-              }}
-            />
-            <textarea
-              rows={3}
-              placeholder={t('Escreva sua mensagem… (Enter envia, Shift+Enter quebra a linha)')}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onPaste={(e) => {
-                if (e.clipboardData.files.length) {
-                  e.preventDefault()
-                  attach([...e.clipboardData.files])
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-                  e.preventDefault()
-                  send()
-                }
-              }}
-            />
-            {streaming ? (
-              <button onClick={() => abortRef.current?.abort()}>{t('Parar')}</button>
-            ) : (
-              <button
-                className="primary"
-                disabled={(!draft.trim() && !attachments.length) || !!blocked}
-                onClick={send}
-              >
-                {t('Enviar')}
-              </button>
-            )}
           </div>
-        </footer>
-      </main>
+        )}
+        {active && (
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6">
+            {!messages && <p className="text-sm text-muted-foreground">{t('Carregando…')}</p>}
+            <PreviewContext.Provider value={openPreview}>
+              {messages?.map((m, index) => (
+                <MessageView
+                  key={m.id}
+                  message={m}
+                  busy={streaming}
+                  streaming={streaming && m === last}
+                  lang={settings.language}
+                  versions={
+                    index === versionsAt && m.alts?.length
+                      ? versions(messages, index).map((v) => (v[0].id === m.id ? m : v[0]))
+                      : undefined
+                  }
+                  onEdit={onEdit}
+                  onRegenerate={onRegenerate}
+                  onSwitch={onSwitch}
+                  onCompare={setCompareId}
+                  onApprove={onApprove}
+                  onToggleVersions={onToggleVersions}
+                />
+              ))}
+            </PreviewContext.Provider>
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </section>
 
+      <Composer
+        value={draft}
+        onChange={setDraft}
+        onSend={send}
+        onStop={() => abortRef.current?.abort()}
+        streaming={streaming}
+        blocked={!!blocked}
+        dragging={dragging}
+        attachments={attachments}
+        onAttach={attach}
+        onRemoveAttachment={(id) => setAttachments((list) => list.filter((a) => a.id !== id))}
+        prompts={settings.prompts}
+        onInsertPrompt={(text) => setDraft((d) => (d.trim() ? `${d}\n${text}` : text))}
+        onManagePrompts={() => setShowLibrary(true)}
+      >
+        {blocked && (
+          <p className="notice rounded-md border border-warning/50 px-3 py-2 text-xs text-warning">
+            {blocked.text}{' '}
+            <button
+              className="underline underline-offset-2"
+              onClick={() =>
+                blocked.fix === 'unlock' ? setShowUnlock(true) : setShowSettings(true)
+              }
+            >
+              {blocked.fix === 'unlock' ? t('Desbloquear') : t('Abrir configurações')}
+            </button>
+          </p>
+        )}
+        {context !== undefined && context >= CONTEXT_WARNING && (
+          <p className="notice rounded-md border border-warning/50 px-3 py-2 text-xs text-warning">
+            {t(
+              'Esta conversa já ocupa {percent}% do contexto do modelo. Comece uma nova conversa para evitar erros e reduzir o custo.',
+              { percent: Math.round(context * 100) },
+            )}
+          </p>
+        )}
+        {[...toolProblems, ...(attachError ? [attachError] : [])].map((problem) => (
+          <p
+            key={problem}
+            role="alert"
+            className="error rounded-md border border-destructive/50 px-3 py-2 text-xs text-destructive"
+          >
+            {problem}
+          </p>
+        ))}
+      </Composer>
+    </main>
+  )
+
+  const preview = (
+    <PreviewPanel
+      artifacts={artifacts}
+      activeId={artifactId}
+      onActivate={setArtifactId}
+      onCloseTab={closeArtifact}
+      onOpenUrl={(url) => showArtifact('url', url, new URL(url).host)}
+      onClose={() => setShowPreview(false)}
+    />
+  )
+
+  return (
+    <TooltipProvider delayDuration={300}>
+      <div className="app h-dvh w-full overflow-hidden">
+        {isMobile ? (
+          <>
+            <Sheet open={showDrawer} onOpenChange={setShowDrawer}>
+              <SheetContent side="left" className="w-[85vw] max-w-80 p-0 [&>button]:hidden">
+                <SheetTitle className="sr-only">{t('Conversas')}</SheetTitle>
+                <SheetDescription className="sr-only">TSRS</SheetDescription>
+                {sidebar}
+              </SheetContent>
+            </Sheet>
+            {chat}
+            {showPreview && <div className="fixed inset-0 z-40">{preview}</div>}
+          </>
+        ) : (
+          <ResizablePanelGroup orientation="horizontal">
+            <ResizablePanel id="sidebar" defaultSize="20%" minSize="14%" maxSize="32%">
+              {sidebar}
+            </ResizablePanel>
+            <ResizableHandle />
+            <ResizablePanel id="chat" minSize="30%">
+              {chat}
+            </ResizablePanel>
+            {showPreview && (
+              <>
+                <ResizableHandle withHandle />
+                <ResizablePanel id="preview" defaultSize="40%" minSize="25%">
+                  {preview}
+                </ResizablePanel>
+              </>
+            )}
+          </ResizablePanelGroup>
+        )}
+      </div>
+
+      {showParams && (
+        <ParamsPanel
+          provider={provider}
+          params={params}
+          onChange={(next) =>
+            active ? updateChat(active.id, { params: next }) : setDraftParams(next)
+          }
+          onClose={() => setShowParams(false)}
+        />
+      )}
       {showSettings && (
         <SettingsDialog
           settings={settings}
@@ -980,9 +1049,20 @@ export default function App() {
           onClose={() => setCompareId(null)}
         />
       )}
+      {showPalette && (
+        <CommandPalette
+          chats={metas}
+          settings={settings}
+          canLock={!!settings.vault && !locked}
+          onChat={selectChat}
+          onModel={selectModel}
+          onAction={runAction}
+          onClose={() => setShowPalette(false)}
+        />
+      )}
       {showUnlock && locked && (
         <UnlockDialog onUnlock={unlock} onClose={() => setShowUnlock(false)} />
       )}
-    </div>
+    </TooltipProvider>
   )
 }

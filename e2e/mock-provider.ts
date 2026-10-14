@@ -20,6 +20,25 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers
 
 // An OpenAI-compatible server that streams canned replies and records what
 // the app sent.
+// A page that logs to the console and reports whether it can reach the
+// storage of the app that previews it.
+const PAGE = `<!doctype html>
+<html>
+  <body>
+    <h1>Olá do preview</h1>
+    <script>
+      console.log('log do preview', { n: 1 })
+      try {
+        localStorage.getItem('tsrs:settings')
+        document.body.dataset.storage = 'open'
+      } catch {
+        document.body.dataset.storage = 'blocked'
+      }
+      console.error('erro do preview')
+    </script>
+  </body>
+</html>`
+
 export async function startMockProvider(): Promise<MockProvider> {
   const chats: RecordedRequest[] = []
   let failure: { status: number; headers: Record<string, string> } | null = null
@@ -63,7 +82,9 @@ export async function startMockProvider(): Promise<MockProvider> {
       ? ['"Saudação ', 'inicial".']
       : last.role === 'tool'
         ? [`A ferramenta respondeu: ${last.content}`]
-        : [`Resposta ${++replies}. `, 'Sou um **mock**.\n\n', '```js\nconst x = "oi"\n```']
+        : String(last.content).includes('página')
+          ? ['Aqui está:\n\n', '```html\n' + PAGE + '\n```']
+          : [`Resposta ${++replies}. `, 'Sou um **mock**.\n\n', '```js\nconst x = "oi"\n```']
     for (const content of parts) {
       res.write(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`)
     }
