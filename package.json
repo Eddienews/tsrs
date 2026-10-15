@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "proxy": "node proxy/cors-proxy.mjs"
+    "proxy": "node proxy/cors-proxy.mjs",
+    "render": "node render/render.mjs"
   },
   "dependencies": {
     "@fontsource/ibm-plex-sans": "^5.3.0",

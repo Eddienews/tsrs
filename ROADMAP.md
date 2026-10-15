@@ -66,6 +66,9 @@ cada seção é a ordem sugerida.
       serviços só informam depois)
 - [x] Mais serviços com API oficial: Stability, Black Forest Labs (pelo proxy),
       MiniMax (vídeo e voz), Cartesia e o Grok Imagine da xAI (imagem e vídeo)
+- [x] Vídeos com motion: bloco `motion` com linha do tempo no preview e
+      `npm run render` para MP4, quadro a quadro, como no NWLab ForgeOS
+- [ ] Botão no preview que gera o MP4 direto (pelo processo local, como o proxy)
 - [ ] Ainda de fora: Luma (a API está mudando para a "Agents API"), Runway (só
       documenta vídeo a partir de imagem), Ideogram, Recraft, Kling oficial e
       Hume (não aceitam o navegador; precisariam do proxy), Deepgram (sem vozes em

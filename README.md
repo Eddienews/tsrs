@@ -14,6 +14,7 @@ npm run build    # checagem de tipos + build de produção em dist/
 npm test         # testes unitários (vitest)
 npm run test:e2e # testes de ponta a ponta (Playwright, com um provedor falso)
 npm run proxy    # proxy local opcional para provedores sem CORS (OpenCode)
+npm run render -- motion-1.html  # transforma uma composição motion em MP4 (precisa do ffmpeg)
 ```
 
 Os testes de ponta a ponta usam o Chromium do Playwright, se instalado
@@ -93,6 +94,16 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
 - Paleta de comandos (Ctrl/⌘+K) para ir a conversas, trocar de modelo e abrir
   telas. Os atalhos podem ser trocados em Configurações → Atalhos.
 - Data e hora de cada mensagem, e um som opcional quando a resposta termina.
+- Vídeos com motion: um bloco `motion` é uma página HTML animada (CSS, anime.js,
+  Lottie ou desenho próprio por quadro) que abre no preview com uma linha do
+  tempo (tocar, pausar, arrastar). O tamanho, a duração e os quadros por segundo
+  vêm de `<meta name="nwlab:size" content="1080x1920">`,
+  `<meta name="nwlab:duration" content="8">` e `<meta name="nwlab:fps" content="30">`.
+  Baixe o arquivo e rode `npm run render -- motion-1.html` para gerar o MP4
+  (H.264, com `--audio musica.wav` para uma trilha, nivelada em -14 LUFS). É o
+  mesmo contrato das páginas de motion do NWLab ForgeOS: nada toca em tempo real,
+  cada quadro é a página posicionada no seu instante e fotografada, então o vídeo
+  sai igual em qualquer máquina. Veja [Vídeos com motion](#vídeos-com-motion).
 - O modelo é avisado, por uma nota no prompt de sistema, de que o preview existe
   (pode ser desligado em Configurações → Geral).
 - Tema claro e escuro, cor de destaque, tamanho da fonte e densidade.
@@ -120,6 +131,38 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
   botão de tentar de novo.
 - Interface em português e inglês: segue o idioma do navegador e pode ser
   trocada em Configurações.
+
+## Vídeos com motion
+
+Peça ao modelo uma animação ("faça uma abertura de 6 segundos em 1080x1920 com o
+título X"). A resposta vem num bloco `motion`, que abre no preview com uma linha
+do tempo. Para o MP4:
+
+```bash
+npm run render -- motion-1.html                      # gera motion-1.mp4 ao lado
+npm run render -- motion-1.html --audio trilha.wav   # com trilha, cortada e com fade
+npm run render -- motion-1.html --fps 60 --crf 16 --out abertura.mp4
+```
+
+Uma composição é uma página HTML comum. O runtime (`public/motion/runtime.js`)
+é carregado antes dos scripts dela e a anima assim, a cada instante `t`:
+
+- animações e transições CSS e Web Animations são pausadas e posicionadas em `t`;
+- timelines do anime.js v4 (global `anime`, criadas com `autoplay: false`) passadas a
+  `NWLab.register(tl)` são posicionadas em `t`;
+- funções passadas a `NWLab.onSeek((t) => …)` e `window.nwlabSeek(t)` desenham o quadro;
+- Lottie (global `lottie`, renderer `svg`, `autoplay: false`) com `goToAndStop` no `onSeek`.
+
+`window.nwlabReady` (uma promise) faz o render esperar fontes ou arquivos. Nada
+pode depender do relógio (`Date`, `requestAnimationFrame`, `setTimeout`) ou de
+`Math.random` sem semente: o mesmo `t` tem de dar o mesmo quadro. É o contrato
+das páginas de motion do NWLab ForgeOS (MR-013), então uma composição feita aqui
+serve de base para um template de lá.
+
+O ffmpeg precisa estar instalado (Windows: `winget install Gyan.FFmpeg`; macOS:
+`brew install ffmpeg`; Linux: o gerenciador de pacotes) ou indicado em `FFMPEG`.
+O navegador é o mesmo dos testes: `CHROMIUM_PATH`, o Chromium do Playwright, o
+Chrome ou o Edge.
 
 ## Provedores
 
@@ -192,6 +235,10 @@ cabeçalhos (com `{apiKey}` como placeholder) e o formato da API (`openai` ou
 | `src/Composer.tsx`       | Campo de envio, anexos e prompts salvos                     |
 | `src/PreviewPanel.tsx`   | Painel de preview                                           |
 | `src/preview.ts`         | Documento do preview, console e endereços                   |
+| `src/MotionStage.tsx`    | Composição motion no preview, com a linha do tempo          |
+| `render/motion.mjs`      | Contrato motion, comum ao preview e ao render               |
+| `render/render.mjs`      | `npm run render`: composição motion para MP4                |
+| `public/motion/`         | Runtime motion, anime.js 4.5.0 e lottie-web 5.13.0 (MIT)    |
 | `src/prompts.ts`         | Campos `{{nome}}` dos prompts salvos                        |
 | `src/starters.ts`        | Personas e prompts que já vêm no app                        |
 | `src/CommandPalette.tsx` | Paleta de comandos                                          |
@@ -253,6 +300,11 @@ estilo do código e como mandar um pull request.
   aparecem em branco; o botão de abrir em nova aba contorna isso. O que está
   aberto no painel não é guardado entre sessões.
 - PDFs dependem do suporte do provedor e do modelo escolhidos.
+- O render de vídeo roda na pasta do projeto (Node, ffmpeg e Chrome, Edge ou o
+  Chromium do Playwright), não no app instalado nem só no navegador. Ele é
+  offline: o que a composição pede da internet é bloqueado e listado
+  (`--online` libera). Arquivos ao lado da composição (imagens, fontes) podem
+  ser usados por caminho relativo. Um vídeo existente nunca é sobrescrito.
 - Provedores que não liberam CORS para o navegador precisam do proxy local
   (`npm run proxy`), que não roda no app instalado sem a pasta do projeto.
 - Os arquivos de um agente ficam junto das configurações, no `localStorage`, e
