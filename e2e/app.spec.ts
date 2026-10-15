@@ -481,6 +481,80 @@ test('a snippet in an explanation does not make a project folder', async ({ page
   await expect(page.locator('.toolbar .project')).toHaveCount(0)
 })
 
+test('a folder gives its conversations instructions, files and an agent', async ({ page }) => {
+  await connect(page)
+  await page.getByRole('button', { name: 'Nova pasta' }).click()
+  await page.getByLabel('Nome da pasta:').fill('Site NWLab')
+  await page.keyboard.press('Enter')
+  const folder = page.locator('.sidebar [data-folder]', { hasText: 'Site NWLab' })
+  await folder.hover()
+  await folder.getByTitle('Opções da pasta').click()
+  await page.getByRole('menuitem', { name: 'Contexto da pasta…' }).click()
+  await page.getByLabel('Instruções da pasta').fill('Público: pequenas empresas. Tom direto.')
+  await page.getByLabel('Arquivos de contexto').setInputFiles({ name: 'marca.txt', mimeType: 'text/plain', buffer: Buffer.from('Laranja #dc5000') })
+  await expect(page.locator('.folder-dialog')).toContainText('marca.txt')
+  await page.getByLabel('Agente da pasta').selectOption({ label: 'Revisor de texto' })
+  await page.getByRole('button', { name: 'Salvar' }).click()
+  await expect(folder.getByTitle('Esta pasta tem contexto próprio')).toBeVisible()
+
+  await folder.hover()
+  await folder.getByTitle('Opções da pasta').click()
+  await page.getByRole('menuitem', { name: 'Nova conversa nesta pasta' }).click()
+  await expect(page.locator('.folder-note')).toContainText('Site NWLab')
+  await send(page, 'escreva o texto da home')
+  const body = provider.chats.at(-1)!.body
+  expect(body.messages[0].content).toContain('Instructions for every conversation in the project folder "Site NWLab":\nPúblico: pequenas empresas. Tom direto.')
+  expect(body.messages[0].content).toMatch(/revis/i)
+  expect(JSON.stringify(body.messages[1])).toContain('Laranja #dc5000')
+  // The conversation was made inside the folder.
+  await expect(folder.locator('.chat-item')).toHaveCount(1)
+})
+
+test('own web search: any model searches and reads pages, and deep research saves a report', async ({ page }) => {
+  // The TSRS server's search is answered here; server/search.mjs has its own tests.
+  await page.route('**/__tsrs/ext/search', (route) =>
+    route.fulfill({ json: { results: [{ title: 'TSRS no GitHub', url: 'https://github.com/Eddienews/tsrs', snippet: 'Local-first' }] } }),
+  )
+  await page.route('**/__tsrs/ext/read', (route) =>
+    route.fulfill({ json: { url: 'https://nwlab.example/sobre', title: 'Sobre o NWLab', text: 'O NWLab faz open source.' } }),
+  )
+  await connect(page)
+  await toolsButton(page).click()
+  await page.getByLabel('Serviço de busca').selectOption('brave')
+  await page.getByLabel('Chave de Brave Search').fill('bsa-test')
+  await page.getByRole('switch', { name: 'Busca na web' }).click()
+  await page.keyboard.press('Escape')
+
+  await send(page, 'chame search_web {"query":"tsrs"}')
+  await expect(reply(page).last()).toContainText('1. TSRS no GitHub')
+  // The pages found are listed under the reply, as sources.
+  await expect(reply(page).last().getByRole('link', { name: /TSRS no GitHub/ })).toBeVisible()
+  const sent = provider.chats.at(-2)!.body
+  expect(sent.tools.map((t: any) => t.function.name)).toEqual(expect.arrayContaining(['search_web', 'read_page']))
+
+  // Deep research: told to search in rounds, and the report goes to the project folder.
+  await page.getByRole('button', { name: 'Pesquisa', exact: true }).click()
+  const field = page.getByPlaceholder(/O que pesquisar/)
+  await field.fill('chame read_page {"url":"https://nwlab.example/sobre"}')
+  await field.press('Enter')
+  await expect(reply(page).last()).toContainText('O NWLab faz open source.')
+  await expect(page.locator('.message.user').last().locator('.research-label')).toHaveText('Pesquisa profunda')
+  const research = provider.chats.at(-2)!.body
+  expect(research.messages[0].content).toContain('This is a deep research request')
+  // The mode is for one message.
+  await expect(page.getByPlaceholder(/Escreva sua mensagem/)).toBeVisible()
+  const button = page.locator('.toolbar .project')
+  await expect(button).toBeVisible()
+  const folder = (await button.getAttribute('title'))!.replace(/^Pasta do projeto: /, '')
+  await expect
+    .poll(async () => ((await readdir(join(folder, 'pesquisas')).catch(() => [])) as string[]).length)
+    .toBe(1)
+  const [name] = await readdir(join(folder, 'pesquisas'))
+  const report = await readFile(join(folder, 'pesquisas', name), 'utf8')
+  expect(report).toContain('## Pergunta')
+  expect(report).toContain('1. [Sobre o NWLab](https://nwlab.example/sobre)')
+})
+
 test('fills the fields of a saved prompt and switches the theme', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Biblioteca' }).click()

@@ -103,6 +103,8 @@ export interface Message {
   references?: Reference[]
   // Kept at the top of the conversation for quick access.
   pinned?: boolean
+  // A question sent as deep research: searched in rounds, answered with a report.
+  research?: boolean
   // A summary of everything before it, which replaces those messages in later
   // requests.
   summary?: boolean
@@ -243,6 +245,12 @@ export interface SavedPrompt {
 export interface Folder {
   id: string
   name: string
+  // Context every conversation in the folder gets: instructions added to the
+  // system prompt, files sent with the first message, and the agent used when
+  // the conversation has none of its own.
+  instructions?: string
+  files?: Attachment[]
+  personaId?: string
 }
 
 // Wire format spoken by a provider's chat endpoint.
@@ -439,6 +447,9 @@ export interface Settings {
   // Skills (by id) and plugins (by name) switched off; all others are on.
   disabledSkills?: string[]
   disabledPlugins?: string[]
+  // Web search with the user's own key, in place of the provider's: the
+  // service, and Google's search engine ID. The key is in mediaKeys.
+  ownSearch?: { provider: string; googleCx?: string }
   knowledgeBases: KnowledgeBase[]
   sync: SyncSettings
   // Present when the API keys are password-protected; the keys are then

@@ -16,6 +16,7 @@ import {
   saveSkill,
   saveTool,
 } from './extensions.mjs'
+import { readPage, search } from './search.mjs'
 
 export const EXTENSIONS_PATH = '/__tsrs/ext'
 const MAX_BODY = 60 * 1024 * 1024
@@ -61,6 +62,8 @@ export function extensionsHandler(root = extensionsRoot(), extra = async () => f
       if (path === '/plugins/remove') return send(res, 200, { removed: await removePlugin(root, job.id) ?? job.id }), true
       if (path === '/tools/save') return send(res, 200, await saveTool(root, job.tool ?? {})), true
       if (path === '/tools/http') return send(res, 200, await runHttpTool(root, job.plugin, job.tool, job.input)), true
+      if (path === '/search') return send(res, 200, { results: await search(job) }), true
+      if (path === '/read') return send(res, 200, await readPage(String(job.url ?? ''))), true
       return extra(req, res, url, job)
     } catch (error) {
       return send(res, 400, { error: error instanceof Error ? error.message : String(error) }), true

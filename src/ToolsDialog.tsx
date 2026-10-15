@@ -14,6 +14,7 @@ import { Switch } from '@/components/ui/switch'
 import { t } from './i18n'
 import { forget, listTools } from './mcp'
 import type { McpServer, Provider, Settings } from './types'
+import { SEARCH_SERVICES, searchKeyId } from './webSearch'
 
 interface Props {
   settings: Settings
@@ -111,6 +112,8 @@ export default function ToolsDialog({ settings, provider, locked, onChange, onCl
                 provider: provider.name,
               })}
         </p>
+
+        <OwnSearch settings={settings} locked={locked} onChange={onChange} />
 
         <div className="flex items-center justify-between pt-2">
           <h3 className="text-sm font-medium">{t('Servidores MCP')}</h3>
@@ -238,5 +241,67 @@ export default function ToolsDialog({ settings, provider, locked, onChange, onCl
         </p>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// Search with the user's own key: any model can search and read pages.
+function OwnSearch({ settings, locked, onChange }: Pick<Props, 'settings' | 'locked' | 'onChange'>) {
+  const chosen = settings.ownSearch?.provider ?? 'off'
+  const service = SEARCH_SERVICES.find((x) => x.id === chosen)
+  const key = settings.mediaKeys[searchKeyId(chosen)] ?? ''
+  const set = (fields: Partial<NonNullable<Settings['ownSearch']>>) =>
+    onChange((s) => ({ ...s, ownSearch: { provider: 'off', ...s.ownSearch, ...fields } }))
+  return (
+    <section className="own-search space-y-2 rounded-md border p-3">
+      <label className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="flex-1 font-medium">{t('Busca própria (qualquer modelo)')}</span>
+        <select
+          aria-label={t('Serviço de busca')}
+          className="select-native"
+          value={chosen}
+          onChange={(e) => set({ provider: e.target.value })}
+        >
+          <option value="off">{t('Desligada')}</option>
+          {SEARCH_SERVICES.map((x) => (
+            <option key={x.id} value={x.id}>
+              {x.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {service && (
+        <>
+          <Input
+            aria-label={t('Chave de {name}', { name: service.name })}
+            type="password"
+            autoComplete="off"
+            disabled={locked}
+            placeholder={locked ? t('Desbloqueie as chaves para ver ou alterar') : t('Chave de API')}
+            className="font-mono text-xs"
+            value={key}
+            onChange={(e) =>
+              onChange((s) => ({ ...s, mediaKeys: { ...s.mediaKeys, [searchKeyId(service.id)]: e.target.value.trim() } }))
+            }
+          />
+          {service.id === 'google' && (
+            <Input
+              aria-label={t('ID do mecanismo de busca (cx)')}
+              placeholder={t('ID do mecanismo de busca (cx)')}
+              className="font-mono text-xs"
+              value={settings.ownSearch?.googleCx ?? ''}
+              onChange={(e) => set({ googleCx: e.target.value.trim() })}
+            />
+          )}
+          <a className="text-xs text-primary underline-offset-2 hover:underline" href={service.keyUrl} target="_blank" rel="noreferrer">
+            {t('Criar chave')}
+          </a>
+        </>
+      )}
+      <p className={hint}>
+        {t(
+          'Com uma chave sua, qualquer modelo busca na web e lê páginas (ferramentas search_web e read_page), no lugar da busca do provedor, quando a Busca na web está ligada. As fontes aparecem abaixo da resposta. O servidor do TSRS (npm run dev) faz as chamadas; páginas da rede local não são lidas.',
+        )}
+      </p>
+    </section>
   )
 }

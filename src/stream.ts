@@ -47,9 +47,13 @@ export interface ToolResult {
   isError: boolean
   // Knowledge base passages the tool found, shown with the reply.
   references?: Reference[]
+  // Web pages the tool found or read, listed under the reply.
+  sources?: Source[]
 }
 
 export interface ChatRequest extends Connection {
+  // How many rounds of tool calls a reply may take (12 unless set).
+  maxRounds?: number
   model: string
   system: string
   messages: RequestMessage[]
@@ -642,10 +646,10 @@ export async function* streamChat(req: ChatRequest): AsyncGenerator<StreamEvent>
 
     const calls = turn.stop === 'tools' ? turn.calls() : []
     if (turn.stop !== 'pause' && !calls.length) return
-    if (round === MAX_ROUNDS) {
+    if (round === (req.maxRounds ?? MAX_ROUNDS)) {
       throw new Error(
         t('O modelo pediu ferramentas {count} vezes seguidas; a resposta foi interrompida.', {
-          count: MAX_ROUNDS,
+          count: req.maxRounds ?? MAX_ROUNDS,
         }),
       )
     }

@@ -146,6 +146,24 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
 - Interface em português e inglês: segue o idioma do navegador e pode ser
   trocada em Configurações.
 
+## Contexto da pasta, busca própria e pesquisa profunda
+
+- **Contexto da pasta**: no menu de uma pasta da barra lateral, "Contexto da
+  pasta…" define instruções, arquivos e um agente que valem para todas as
+  conversas dela. "Nova conversa nesta pasta" já começa dentro dela, com o
+  agente e o modelo dele.
+- **Busca própria**: em Ferramentas, uma chave da Brave Search, da Tavily, do
+  Google (Programmable Search, com o ID `cx`) ou da Kagi faz qualquer modelo
+  buscar na web e ler páginas (`search_web` e `read_page`), no lugar da busca do
+  provedor, com as fontes listadas abaixo da resposta. O servidor do TSRS faz as
+  chamadas; páginas da rede local não são lidas, nem depois de redirecionamentos.
+- **Pesquisa profunda**: o botão Pesquisa, ao lado de Prompts, transforma a
+  próxima mensagem numa pesquisa em rodadas (várias buscas e leituras, até 40
+  rodadas de ferramentas) que termina num relatório com fontes citadas. O
+  relatório e a lista de todas as páginas consultadas ficam em
+  `pesquisas/` na pasta do projeto. Precisa da busca própria ou de um modelo
+  da Anthropic ou do OpenRouter.
+
 ## Pasta do projeto
 
 Quando uma conversa cria arquivos (uma página, seus estilos e scripts, um vídeo
@@ -325,6 +343,9 @@ cabeçalhos (com `{apiKey}` como placeholder) e o formato da API (`openai` ou
 | `server/agenda.mjs`      | Agenda: horários, execução pelo servidor e fila de respostas |
 | `src/ExtensionsDialog.tsx` | Tela de Extensões (skills e plugins)                       |
 | `src/AgendaTab.tsx`      | Aba Agenda                                                   |
+| `server/search.mjs`      | Busca própria (Brave, Tavily, Google, Kagi) e leitura de páginas |
+| `src/research.ts`        | Pesquisa profunda: instruções e relatório                    |
+| `src/FolderDialog.tsx`   | Contexto da pasta: instruções, arquivos e agente             |
 | `src/RenderBar.tsx`      | Trilha e botão Gerar MP4 do preview                         |
 | `src/videoRender.ts`     | Conversa com o renderizador local                           |
 | `public/motion/`         | Runtime motion, anime.js 4.5.0 e lottie-web 5.13.0 (MIT)    |

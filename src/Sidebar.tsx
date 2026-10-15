@@ -25,6 +25,7 @@ import {
   Trash2,
   Wrench,
   X,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -59,6 +60,10 @@ interface Props {
   onSearch: (needle: string) => Promise<string[]>
   onFoldersChange: (folders: Folder[]) => void
   onDeleteFolder: (folder: Folder) => void
+  // Opens the folder's context: instructions, files and agent.
+  onEditFolder: (folder: Folder) => void
+  // Starts a conversation inside the folder.
+  onNewInFolder: (folder: Folder) => void
   onOpen: (what: 'library' | 'tools' | 'extensions' | 'usage' | 'settings') => void
   onToggleTheme: () => void
 }
@@ -311,6 +316,9 @@ export default function Sidebar(props: Props) {
               <ChevronRight className={cn('size-3.5 transition-transform', open && 'rotate-90')} />
               <FolderIcon className="size-3.5 text-muted-foreground" />
               <span className="flex-1 truncate text-left">{folder.name}</span>
+              {(folder.instructions?.trim() || folder.files?.length || folder.personaId) && (
+                <span className="size-1.5 rounded-full bg-primary" title={t('Esta pasta tem contexto próprio')} />
+              )}
               <span className="font-mono text-[11px] text-muted-foreground">{items.length}</span>
             </button>
             <DropdownMenu>
@@ -326,6 +334,14 @@ export default function Sidebar(props: Props) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" onCloseAutoFocus={(e) => e.preventDefault()}>
+                <DropdownMenuItem onSelect={() => props.onNewInFolder(folder)}>
+                  <Plus />
+                  {t('Nova conversa nesta pasta')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => props.onEditFolder(folder)}>
+                  <SlidersHorizontal />
+                  {t('Contexto da pasta…')}
+                </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setNaming(folder.id)}>
                   <Pencil />
                   {t('Renomear')}

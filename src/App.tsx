@@ -26,6 +26,9 @@ import ParamsPanel from './ParamsPanel'
 import { forget } from './mcp'
 import { artifactName, lastPreviewable, withPreviewHint, type Artifact } from './preview'
 import { chatTracks, trackBlob, trackFileName } from './videoRender'
+import { ownSearch, webToolSet, withSources } from './webSearch'
+import { agentFor, folderNote } from './folders'
+import { RESEARCH_NOTE, RESEARCH_ROUNDS, reportFile, reportName } from './research'
 import {
   enabledPlugins,
   enabledSkills,
@@ -167,6 +170,7 @@ const SideChat = lazy(chunks.SideChat)
 const ToolsDialog = lazy(chunks.ToolsDialog)
 const ExtensionsDialog = lazy(chunks.ExtensionsDialog)
 const AgendaTab = lazy(() => import('./AgendaTab'))
+const FolderDialog = lazy(() => import('./FolderDialog'))
 const UnlockDialog = lazy(chunks.UnlockDialog)
 const UsageView = lazy(chunks.UsageView)
 const PREFETCH_DELAY = 2000
@@ -271,9 +275,8 @@ function withCanvasText(messages: RequestMessage[], canvas: Canvas | undefined):
   return [...messages.slice(0, -1), { ...last, content: withCanvas(last.content, canvas) }]
 }
 
-// An agent's files go with the first message of every request.
-function withFiles(messages: RequestMessage[], persona: Persona | undefined): RequestMessage[] {
-  const files = persona?.files ?? []
+// The files of the conversation's folder and agent go with the first message of every request.
+function withFiles(messages: RequestMessage[], files: Attachment[]): RequestMessage[] {
   if (!files.length || !messages.length) return messages
   const [first, ...rest] = messages
   return [{ ...first, attachments: [...files, ...(first.attachments ?? [])] }, ...rest]
@@ -564,6 +567,11 @@ export default function App() {
   const abortRef = useRef<AbortController | null>(null)
   // The next message asks for an image, a video or audio instead of a reply.
   const [mediaMode, setMediaMode] = useState<MediaKind | null>(null)
+  // The next message is a deep research request.
+  const [research, setResearch] = useState(false)
+  // The folder whose context is being edited, and the one a new conversation goes in.
+  const [editingFolder, setEditingFolder] = useState<Folder | null>(null)
+  const [draftFolder, setDraftFolder] = useState<string | undefined>(undefined)
   const [aside, setAside] = useState<Aside | null>(null)
   // Knowledge base documents, all kept in memory to search them.
   const [docs, setDocs] = useState<KnowledgeDoc[]>([])
@@ -1149,6 +1157,7 @@ export default function App() {
   }
 
   async function selectChat(id: string | null) {
+    setDraftFolder(undefined)
     if (id !== activeId) closeAside()
     // Leaving a temporary conversation throws it away.
     const left = findMeta(activeId)
@@ -1235,10 +1244,14 @@ export default function App() {
     // The reply may be the current version or one beside it.
     const patcher = (id: string) => (patch: (m: Message) => Message) =>
       patchThread(meta.id, (thread) => patchMessage(thread, id, patch))
-    const agent = settings.personas.find((p) => p.id === meta.params?.personaId)
+    // The folder's context, and its agent when the conversation has none.
+    const folder = settings.folders.find((f) => f.id === meta.folderId)
+    const agent = agentFor(settings.personas, meta.params?.personaId, folder)
     const tools = toolsFor(settings, agent)
     const recent = sinceSummary(history)
-    let system = meta.params?.system?.trim() || settings.systemPrompt
+    let system = meta.params?.system?.trim() || agent?.system?.trim() || settings.systemPrompt
+    if (folder?.instructions?.trim()) system = `${system ? `${system}\n\n` : ''}${folderNote(folder)}`
+    const contextFiles = [...(folder?.files ?? []), ...(agent?.files ?? [])]
     // A temporary conversation neither reads nor saves memories.
     const remember = settings.memory && !meta.temporary
     if (remember) system = withMemories(system, settings.memories)
@@ -1250,6 +1263,12 @@ export default function App() {
     const project = settings.projects !== false && !targets ? findMeta(meta.id)?.project : undefined
     if (project) system = `${system ? `${system}\n\n` : ''}${projectNote(project)}`
     let toolset: ToolSet | null = null
+    // A deep research request: searched in rounds, answered with a report.
+    const asked = history.at(-1)
+    const researching = !media && !targets && asked?.role === 'user' && !!asked.research
+    if (researching) system = `${system ? `${system}\n\n` : ''}${RESEARCH_NOTE}`
+    // Search with the user's own key replaces the provider's, for every model.
+    const webSet = !media && (tools.webSearch || researching) ? webToolSet(settings) : null
 
     async function paint(reply: Message, job: MediaJob): Promise<boolean> {
       const patchReply = patcher(reply.id)
@@ -1315,7 +1334,7 @@ export default function App() {
           system: settings.previewHint ? withPreviewHint(system, t('Abrir preview')) : system,
           messages: withFiles(
             withCanvasText(withKnowledge(toRequest(recent.messages), references), sharedCanvas),
-            agent,
+            contextFiles,
           ),
           // An effort level chosen for another provider may not exist in this one.
           params: {
@@ -1324,8 +1343,9 @@ export default function App() {
           },
           signal: abort.signal,
           tools: toolset?.defs,
-          webSearch: tools.webSearch && !!via.webTools,
-          webFetch: tools.webFetch && via.webTools === 'anthropic',
+          webSearch: (tools.webSearch || researching) && !!via.webTools && !webSet,
+          webFetch: (tools.webFetch || researching) && via.webTools === 'anthropic' && !webSet,
+          ...(researching ? { maxRounds: RESEARCH_ROUNDS } : {}),
           showThinking: settings.showThinking,
           // Automatic caching is a feature of Anthropic's own API.
           promptCache: settings.promptCache && via.id === 'anthropic',
@@ -1343,6 +1363,9 @@ export default function App() {
             const result = await toolset.run(call, abort.signal)
             if (result.references?.length) {
               patchReply((m) => ({ ...m, references: withMore(m.references, result.references!) }))
+            }
+            if (result.sources?.length) {
+              patchReply((m) => ({ ...m, sources: withSources(m.sources, result.sources!) }))
             }
             return result
           },
@@ -1423,6 +1446,7 @@ export default function App() {
           ...(bases.length ? [knowledgeTools(bases)] : []),
           ...(skillsOn.length ? [skillTools()] : []),
           ...(pluginSet ? [pluginSet] : []),
+          ...(webSet ? [webSet] : []),
           ...(servers.length ? [await gatherTools(servers)] : []),
         ])
         problems.push(...(toolset?.problems ?? []))
@@ -1441,6 +1465,20 @@ export default function App() {
     } finally {
       setStreaming(false)
       persistThread(meta.id)
+    }
+
+    // A research report is kept in the project folder, with every page consulted.
+    if (completed && researching && settings.projects !== false && !meta.temporary) {
+      const reply = threadsRef.current[meta.id]?.find((m) => m.id === first.id)
+      if (reply?.content.trim()) {
+        const at = new Date()
+        const question = asked!.content
+        void saveToProject(
+          meta.id,
+          [{ name: reportName(question, at), content: reportFile(question, reply.content, reply.sources ?? [], usings[0].model, at) }],
+          usings[0].model,
+        )
+      }
     }
 
     // The files the reply made go to the conversation's folder.
@@ -1727,6 +1765,15 @@ export default function App() {
     if ((!text && !files.length) || streaming || blocked) return
     if (typed && transcribing.length) return
     if (mediaMode && typed && !text) return
+    const researching = typed && research && !mediaMode
+    if (researching && !ownSearch(settings) && !provider.webTools) {
+      setAttachError(
+        t(
+          'A pesquisa profunda precisa de busca na web: configure uma Busca própria em Ferramentas, ou use um modelo da Anthropic ou do OpenRouter.',
+        ),
+      )
+      return
+    }
     const existing = findMeta(activeId)
     const history = existing ? threadsRef.current[existing.id] : []
     if (!history) return // still loading
@@ -1737,7 +1784,9 @@ export default function App() {
       content: text,
       createdAt: now,
       ...(files.length ? { attachments: files } : {}),
+      ...(researching ? { research: true } : {}),
     }
+    if (researching) setResearch(false)
     const base: ChatMeta = existing ?? {
       id: crypto.randomUUID(),
       title: text.slice(0, TITLE_LENGTH) || files[0]?.name || t('Nova conversa'),
@@ -1746,6 +1795,7 @@ export default function App() {
       providerId: provider.id,
       model: settings.model,
       params: draftParams,
+      ...(draftFolder ? { folderId: draftFolder } : {}),
       ...(draftCanvas ? { canvas: draftCanvas } : {}),
       ...(draftTemporary ? { temporary: true } : {}),
     }
@@ -2101,6 +2151,17 @@ export default function App() {
       onSearch={searchThreads}
       onFoldersChange={(folders) => setSettings((s) => ({ ...s, folders }))}
       onDeleteFolder={removeFolder}
+      onEditFolder={setEditingFolder}
+      onNewInFolder={(folder) => {
+        void selectChat(null)
+        setDraftFolder(folder.id)
+        const persona = settings.personas.find((p) => p.id === folder.personaId)
+        setDraftParams(persona ? { system: persona.system, personaId: persona.id } : {})
+        if (persona?.providerId && persona.model) {
+          const { providerId, model } = persona
+          setSettings((s) => ({ ...s, providerId, model }))
+        }
+      }}
       onOpen={(what) => {
         setShowDrawer(false)
         if (what === 'library') setShowLibrary(true)
@@ -2170,6 +2231,16 @@ export default function App() {
         temporary={temporary}
         onToggleTemporary={active ? undefined : () => setDraftTemporary((on) => !on)}
       />
+      {!active && draftFolder && (
+        <p
+          role="status"
+          className="folder-note flex items-center justify-center gap-1.5 border-b bg-surface-2 px-4 py-1.5 text-center text-xs text-muted-foreground"
+        >
+          {t('Nova conversa na pasta “{name}”, com o contexto dela.', {
+            name: settings.folders.find((f) => f.id === draftFolder)?.name ?? '',
+          })}
+        </p>
+      )}
       {temporary && (
         <p
           role="status"
@@ -2281,7 +2352,15 @@ export default function App() {
         dictation={dictation}
         mediaMode={mediaMode}
         mediaKinds={MEDIA_KINDS.filter((kind) => mediaTargets[kind] || mediaMode === kind)}
-        onMediaMode={setMediaMode}
+        onMediaMode={(kind) => {
+          setMediaMode(kind)
+          if (kind) setResearch(false)
+        }}
+        research={research}
+        onResearch={(on) => {
+          setResearch(on)
+          if (on) setMediaMode(null)
+        }}
       >
         {blocked && (
           <p className="notice rounded-md border border-warning/50 px-3 py-2 text-xs text-warning">
@@ -2460,6 +2539,16 @@ export default function App() {
           onIndex={() => indexDocs()}
           onSearch={searchTest}
           onClose={() => setShowLibrary(false)}
+        />
+      )}
+      {editingFolder && (
+        <FolderDialog
+          folder={editingFolder}
+          personas={settings.personas}
+          onSave={(folder) =>
+            setSettings((s) => ({ ...s, folders: s.folders.map((f) => (f.id === folder.id ? folder : f)) }))
+          }
+          onClose={() => setEditingFolder(null)}
         />
       )}
       {showExtensions && (

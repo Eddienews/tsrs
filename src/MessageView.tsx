@@ -18,6 +18,7 @@ import {
   Columns3,
   Copy,
   AudioLines,
+  Telescope,
   FileText,
   FileType2,
   Pencil,
@@ -300,6 +301,11 @@ function MessageView(props: Props) {
         </div>
       ) : null}
 
+      {message.research && (
+        <span className="research-label flex items-center gap-1 text-[11px] text-primary">
+          <Telescope className="size-3" /> {t('Pesquisa profunda')}
+        </span>
+      )}
       {message.pinned && (
         <span className="flex items-center gap-1 text-[11px] text-primary">
           <Pin className="size-3" /> {t('Fixada')}

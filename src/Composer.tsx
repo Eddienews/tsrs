@@ -10,6 +10,7 @@ import {
   Mic,
   Paperclip,
   Square,
+  Telescope,
   Upload,
   X,
 } from 'lucide-react'
@@ -49,6 +50,9 @@ interface Props {
   // Kinds someone can make now, each with its toggle.
   mediaKinds: MediaKind[]
   onMediaMode: (kind: MediaKind | null) => void
+  // The next message is a deep research request.
+  research: boolean
+  onResearch: (on: boolean) => void
   // Warnings shown above the field.
   children?: ReactNode
 }
@@ -185,7 +189,9 @@ export default function Composer(p: Props) {
           rows={1}
           value={p.value}
           placeholder={
-            p.mediaMode === 'image'
+            p.research
+              ? t('O que pesquisar? A resposta vem num relatório com fontes, salvo na pasta do projeto.')
+              : p.mediaMode === 'image'
               ? t('Descreva a imagem que você quer gerar…')
               : p.mediaMode === 'video'
                 ? t('Descreva o vídeo que você quer gerar…')
@@ -306,6 +312,21 @@ export default function Composer(p: Props) {
               </Button>
             )
           })}
+          <Button
+            variant={p.research ? 'secondary' : 'ghost'}
+            size="sm"
+            className={cn('h-8 gap-1.5 text-xs', p.research && 'text-primary')}
+            aria-pressed={p.research}
+            aria-label={t('Pesquisa')}
+            title={t('Pesquisa profunda: o modelo busca e lê várias fontes e escreve um relatório')}
+            onClick={() => {
+              p.onResearch(!p.research)
+              fieldRef.current?.focus()
+            }}
+          >
+            <Telescope className="size-4" />
+            <span className="hidden sm:inline">{t('Pesquisa')}</span>
+          </Button>
           {p.dictation.available && (
             <Button
               variant="ghost"
