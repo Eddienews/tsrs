@@ -107,6 +107,7 @@ import {
   transcribe,
 } from './stream'
 import { SUMMARY_PROMPT, contextResetMark, sinceSummary, withSummary } from './summary'
+import { agentParams, agentPlugins, agentSkills, findMention, withReply } from './agents'
 import {
   hashOf,
   itemsOf,
@@ -565,6 +566,10 @@ export default function App() {
   const [compareId, setCompareId] = useState<string | null>(null)
   const [streaming, setStreaming] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
+  // The newest send, reply state and conversation, for work that spans
+  // renders, such as the steps of a chain.
+  const liveRef = useRef({ send, streaming, activeId })
+  liveRef.current = { send, streaming, activeId }
   // The next message asks for an image, a video or audio instead of a reply.
   const [mediaMode, setMediaMode] = useState<MediaKind | null>(null)
   // The next message is a deep research request.
@@ -1194,17 +1199,28 @@ export default function App() {
     history: Message[],
     { branch, targets, media }: { branch?: Branch; targets?: Target[]; media?: MediaJob } = {},
   ) {
+    // An agent called with @name answers this turn, with its own model if it has one.
+    const turn = history.at(-1)
+    const called =
+      !media && !targets && turn?.role === 'user' && turn.agentId
+        ? settings.personas.find((p) => p.id === turn.agentId)
+        : undefined
     const usings: Target[] = media
       ? [{ providerId: media.target.source, model: media.target.model }]
       : targets?.length
         ? targets
-        : [{ providerId: settings.providerId, model: settings.model }]
+        : [
+            called?.model
+              ? { providerId: called.providerId ?? settings.providerId, model: called.model }
+              : { providerId: settings.providerId, model: settings.model },
+          ]
     const problems = media ? [] : usings.map((using) => blocker({ ...settings, ...using }, locked))
     const problem = problems.find(Boolean)
     if (problem && targets) alert(problem.text)
     if (streaming || problem) return
     const now = Date.now()
-    const agentOf = settings.personas.find((p) => p.id === base.params?.personaId)
+    const agentOf =
+      called ?? agentFor(settings.personas, base.params?.personaId, settings.folders.find((f) => f.id === base.folderId))
     const bases = media ? [] : basesFor(settings, base.params, agentOf)
     let references: Reference[] = []
     const replies: Message[] = usings.map((using) => ({
@@ -1213,6 +1229,7 @@ export default function App() {
       content: '',
       createdAt: now,
       ...using,
+      ...(called ? { agentName: called.name } : {}),
       ...(media
         ? {
             imagePrompt: history.at(-1)?.content ?? '',
@@ -1229,7 +1246,8 @@ export default function App() {
       ...base,
       updatedAt: now,
       changedAt: now,
-      ...(targets || media ? {} : usings[0]),
+      // A model an @agent brought answers once; the conversation keeps its own.
+      ...(targets || media || called?.model ? {} : usings[0]),
     }
     commitMetas([meta, ...metasRef.current.filter((c) => c.id !== meta.id)])
     commitThreads({ ...threadsRef.current, [meta.id]: [...history, current] })
@@ -1247,10 +1265,12 @@ export default function App() {
       patchThread(meta.id, (thread) => patchMessage(thread, id, patch))
     // The folder's context, and its agent when the conversation has none.
     const folder = settings.folders.find((f) => f.id === meta.folderId)
-    const agent = agentFor(settings.personas, meta.params?.personaId, folder)
+    const agent = called ?? agentFor(settings.personas, meta.params?.personaId, folder)
     const tools = toolsFor(settings, agent)
     const recent = sinceSummary(history)
-    let system = meta.params?.system?.trim() || agent?.system?.trim() || settings.systemPrompt
+    let system = called
+      ? called.system.trim() || meta.params?.system?.trim() || settings.systemPrompt
+      : meta.params?.system?.trim() || agent?.system?.trim() || settings.systemPrompt
     if (folder?.instructions?.trim()) system = `${system ? `${system}\n\n` : ''}${folderNote(folder)}`
     const contextFiles = [...(folder?.files ?? []), ...(agent?.files ?? [])]
     // A temporary conversation neither reads nor saves memories.
@@ -1263,6 +1283,8 @@ export default function App() {
     // The project folder, read when the request is sent: an earlier reply may have made it.
     const project = settings.projects !== false && !targets ? findMeta(meta.id)?.project : undefined
     if (project) system = `${system ? `${system}\n\n` : ''}${projectNote(project)}`
+    // The conversation's own parameters, else its agent's.
+    const callParams = agentParams(meta.params, agent)
     let toolset: ToolSet | null = null
     // A deep research request: searched in rounds, answered with a report.
     const asked = history.at(-1)
@@ -1339,8 +1361,8 @@ export default function App() {
           ),
           // An effort level chosen for another provider may not exist in this one.
           params: {
-            ...meta.params,
-            effort: via.efforts.includes(meta.params?.effort ?? '') ? meta.params?.effort : undefined,
+            ...callParams,
+            effort: via.efforts.includes(callParams.effort ?? '') ? callParams.effort : undefined,
           },
           signal: abort.signal,
           tools: toolset?.defs,
@@ -1434,9 +1456,9 @@ export default function App() {
           listSkills().catch(() => []),
           listPlugins().catch(() => [] as Plugin[]),
         ])
-        const skillsOn = enabledSkills(skills, settings)
+        const skillsOn = agentSkills(enabledSkills(skills, settings), agent)
         if (skillsOn.length) system = `${system ? `${system}\n\n` : ''}${skillsNote(skillsOn)}`
-        const pluginSet = pluginToolSet(enabledPlugins(plugins, settings))
+        const pluginSet = pluginToolSet(agentPlugins(enabledPlugins(plugins, settings), agent))
         const servers = settings.mcpServers.filter(
           (s) => s.url && tools.mcpServers.includes(s.id),
         )
@@ -1775,7 +1797,7 @@ export default function App() {
   }
 
   // Sends the draft, or `request` (from the canvas) leaving the draft alone.
-  function send(request?: string) {
+  function send(request?: string): Promise<void> | undefined {
     const typed = request === undefined
     const text = (request ?? draft).trim()
     const files = typed ? attachments : []
@@ -1795,6 +1817,8 @@ export default function App() {
     const history = existing ? threadsRef.current[existing.id] : []
     if (!history) return // still loading
     const now = Date.now()
+    // "@Name" calls that agent to answer this message.
+    const called = mediaMode && typed ? undefined : findMention(text, settings.personas)
     const user: Message = {
       id: crypto.randomUUID(),
       role: 'user',
@@ -1802,6 +1826,7 @@ export default function App() {
       createdAt: now,
       ...(files.length ? { attachments: files } : {}),
       ...(researching ? { research: true } : {}),
+      ...(called ? { agentId: called.id } : {}),
     }
     if (researching) setResearch(false)
     const base: ChatMeta = existing ?? {
@@ -1827,9 +1852,23 @@ export default function App() {
     }
     if (mediaMode && typed && maker) {
       setMediaMode(null)
-      generate(base, [...history, user], { media: { kind: mediaMode, target: maker } })
-    } else {
-      generate(base, [...history, user])
+      return generate(base, [...history, user], { media: { kind: mediaMode, target: maker } })
+    }
+    return generate(base, [...history, user])
+  }
+
+  // A chain: each prompt is sent once the reply to the one before is done.
+  // Steps run in later renders, so they go through the latest send.
+  async function runChain(steps: string[]) {
+    for (const [i, step] of steps.entries()) {
+      const previous = i ? (threadsRef.current[liveRef.current.activeId ?? '']?.at(-1)?.content ?? '') : ''
+      const running = liveRef.current.send(i ? withReply(step, previous) : step)
+      if (!running) return
+      await running
+      // Wait for the render that ends the reply, then stop if it was stopped or failed.
+      for (let tries = 0; tries < 250 && liveRef.current.streaming; tries++) await new Promise((r) => setTimeout(r, 20))
+      const reply = threadsRef.current[liveRef.current.activeId ?? '']?.at(-1)
+      if (abortRef.current?.signal.aborted || !reply || reply.role !== 'assistant' || reply.error) return
     }
   }
 
@@ -2370,6 +2409,8 @@ export default function App() {
         onAttach={attach}
         onRemoveAttachment={(id) => setAttachments((list) => list.filter((a) => a.id !== id))}
         prompts={[...settings.prompts, ...commandPrompts(enabledPlugins(plugins, settings))]}
+        onRunChain={runChain}
+        agents={settings.personas}
         onInsertPrompt={(text) => setDraft((d) => (d.trim() ? `${d}\n${text}` : text))}
         onManagePrompts={() => setShowLibrary(true)}
         dictation={dictation}

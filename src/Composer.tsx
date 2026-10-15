@@ -22,7 +22,8 @@ import { cn } from '@/lib/utils'
 import type { Dictation } from './dictation'
 import { t } from './i18n'
 import { fillPrompt, promptFields } from './prompts'
-import type { Attachment, MediaKind, SavedPrompt } from './types'
+import { chainSteps, insertMention, mentionMatches, mentionQuery } from './agents'
+import type { Attachment, MediaKind, Persona, SavedPrompt } from './types'
 
 const MAX_HEIGHT = 240
 
@@ -43,6 +44,10 @@ interface Props {
   onRemoveAttachment: (id: string) => void
   prompts: SavedPrompt[]
   onInsertPrompt: (text: string) => void
+  // Runs a prompt with steps, one after another, once its fields are filled.
+  onRunChain?: (steps: string[]) => void
+  // Agents that can be called with @name.
+  agents?: Persona[]
   onManagePrompts: () => void
   dictation: Dictation
   // The next message asks for this kind of media instead of a reply.
@@ -64,22 +69,34 @@ const MEDIA_BUTTONS: Record<MediaKind, [typeof ImageIcon, () => string, () => st
   audio: [AudioLines, () => t('Áudio'), () => t('Gerar áudio com a próxima mensagem')],
 }
 
-// Asks for the values of a prompt's {{fields}} before inserting it.
-function PromptFiller({ prompt, onUse }: { prompt: SavedPrompt; onUse: (text: string) => void }) {
+// The fields of a prompt and of every step of its chain.
+function fieldsOf(prompt: SavedPrompt): string[] {
+  return [...new Set(chainSteps(prompt.text, prompt.steps).flatMap(promptFields))]
+}
+
+// Asks for the values of a prompt's {{fields}} before inserting it, or before
+// running it when it is a chain.
+function PromptFiller({ prompt, onUse }: { prompt: SavedPrompt; onUse: (steps: string[]) => void }) {
   const [values, setValues] = useState<Record<string, string>>({})
   const filled = fillPrompt(prompt.text, values)
+  const chain = chainSteps(prompt.text, prompt.steps).length > 1
   return (
     <form
       className="space-y-2"
       onSubmit={(e) => {
         e.preventDefault()
-        onUse(filled)
+        onUse(chainSteps(prompt.text, prompt.steps).map((step) => fillPrompt(step, values)))
       }}
     >
       <p className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded bg-code p-2 font-mono text-xs">
         {filled}
       </p>
-      {promptFields(prompt.text).map((field, index) => (
+      {chain && (
+        <p className="text-xs text-muted-foreground">
+          {t('Encadeado: {count} etapas, enviadas uma depois da outra.', { count: chainSteps(prompt.text, prompt.steps).length })}
+        </p>
+      )}
+      {fieldsOf(prompt).map((field, index) => (
         <label key={field} className="block text-xs">
           <span className="font-mono text-muted-foreground">{field}</span>
           <Input
@@ -91,7 +108,7 @@ function PromptFiller({ prompt, onUse }: { prompt: SavedPrompt; onUse: (text: st
         </label>
       ))}
       <Button size="sm" className="w-full">
-        {t('Inserir prompt')}
+        {chain ? t('Executar o encadeamento') : t('Inserir prompt')}
       </Button>
     </form>
   )
@@ -104,6 +121,26 @@ export default function Composer(p: Props) {
   // Prompt whose fields are being filled in.
   const [picked, setPicked] = useState<SavedPrompt | null>(null)
   const empty = !p.value.trim() && !p.attachments.length
+  // The @name being typed, with the highlighted suggestion.
+  const [mention, setMention] = useState<{ query: string; active: number } | null>(null)
+  const suggestions = mention ? mentionMatches(mention.query, p.agents ?? []).slice(0, 6) : []
+
+  function track(field: HTMLTextAreaElement) {
+    const query = field.selectionStart === field.selectionEnd ? mentionQuery(field.value.slice(0, field.selectionStart)) : null
+    setMention(query === null ? null : (m) => ({ query, active: m?.query === query ? m.active : 0 }))
+  }
+
+  function pick(agent: Persona) {
+    const field = fieldRef.current
+    if (!field) return
+    const { text, caret } = insertMention(p.value, field.selectionStart, agent.name.trim())
+    p.onChange(text)
+    setMention(null)
+    requestAnimationFrame(() => {
+      field.focus()
+      field.setSelectionRange(caret, caret)
+    })
+  }
 
   // Grows with the text up to a limit, then scrolls.
   useEffect(() => {
@@ -118,6 +155,15 @@ export default function Composer(p: Props) {
     setPromptsOpen(false)
     setPicked(null)
     fieldRef.current?.focus()
+  }
+
+  // A filled prompt: a chain runs, a single prompt goes into the field.
+  function use(steps: string[]) {
+    if (steps.length > 1 && p.onRunChain) {
+      setPromptsOpen(false)
+      setPicked(null)
+      p.onRunChain(steps)
+    } else insert(steps[0] ?? '')
   }
 
   return (
@@ -184,6 +230,34 @@ export default function Composer(p: Props) {
             ))}
           </div>
         )}
+        {suggestions.length > 0 && mention && (
+          <div
+            id="agent-suggestions"
+            role="listbox"
+            aria-label={t('Agentes')}
+            className="menu absolute bottom-full left-2 z-20 mb-1 w-72 rounded-md border bg-popover p-1 shadow-md"
+          >
+            {suggestions.map((agent, i) => (
+              <div
+                key={agent.id}
+                role="option"
+                aria-selected={i === mention.active}
+                className={cn(
+                  'cursor-pointer rounded px-2 py-1.5 text-sm',
+                  i === mention.active ? 'bg-accent text-accent-foreground' : 'hover:bg-accent',
+                )}
+                // Keeps the field focused, so its blur does not close the list first.
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  pick(agent)
+                }}
+              >
+                <div className="font-medium">@{agent.name.trim()}</div>
+                {agent.model && <div className="font-mono text-[11px] text-muted-foreground">{agent.model}</div>}
+              </div>
+            ))}
+          </div>
+        )}
         <textarea
           ref={fieldRef}
           rows={1}
@@ -200,7 +274,16 @@ export default function Composer(p: Props) {
                   : t('Escreva sua mensagem… (Enter envia, Shift+Enter quebra a linha)')
           }
           className="block w-full resize-none bg-transparent px-3.5 py-3 text-[0.95rem] outline-none placeholder:text-muted-foreground"
-          onChange={(e) => p.onChange(e.target.value)}
+          onChange={(e) => {
+            p.onChange(e.target.value)
+            track(e.target)
+          }}
+          onSelect={(e) => track(e.currentTarget)}
+          onBlur={() => setMention(null)}
+          role="combobox"
+          aria-expanded={suggestions.length > 0}
+          aria-controls="agent-suggestions"
+          aria-autocomplete="list"
           onPaste={(e) => {
             if (e.clipboardData.files.length) {
               e.preventDefault()
@@ -208,6 +291,24 @@ export default function Composer(p: Props) {
             }
           }}
           onKeyDown={(e) => {
+            if (suggestions.length && mention) {
+              const move = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0
+              if (move) {
+                e.preventDefault()
+                setMention({ ...mention, active: (mention.active + move + suggestions.length) % suggestions.length })
+                return
+              }
+              if ((e.key === 'Enter' || e.key === 'Tab') && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault()
+                pick(suggestions[Math.min(mention.active, suggestions.length - 1)])
+                return
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                setMention(null)
+                return
+              }
+            }
             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault()
               p.onSend()
@@ -256,7 +357,7 @@ export default function Composer(p: Props) {
             </PopoverTrigger>
             <PopoverContent align="start" className="menu w-80">
               {picked ? (
-                <PromptFiller prompt={picked} onUse={insert} />
+                <PromptFiller prompt={picked} onUse={use} />
               ) : (
                 <div className="space-y-1">
                   <div className="px-1 pb-1 text-xs uppercase tracking-wider text-muted-foreground">
@@ -268,10 +369,19 @@ export default function Composer(p: Props) {
                       aria-label={prompt.title || t('Sem título')}
                       className="block w-full rounded px-2 py-1.5 text-left hover:bg-accent"
                       onClick={() =>
-                        promptFields(prompt.text).length ? setPicked(prompt) : insert(prompt.text)
+                        fieldsOf(prompt).length || prompt.steps?.some((s) => s.trim())
+                          ? setPicked(prompt)
+                          : insert(prompt.text)
                       }
                     >
-                      <div className="text-sm">{prompt.title || t('Sem título')}</div>
+                      <div className="flex items-center gap-1.5 text-sm">
+                        {prompt.title || t('Sem título')}
+                        {chainSteps(prompt.text, prompt.steps).length > 1 && (
+                          <span className="rounded border px-1 text-[10px] text-muted-foreground">
+                            {t('{count} etapas', { count: chainSteps(prompt.text, prompt.steps).length })}
+                          </span>
+                        )}
+                      </div>
                       <div className="truncate font-mono text-[11px] text-muted-foreground">
                         {prompt.text}
                       </div>

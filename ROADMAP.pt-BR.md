@@ -87,6 +87,11 @@ cada seção é a ordem sugerida.
 - [x] Pesquisa profunda: rodadas de busca e leitura que terminam num relatório
       com fontes, salvo na pasta do projeto
 - [x] Preço informado pelo usuário para modelos que o app não conhece
+- [x] Word e PowerPoint: anexados e lidos como texto, e gerados na pasta do projeto
+- [x] Limpar o contexto a partir de um ponto, com desfazer
+- [x] Agentes: parâmetros, skills e plugins próprios; chamados com @nome
+- [x] Prompts encadeados, com `{{resposta}}` para a resposta anterior
+- [x] Agenda com a busca própria, skills e ferramentas HTTP de plugins
 
 ## Próximos
 

@@ -76,3 +76,71 @@ test('runs what is due, queues the answers and keeps every one as a file', async
   await agenda.ack(queue.map((q: any) => q.id))
   expect((await agenda.queue()).map((q: any) => q.name)).not.toContain('Notícias')
 })
+
+test('gives a task the search, skills and HTTP tools chosen for it', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'tsrs-agenda-tools-'))
+  const calls: string[] = []
+  const deps = {
+    search: async ({ key, query }: any) => {
+      calls.push(`search ${key} ${query}`)
+      return [{ title: 'TSRS', url: 'https://tsrs.example/', snippet: 'Estúdio local' }]
+    },
+    readPage: async (url: string) => ({ url, title: 'Página', text: 'texto da página' }),
+    listSkills: async () => [
+      { id: 'relatorio', name: 'relatorio', description: 'Relatórios', files: ['modelo.md'] },
+      { id: 'outra', name: 'outra', description: 'Não escolhida', files: [] },
+    ],
+    readSkill: async (_root: string, id: string) => ({ body: `Instruções de ${id}`, files: ['modelo.md'] }),
+    readSkillFile: async (_root: string, id: string, file: string) => `${id}/${file}`,
+    listPlugins: async () => [
+      { id: 'clima', name: 'clima', tools: [{ name: 'tempo', description: 'Tempo', parameters: { type: 'object' }, kind: 'http' }, { name: 'js', kind: 'js' }] },
+      { id: 'fora', name: 'fora', tools: [{ name: 'nada', kind: 'http' }] },
+    ],
+    runHttpTool: async (_root: string, plugin: string, tool: string, input: any) => ({ ok: true, status: 200, body: `${plugin}.${tool} ${input.cidade}` }),
+  }
+  const agenda = createAgenda(root, {
+    log: () => {},
+    deps,
+    complete: async (task: any, tools: any) => {
+      expect(tools.defs.map((d: any) => d.name)).toEqual(['search_web', 'read_page', 'skill_load', 'skill_read_file', 'tempo'])
+      expect(tools.note).toContain('- relatorio: Relatórios')
+      expect(tools.note).not.toContain('outra')
+      const results = [
+        await tools.run({ name: 'search_web', input: { query: 'tsrs' } }),
+        await tools.run({ name: 'skill_load', input: { name: 'relatorio' } }),
+        await tools.run({ name: 'skill_load', input: { name: 'outra' } }),
+        await tools.run({ name: 'tempo', input: { cidade: 'Recife' } }),
+      ]
+      return results.map((r: any) => `${r.isError ? 'ERRO ' : ''}${r.content}`).join('\n---\n')
+    },
+  })
+  const task = await agenda.save({
+    task: {
+      prompt: 'pesquise',
+      providerId: 'ollama',
+      model: 'm',
+      schedule: { kind: 'interval', hours: 1 },
+      tools: { search: { provider: 'brave' }, skills: ['relatorio'], plugins: ['clima'] },
+    },
+    key: { searchKey: 'brave-key' },
+  })
+  expect(task.tools).toEqual({ search: { provider: 'brave' }, skills: ['relatorio'], plugins: ['clima'] })
+  expect(JSON.parse(await readFile(join(root, 'agenda', 'chaves.json'), 'utf8'))).toEqual({ 'search:brave': { apiKey: 'brave-key' } })
+  await agenda.runNow(task.id)
+  const result = (await agenda.queue()).at(-1)
+  expect(result.error).toBeNull()
+  expect(calls).toEqual(['search brave-key tsrs'])
+  expect(result.text).toContain('1. TSRS\nhttps://tsrs.example/')
+  expect(result.text).toContain('Instruções de relatorio\n\nFiles of this skill:\n- modelo.md')
+  expect(result.text).toContain('ERRO No skill named outra.')
+  expect(result.text).toContain('clima.tempo Recife')
+  // The pages found are listed under the answer.
+  expect(result.text).toMatch(/## Fontes\n\n1\. \[TSRS\]\(https:\/\/tsrs\.example\/\)$/)
+
+  // Without the search key on this computer, the task says so.
+  const noKey = await agenda.save({
+    task: { prompt: 'x', providerId: 'ollama', model: 'm', schedule: { kind: 'interval', hours: 1 }, tools: { search: { provider: 'tavily' } } },
+  })
+  await agenda.runNow(noKey.id)
+  expect((await agenda.queue()).at(-1).error).toContain('No key for the search service tavily')
+})

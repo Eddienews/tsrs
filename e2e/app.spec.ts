@@ -1261,6 +1261,48 @@ test('asks a side question about part of a reply', async ({ page }) => {
   await expect(page.locator('.message')).toHaveCount(2)
 })
 
+test('calls an agent with @name, with its own parameters, and runs a chain of prompts', async ({ page }) => {
+  await connect(page)
+  await page.getByRole('button', { name: 'Biblioteca' }).click()
+  await page.getByRole('button', { name: 'Nova persona' }).click()
+  await page.getByLabel('Nome').fill('Redator Técnico')
+  await page.getByLabel('Prompt de sistema').fill('Escreva como redator técnico.')
+  await page.getByLabel('Temperatura do agente').fill('0.2')
+  await page.getByLabel('Máximo de tokens do agente').fill('300')
+  await page.getByRole('tab', { name: 'Prompts salvos' }).click()
+  await page.getByRole('button', { name: 'Novo prompt' }).click()
+  await page.getByLabel('Título').fill('Post e revisão')
+  await page.getByLabel('Texto').fill('Escreva um post sobre {{tema}}')
+  await page.getByRole('button', { name: 'Adicionar etapa' }).click()
+  await page.getByRole('textbox', { name: 'Etapa 2' }).fill('Revise isto: {{resposta}}')
+  await page.getByTitle('Fechar').click()
+
+  // Typing @ suggests the agents; Enter picks one.
+  await composer(page).pressSequentially('Oi @red')
+  await expect(page.getByRole('listbox', { name: 'Agentes' }).getByRole('option')).toHaveText(['@Redator Técnico'])
+  await composer(page).press('Enter')
+  await expect(composer(page)).toHaveValue('Oi @Redator Técnico ')
+  await composer(page).pressSequentially('explique cache')
+  await composer(page).press('Enter')
+  await expect(reply(page)).toContainText('Resposta 1.')
+  await expect(page.locator('.agent-label')).toHaveText('@Redator Técnico')
+  const called = provider.chats.at(-1)!.body
+  expect(called.messages[0].content).toContain('Escreva como redator técnico.')
+  expect(called.temperature).toBe(0.2)
+  expect(JSON.stringify(called)).toContain('300')
+
+  // A chain: the second step is sent with the reply to the first.
+  await page.getByRole('button', { name: 'Prompts', exact: true }).click()
+  await expect(page.locator('.menu').getByRole('button', { name: /Post e revisão/ })).toContainText('2 etapas')
+  await page.locator('.menu').getByRole('button', { name: /Post e revisão/ }).click()
+  await page.locator('.menu').getByLabel('tema').fill('café')
+  await page.locator('.menu').getByRole('button', { name: 'Executar o encadeamento' }).click()
+  await expect(page.locator('.message.user')).toHaveText([/Oi @Redator Técnico explique cache/, /Escreva um post sobre café/, /Revise isto: Resposta 2\./])
+  await expect(reply(page).last()).toContainText('Resposta 3.')
+  // Messages without a mention go back to the conversation's own settings.
+  expect(provider.chats.at(-1)!.body.temperature).toBeUndefined()
+})
+
 test('an agent brings its own tools, files and starters', async ({ page }) => {
   await connect(page)
   await page.getByRole('button', { name: 'Biblioteca' }).click()

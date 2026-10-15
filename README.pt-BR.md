@@ -132,14 +132,19 @@ de pacotes) e do Chrome, do Edge ou do Chromium do Playwright.
   com fontes.
 - **Pesquisa profunda**: rodadas de busca e leitura que terminam num relatório
   com fontes citadas, salvo na pasta do projeto.
-- Agentes: personas com modelo, ferramentas, arquivos, conhecimento e sugestões
-  iniciais; quatro já vêm no app, junto com prompts prontos com `{{campos}}`.
+- Agentes: personas com modelo, parâmetros (temperatura, máximo de tokens,
+  raciocínio), ferramentas, skills e plugins, arquivos, conhecimento e
+  sugestões iniciais; chame um para uma mensagem com **@nome**. Quatro já vêm
+  no app, junto com prompts prontos com `{{campos}}`.
+- **Prompts encadeados**: prompts salvos com etapas, cada uma enviada quando a
+  resposta anterior termina, com `{{resposta}}` para essa resposta.
 - Memória (opcional): fatos que o modelo guarda sobre você, numa lista editável.
 - **Skills** no formato `SKILL.md` do Claude, carregadas só quando a tarefa pede.
 - **Plugins** no formato dos plugins do Claude (skills, comandos, agentes,
   servidores MCP), mais ferramentas próprias por HTTP ou JavaScript isolado.
 - **Agenda**: pedidos que o servidor local manda ao modelo no horário, mesmo com
-  a aba fechada; as respostas chegam numa conversa.
+  a aba fechada, se quiser com a sua busca na web, skills e ferramentas HTTP de
+  plugins; as respostas chegam numa conversa.
 
 ### Custos, privacidade e sincronização
 - Tokens e custo estimado por resposta, por conversa e por dia e modelo (tela de

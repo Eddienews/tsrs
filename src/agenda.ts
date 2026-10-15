@@ -14,11 +14,19 @@ export interface Task {
   providerId: string
   model: string
   baseUrl?: string
+  // Search with the user's key, skills (by id) and plugins (by name, HTTP tools).
+  tools?: TaskTools
   schedule: Schedule
   enabled: boolean
   nextRun: number | null
   lastRun: number | null
   lastError: string | null
+}
+
+export interface TaskTools {
+  search: { provider: string; cx?: string } | null
+  skills: string[]
+  plugins: string[]
 }
 
 export interface AgendaResult {
@@ -43,7 +51,7 @@ export interface AgendaState {
 
 export const loadAgenda = () => get<AgendaState>('/agenda')
 
-export function saveTask(task: Partial<Task>, key?: { apiKey: string }) {
+export function saveTask(task: Partial<Task>, key?: { apiKey?: string; searchKey?: string }) {
   return post<Task>('/agenda/save', { task, ...(key ? { key } : {}) })
 }
 
