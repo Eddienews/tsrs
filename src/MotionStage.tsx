@@ -41,7 +41,11 @@ export default function MotionStage(p: Props) {
   // The soundtrack: chosen here, played with the timeline, sent with the render.
   const [picked, setPicked] = useState<Track[]>([])
   const tracks = [...picked, ...p.tracks]
-  const [trackId, setTrackId] = useState('')
+  // Until the user picks one, the newest audio of the conversation is the
+  // soundtrack: a song attached to ask for the video is meant to go with it.
+  const [picking, setPicking] = useState<string | null>(null)
+  const trackId = picking ?? p.tracks[0]?.id ?? ''
+  const setTrackId = (id: string) => setPicking(id)
   const track = tracks.find((item) => item.id === trackId) ?? null
   const [muted, setMuted] = useState(false)
   const audioRef = useRef<HTMLAudioElement>(null)

@@ -424,6 +424,9 @@ test('attaches audio, sends its transcription and offers it as a soundtrack', as
   await page.locator('.message.assistant').last().getByRole('button', { name: 'Abrir preview' }).click()
   const track = page.locator('.preview').getByRole('combobox', { name: 'Trilha' })
   await expect(track.locator('option', { hasText: 'nota.wav' })).toHaveCount(1)
+  // Attached to ask for the video, it is already the soundtrack: no need to pick it.
+  await expect(track.locator('option:checked')).toHaveText('nota.wav')
+  await expect(page.locator('.preview').getByTestId('motion-audio')).toHaveCount(1)
 })
 
 test('fills the fields of a saved prompt and switches the theme', async ({ page }) => {
