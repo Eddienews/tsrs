@@ -612,6 +612,20 @@ navegador, então ficam de fora da agenda.
 - **Backup automático:** `backups/`, dentro da pasta do TSRS (ou a pasta em
   `TSRS_BACKUPS`).
 
+### Perfis
+
+Para separar, por exemplo, o pessoal do trabalho, crie um perfil em
+**Configurações → Perfis** (digite o nome e clique em **Criar e abrir**). Cada
+perfil tem as suas próprias chaves, conversas, biblioteca, senha, sincronização e
+backup automático (em `backups/perfis/<id>/`): é como ter dois TSRS no mesmo
+navegador. O perfil novo começa vazio; cole as chaves dele.
+
+Com mais de um perfil, o nome do perfil aparece ao lado do título, na barra
+lateral: clique para trocar (a página recarrega). Em **Configurações → Perfis**
+você renomeia os perfis e apaga os que não usa mais (o perfil em uso e o
+primeiro não podem ser apagados). As pastas de projeto, as extensões e a agenda
+são do computador e valem para todos os perfis.
+
 ### Backup automático
 
 Com o TSRS aberto pelo `npm run dev`, uma cópia das conversas, da biblioteca e

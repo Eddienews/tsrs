@@ -19,6 +19,7 @@
 //   GET  /status   {"dir","latest": meta | null}, or {"off":true}
 //   POST /save     the backup JSON                 meta
 //   GET  /latest   atual.json itself
+// Each takes ?profile=<id> for a profile other than the first.
 
 import { createReadStream, existsSync } from 'node:fs'
 import { copyFile, mkdir, readFile, readdir, rename, stat, unlink, writeFile } from 'node:fs/promises'
@@ -128,10 +129,24 @@ function send(res, status, body) {
 }
 
 // Handles a request below the mount point; false when the path is not ours.
-export function backupsHandler(root) {
+// Each profile other than the first keeps its backups in perfis/<id>/.
+export function profileRoot(root, profile) {
+  if (!profile) return root
+  if (!/^[a-z0-9][a-z0-9-]{0,40}$/.test(profile)) throw new Error('Unknown profile.')
+  return join(root, 'perfis', profile)
+}
+
+export function backupsHandler(base) {
   return async (req, res) => {
-    const path = new URL(req.url ?? '/', 'http://x').pathname
-    if (!root) return send(res, 200, { off: true }), true
+    const url = new URL(req.url ?? '/', 'http://x')
+    const path = url.pathname
+    if (!base) return send(res, 200, { off: true }), true
+    let root
+    try {
+      root = profileRoot(base, url.searchParams.get('profile'))
+    } catch (error) {
+      return send(res, 400, { error: error.message }), true
+    }
     if (req.method === 'GET' && path === '/status') {
       return send(res, 200, { dir: root, latest: existsSync(join(root, LATEST)) ? await readMeta(root) : null }), true
     }

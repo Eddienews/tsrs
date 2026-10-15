@@ -26,6 +26,7 @@ import {
   Wrench,
   X,
   SlidersHorizontal,
+  UserRound,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -42,6 +43,8 @@ import { t } from './i18n'
 import { allTags, hasTag, parseTags, withTag } from './tags'
 import type { ChatMeta, Folder } from './types'
 import { versionDetails, versionLabel } from './version'
+import { activeProfile, profileName, switchProfile } from './profiles'
+import { ACTIVE_PROFILE, loadProfiles } from './storage'
 
 const SEARCH_DELAY_MS = 200
 
@@ -390,6 +393,7 @@ export default function Sidebar(props: Props) {
             {versionLabel()}
           </span>
         </div>
+        <ProfileSwitch />
       </div>
       <div className="space-y-2 px-3 pb-2">
         <div className="flex gap-2">
@@ -638,5 +642,39 @@ export default function Sidebar(props: Props) {
         </Button>
       </div>
     </aside>
+  )
+}
+
+// With more than one profile, which one is open, and a quick way to the others.
+function ProfileSwitch() {
+  const { list } = loadProfiles()
+  if (list.length < 2) return null
+  const current = activeProfile()
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className="profile-switch ml-auto h-7 max-w-28 gap-1 px-2 text-xs"
+          aria-label={t('Perfil: {name}', { name: profileName(current) })}
+        >
+          <UserRound className="size-3.5 shrink-0" />
+          <span className="truncate">{profileName(current)}</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {list.map((profile) => (
+          <DropdownMenuItem
+            key={profile.id}
+            disabled={profile.id === ACTIVE_PROFILE}
+            onSelect={() => switchProfile(profile.id)}
+          >
+            {profileName(profile)}
+            {profile.id === ACTIVE_PROFILE && <span className="ml-auto text-xs text-muted-foreground">{t('(em uso)')}</span>}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

@@ -99,6 +99,7 @@ cada seção é a ordem sugerida.
 - [x] Conversar sobre vídeos: quadros e a transcrição do som, para qualquer modelo com visão
 - [x] Listas de modelos que se atualizam uma vez por dia e marcam os modelos novos, inclusive os de fine-tuning
 - [x] Azure OpenAI, pelo endpoint v1 do recurso e as suas implantações
+- [x] Perfis: pessoal e trabalho separados no mesmo navegador, cada um com as suas chaves, conversas e backup
 
 ## Próximos
 

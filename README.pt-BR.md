@@ -171,6 +171,8 @@ de pacotes) e do Chrome, do Edge ou do Chromium do Playwright.
   chaves nunca são sincronizadas.
 - Backup e restauração de tudo em JSON; exportar uma conversa em Markdown ou
   numa página HTML única; instalável como aplicativo (PWA).
+- Perfis (pessoal, trabalho…): cada um com as suas chaves, conversas,
+  biblioteca, senha, sincronização e backup, trocados pela barra lateral.
 - Backup automático no disco: alguns segundos depois de cada mudança, conversas,
   biblioteca e configurações são copiadas para `backups/` na pasta do TSRS (uma
   cópia por dia durante 14 dias). Se o navegador apagar os dados, o TSRS oferece

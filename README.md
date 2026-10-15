@@ -161,6 +161,8 @@ manager) and Chrome, Edge or Playwright's Chromium.
   never synced.
 - Backup and restore everything as JSON; export a conversation as Markdown or a
   single HTML page; installable as an app (PWA).
+- Profiles (personal, work…): each with its own keys, conversations, library,
+  password, sync and backup, switched from the sidebar.
 - Automatic backup on disk: a few seconds after every change, conversations,
   library and settings are copied to `backups/` in the TSRS folder (one copy per
   day for 14 days). If the browser wipes its data, TSRS offers to bring it all

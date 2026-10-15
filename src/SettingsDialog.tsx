@@ -21,6 +21,7 @@ import { EyeButton } from './EyeButton'
 import { connection, PROVIDERS, usesProxy } from './providers'
 import { listModels } from './stream'
 import MediaSection from './MediaSection'
+import ProfilesSection from './ProfilesSection'
 import ShortcutsSection from './ShortcutsSection'
 import { chime } from './sound'
 import SyncSection, { type SyncProps } from './SyncSection'
@@ -57,6 +58,7 @@ type Section =
   | 'security'
   | 'sync'
   | 'data'
+  | 'profiles'
   | 'shortcuts'
 
 const SECTIONS: Section[] = [
@@ -67,6 +69,7 @@ const SECTIONS: Section[] = [
   'security',
   'sync',
   'data',
+  'profiles',
   'shortcuts',
 ]
 
@@ -87,6 +90,8 @@ function sectionName(section: Section): string {
       return t('Sincronização')
     case 'data':
       return t('Dados')
+    case 'profiles':
+      return t('Perfis')
     case 'shortcuts':
       return t('Atalhos')
   }
@@ -608,6 +613,8 @@ export default function SettingsDialog(props: Props) {
                 </p>
               </div>
             )}
+
+            {section === 'profiles' && <ProfilesSection />}
 
             {section === 'data' && (
               <div className="space-y-3">
