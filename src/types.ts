@@ -260,6 +260,10 @@ export interface Provider {
   transcription?: string
   // Model for image generation, when the provider has one.
   image?: string
+  // Video model (Veo on Gemini), when the provider has one.
+  video?: string
+  // Text-to-speech model, when the provider has one.
+  speech?: string
   // Embedding model, for searching knowledge bases by meaning.
   embedding?: string
   // The provider's API does not accept calls from a browser; it is reached

@@ -1,6 +1,6 @@
 import { t } from './i18n'
 import { PROVIDERS } from './providers'
-import type { MediaChoice, MediaKind, Settings } from './types'
+import type { MediaChoice, MediaKind, Provider, Settings } from './types'
 
 // Images, video and audio made from a message by a media service (ElevenLabs,
 // Runware, fal.ai, Replicate, WaveSpeedAI, Higgsfield) or, for images, by a
@@ -96,25 +96,34 @@ export function mediaService(id: string): MediaService | undefined {
 }
 
 // Who can make each kind, for the settings: providers first, then services.
+// The model a chat provider makes a kind with, if it makes it.
+function providerModel(provider: Provider | undefined, kind: MediaKind): string {
+  return (kind === 'image' ? provider?.image : kind === 'video' ? provider?.video : provider?.speech) ?? ''
+}
+
+// Who can make each kind, for the settings and for 'auto'. Images try the chat
+// providers first; video and audio try the media services first, since a key
+// added there was added for that.
 export function mediaSources(kind: MediaKind): { id: string; name: string }[] {
-  return [
-    ...(kind === 'image' ? PROVIDERS.filter((p) => p.image) : []),
-    ...MEDIA_SERVICES.filter((s) => kind in s.models),
-  ].map(({ id, name }) => ({ id, name }))
+  const providers = PROVIDERS.filter((p) => providerModel(p, kind))
+  const services = MEDIA_SERVICES.filter((s) => kind in s.models)
+  return (kind === 'image' ? [...providers, ...services] : [...services, ...providers]).map(
+    ({ id, name }) => ({ id, name }),
+  )
 }
 
 // The default model of a source for a kind ('' when there is none).
 export function defaultModel(source: string, kind: MediaKind): string {
   const service = mediaService(source)
   if (service) return service.models[kind] ?? ''
-  return kind === 'image' ? (PROVIDERS.find((p) => p.id === source)?.image ?? '') : ''
+  return providerModel(PROVIDERS.find((p) => p.id === source), kind)
 }
 
 function hasKey(settings: Settings, source: string): boolean {
   if (mediaService(source)) return !!settings.mediaKeys[source]?.trim()
   const provider = PROVIDERS.find((p) => p.id === source)
   const conn = settings.providers[source]
-  return !!provider?.image && !!conn?.baseUrl && (!!conn.apiKey || !provider.keyRequired)
+  return !!provider && !!conn?.baseUrl && (!!conn.apiKey || !provider.keyRequired)
 }
 
 export interface MediaTarget {
@@ -149,16 +158,18 @@ export function mediaProblem(settings: Settings, kind: MediaKind): string {
   const name =
     mediaService(choice.source)?.name ?? PROVIDERS.find((p) => p.id === choice.source)?.name
   if (choice.source !== 'auto' && name && !hasKey(settings, choice.source)) {
-    return t('Informe a chave de {name} em Configurações → Mídia.', { name })
+    return mediaService(choice.source)
+      ? t('Informe a chave de {name} em Configurações → Mídia.', { name })
+      : t('Informe a chave de {name} em Configurações → Provedores.', { name })
   }
   if (choice.source !== 'auto') return t('Informe o modelo em Configurações → Mídia.')
   return kind === 'image'
     ? t('Configure uma chave da OpenAI, do Gemini ou de um serviço de mídia para gerar imagens.')
     : kind === 'video'
       ? t(
-          'Configure a chave do fal.ai, do Replicate ou da WaveSpeedAI, ou escolha o serviço e o modelo de vídeo em Configurações → Mídia.',
+          'Configure a chave do Gemini (Veo), do fal.ai, do Replicate ou da WaveSpeedAI, ou escolha o serviço e o modelo de vídeo em Configurações → Mídia.',
         )
       : t(
-          'Configure a chave da ElevenLabs, do fal.ai ou do Replicate, ou escolha o serviço de áudio em Configurações → Mídia.',
+          'Configure a chave da OpenAI, da ElevenLabs, do fal.ai ou do Replicate, ou escolha o serviço de áudio em Configurações → Mídia.',
         )
 }

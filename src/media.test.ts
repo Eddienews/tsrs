@@ -65,6 +65,25 @@ describe('mediaSource', () => {
     expect(mediaSource(settings, 'image', true)).toBeNull()
   })
 
+  it('uses the OpenAI and Gemini keys for speech and Veo, after the media services', () => {
+    const base = defaultSettings()
+    const withKeys = (ids: string[], media: Record<string, string> = {}) => ({
+      ...base,
+      mediaKeys: media,
+      providers: Object.fromEntries(
+        Object.entries(base.providers).map(([id, p]) => [id, { ...p, apiKey: ids.includes(id) ? 'k' : '' }]),
+      ),
+    })
+    const both = withKeys(['openai', 'gemini'])
+    expect(mediaSource(both, 'audio', false)).toMatchObject({ source: 'openai', model: 'gpt-4o-mini-tts' })
+    expect(mediaSource(both, 'video', false)).toMatchObject({
+      source: 'gemini',
+      model: 'veo-3.1-fast-generate-preview',
+    })
+    // A media service key, added for that, comes first.
+    expect(mediaSource(withKeys(['openai'], { elevenlabs: 'e' }), 'audio', false)?.source).toBe('elevenlabs')
+  })
+
   it('needs a model for a source chosen by hand that has no default', () => {
     const settings = settingsWith({ runware: 'r' })
     const choose = (model: string) => ({
@@ -228,6 +247,66 @@ describe('generateMedia', () => {
     expect(calls[0].headers.Authorization).toBe('Bearer ws')
     state = 'failed'
     await expect(run(settings, target, 'video')).rejects.toThrow('WaveSpeedAI: sem créditos')
+  })
+
+  it('makes a Veo video with the Gemini key and downloads it with the key', async () => {
+    const base = 'https://generativelanguage.googleapis.com/v1beta'
+    let checks = 0
+    routes.push([
+      /operations\/op1$/,
+      () =>
+        json(
+          ++checks === 1
+            ? { name: 'models/veo/operations/op1' }
+            : {
+                done: true,
+                response: {
+                  generateVideoResponse: { generatedSamples: [{ video: { uri: `${base}/files/f1:download?alt=media` } }] },
+                },
+              },
+        ),
+    ])
+    routes.push([/:predictLongRunning$/, () => json({ name: 'models/veo/operations/op1' })])
+    routes.push([/files\/f1:download/, () => file('video/mp4')])
+    const settings = defaultSettings()
+    settings.providers.gemini = { ...settings.providers.gemini, apiKey: 'gk' }
+    const target = { source: 'gemini', model: 'veo-3.1-fast-generate-preview', options: '{"aspectRatio":"9:16"}' }
+    const made = await run(settings, target, 'video')
+    expect(made).toEqual({ mime: 'video/mp4', data: 'AQID' })
+    expect(calls[0].url).toBe(`${base}/models/veo-3.1-fast-generate-preview:predictLongRunning`)
+    expect(calls[0].headers['x-goog-api-key']).toBe('gk')
+    expect(calls[0].body).toEqual({ instances: [{ prompt: 'um gato' }], parameters: { aspectRatio: '9:16' } })
+    expect(calls[1].url).toBe(`${base}/models/veo/operations/op1`)
+    expect(calls.at(-1)!.headers['x-goog-api-key']).toBe('gk')
+
+    // The link needs the key, so a failed download is an error, not a link.
+    routes.unshift([/files\/f1:download/, () => json({}, 403)])
+    checks = 1
+    await expect(run(settings, target, 'video')).rejects.toThrow('não pôde ser baixado do Gemini')
+
+    // A video blocked by Google's filters says why.
+    routes.unshift([
+      /operations\/op1$/,
+      () => json({ done: true, response: { generateVideoResponse: { raiMediaFilteredReasons: ['pessoas reais'] } } }),
+    ])
+    await expect(run(settings, target, 'video')).rejects.toThrow('Veo: o conteúdo foi barrado pela moderação (pessoas reais)')
+  })
+
+  it('reads text aloud with OpenAI, with a voice and tone of choice', async () => {
+    routes.push([/audio\/speech$/, () => file('audio/mpeg')])
+    const settings = defaultSettings()
+    settings.providers.openai = { ...settings.providers.openai, apiKey: 'sk' }
+    const target = { source: 'openai', model: 'gpt-4o-mini-tts', options: '{"voice":"coral","instructions":"alegre"}' }
+    expect(await run(settings, target, 'audio')).toEqual({ mime: 'audio/mpeg', data: 'AQID' })
+    expect(calls[0].url).toBe('https://api.openai.com/v1/audio/speech')
+    expect(calls[0].headers.Authorization).toBe('Bearer sk')
+    expect(calls[0].body).toEqual({
+      model: 'gpt-4o-mini-tts',
+      input: 'um gato',
+      voice: 'coral',
+      response_format: 'mp3',
+      instructions: 'alegre',
+    })
   })
 
   it('says when a key is refused or the options are not JSON', async () => {
