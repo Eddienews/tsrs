@@ -12,6 +12,8 @@ export interface PriceEstimate {
   text: string
   // Where the figure comes from.
   source: string
+  // Speech priced by the character, to show what the typed text will cost.
+  perCharacter?: number
 }
 
 // Veo 3.1 on the Gemini API, US dollars per second of video with audio, by
@@ -133,6 +135,30 @@ async function runware(target: MediaTarget, signal?: AbortSignal) {
   return text ? { text, source: 'Runware' } : null
 }
 
+// ElevenLabs' API list prices, in US dollars, from elevenlabs.io/pricing/api,
+// October 2026: speech per thousand characters, music and sound effects per
+// minute. Subscriptions include characters, so on a plan it is credits.
+export const ELEVEN_PRICES = { speech: 0.08, fastSpeech: 0.04, music: 0.15, soundEffects: 0.12 }
+
+// Flash and Turbo models cost half per character.
+export function elevenSpeechPrice(modelId: string): number {
+  return /flash|turbo/i.test(modelId || 'eleven_multilingual_v2') ? ELEVEN_PRICES.fastSpeech : ELEVEN_PRICES.speech
+}
+
+function elevenlabs(target: MediaTarget): PriceEstimate {
+  const source = t('tabela de preços da API da ElevenLabs, outubro de 2026')
+  if (target.model === 'music')
+    return { text: t('{rate} por minuto de música', { rate: money(ELEVEN_PRICES.music) }), source }
+  if (target.model === 'sound-effects')
+    return { text: t('{rate} por minuto de efeito', { rate: money(ELEVEN_PRICES.soundEffects) }), source }
+  const perThousand = elevenSpeechPrice(String(options(target).model_id ?? ''))
+  return {
+    text: t('{rate} por mil caracteres (nos planos, sai dos créditos)', { rate: money(perThousand) }),
+    source,
+    perCharacter: perThousand / 1000,
+  }
+}
+
 const known = new Map<string, Promise<PriceEstimate | null>>()
 
 // The estimate for a generation, or null when the service does not say.
@@ -148,6 +174,7 @@ export function estimateCost(
       if (target.source === 'gemini' && kind === 'video') return veo(target)
       if (target.source === 'fal') return fal(settings, target)
       if (target.source === 'runware') return runware(target)
+      if (target.source === 'elevenlabs') return elevenlabs(target)
       return null
     })().catch(() => null)
     known.set(key, estimate)

@@ -1,5 +1,5 @@
 import { locale } from './i18n'
-import { KNOWN_MODELS, getProvider } from './providers'
+import { getProvider, knownModel } from './providers'
 import type { Message, ModelInfo, Settings, Usage } from './types'
 
 // Share of the context window above which the user is warned.
@@ -11,9 +11,15 @@ function cacheReadPrice(providerId: string, reported: ModelInfo, known: ModelInf
   return known.cacheReadPrice ?? (share && known.inputPrice && known.inputPrice * share)
 }
 
+export function priceKey(providerId: string, model: string): string {
+  return `${providerId}/${model}`
+}
+
 export function modelInfo(settings: Settings, providerId: string, model: string): ModelInfo {
-  const reported = settings.providers[providerId]?.modelInfo?.[model] ?? {}
-  const known = KNOWN_MODELS[model] ?? {}
+  // A price the user typed counts as one the provider reported.
+  const typed = settings.modelPrices?.[priceKey(providerId, model)]
+  const reported = { ...settings.providers[providerId]?.modelInfo?.[model], ...typed }
+  const known = knownModel(model)
   return {
     context: reported.context ?? known.context,
     inputPrice: reported.inputPrice ?? known.inputPrice,
@@ -48,13 +54,20 @@ export interface Totals {
   cost?: number
 }
 
-export function totals(messages: Message[]): Totals {
+// `info` prices replies that were written before their model's price was
+// known, such as one the user typed afterwards.
+export function totals(
+  messages: Message[],
+  info?: (providerId: string, model: string) => ModelInfo,
+): Totals {
   let tokens = 0
   let cost: number | undefined
-  for (const { usage } of messages) {
+  for (const { usage, providerId, model } of messages) {
     if (!usage) continue
     tokens += usage.input + usage.output
-    if (usage.cost !== undefined) cost = (cost ?? 0) + usage.cost
+    const priced =
+      usage.cost ?? (info && providerId && model ? costOf(usage, info(providerId, model)) : undefined)
+    if (priced !== undefined) cost = (cost ?? 0) + priced
   }
   return { tokens, cost }
 }

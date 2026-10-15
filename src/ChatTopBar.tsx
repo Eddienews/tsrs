@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils'
 import { t } from './i18n'
 import { PROVIDERS } from './providers'
 import type { Provider, Settings } from './types'
+import { Input } from '@/components/ui/input'
 import { CONTEXT_WARNING, formatCost, formatTokens, modelInfo, type Totals } from './usage'
 
 interface Props {
@@ -51,6 +52,8 @@ interface Props {
   onMenu: () => void
   onModel: (providerId: string, model: string) => void
   onPersona: (id: string) => void
+  // Saves the price typed for a model whose price is not known; null removes it.
+  onPrice: (providerId: string, model: string, price: { inputPrice: number; outputPrice: number } | null) => void
   onTools: () => void
   onParams: () => void
   onTogglePreview: () => void
@@ -59,6 +62,87 @@ interface Props {
   temporary: boolean
   // Absent once the conversation has started: it stays what it is.
   onToggleTemporary?: () => void
+}
+
+// Asks for a model's price when neither the provider nor the app knows it, so
+// the conversation's cost can be shown.
+function PriceButton(p: Pick<Props, 'settings' | 'provider' | 'onPrice'>) {
+  const model = p.settings.model
+  const typed = p.settings.modelPrices?.[`${p.provider.id}/${model}`]
+  const [open, setOpen] = useState(false)
+  const [input, setInput] = useState('')
+  const [output, setOutput] = useState('')
+  const valid = (text: string) => text.trim() !== '' && Number(text.replace(',', '.')) >= 0
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (next) {
+          setInput(typed ? String(typed.inputPrice) : '')
+          setOutput(typed ? String(typed.outputPrice) : '')
+        }
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button
+          className="underline underline-offset-2 hover:text-foreground"
+          title={t('Informar o preço de {model} para ver o custo', { model })}
+        >
+          {typed ? t('preço informado') : t('definir preço')}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72 space-y-2 text-xs">
+        <p className="font-medium">{t('Preço de {model}', { model })}</p>
+        <p className="text-muted-foreground">
+          {t(
+            'O provedor não informa o preço deste modelo. Copie da página de preços dele, em dólares por milhão de tokens; o custo da conversa passa a aparecer.',
+          )}
+        </p>
+        <form
+          className="space-y-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (!valid(input) || !valid(output)) return
+            p.onPrice(p.provider.id, model, {
+              inputPrice: Number(input.replace(',', '.')),
+              outputPrice: Number(output.replace(',', '.')),
+            })
+            setOpen(false)
+          }}
+        >
+          <div className="grid grid-cols-2 gap-2">
+            <label className="space-y-1">
+              <span>{t('Entrada (US$)')}</span>
+              <Input inputMode="decimal" value={input} onChange={(e) => setInput(e.target.value)} />
+            </label>
+            <label className="space-y-1">
+              <span>{t('Saída (US$)')}</span>
+              <Input inputMode="decimal" value={output} onChange={(e) => setOutput(e.target.value)} />
+            </label>
+          </div>
+          <div className="flex justify-end gap-2">
+            {typed && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  p.onPrice(p.provider.id, model, null)
+                  setOpen(false)
+                }}
+              >
+                {t('Remover')}
+              </Button>
+            )}
+            <Button type="submit" size="sm" disabled={!valid(input) || !valid(output)}>
+              {t('Salvar')}
+            </Button>
+          </div>
+        </form>
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 function ModelPicker({ settings, onModel }: Pick<Props, 'settings' | 'onModel'>) {
@@ -159,6 +243,13 @@ export default function ChatTopBar(p: Props) {
   const { settings, spent, context } = p
   const persona = settings.personas.find((x) => x.id === p.personaId)
   const warn = context !== undefined && context >= CONTEXT_WARNING
+  const info = modelInfo(settings, p.provider.id, settings.model)
+  const priceUnknown =
+    !!settings.model &&
+    // Local models (Ollama, LM Studio) need no key and cost nothing.
+    (p.provider.keyRequired || !!settings.providers[p.provider.id]?.apiKey) &&
+    spent.cost === undefined &&
+    (info.inputPrice === undefined || info.outputPrice === undefined)
 
   return (
     <header className="toolbar flex flex-wrap items-center gap-1.5 border-b px-2 py-1.5">
@@ -213,6 +304,11 @@ export default function ChatTopBar(p: Props) {
             {warn && <AlertTriangle className="size-3.5" />}
             <span>{formatTokens(spent.tokens)} tokens</span>
             {spent.cost !== undefined && <span>· {formatCost(spent.cost)}</span>}
+            {(priceUnknown || p.settings.modelPrices?.[`${p.provider.id}/${p.settings.model}`]) && (
+              <span>
+                · <PriceButton settings={p.settings} provider={p.provider} onPrice={p.onPrice} />
+              </span>
+            )}
             {context !== undefined && (
               <span className="hidden sm:inline">
                 · {t('contexto {percent}%', { percent: Math.round(context * 100) })}

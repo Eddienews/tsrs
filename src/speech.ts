@@ -34,6 +34,52 @@ function browserVoices(): boolean {
   return typeof window !== 'undefined' && 'speechSynthesis' in window
 }
 
+// The browser voice chosen in the settings, by name; '' picks the best one.
+let browserVoice = ''
+
+export function setBrowserVoice(name: string) {
+  browserVoice = name
+}
+
+type VoiceLike = Pick<SpeechSynthesisVoice, 'name' | 'lang' | 'localService'>
+
+// How natural a browser voice sounds, judged by its name: Edge's "Natural"
+// voices and other online neural ones are close to the paid services; the
+// voices installed with the system sound robotic.
+export function voiceQuality(voice: VoiceLike): number {
+  if (/natural|neural/i.test(voice.name)) return 3
+  if (/online|google|premium|enhanced|siri/i.test(voice.name)) return 2
+  return voice.localService ? 0 : 1
+}
+
+// The voice that reads text in `lang`: the one chosen, if the browser has it,
+// or the most natural one for the language (its region first).
+export function bestVoice<V extends VoiceLike>(voices: V[], lang: string, chosen = ''): V | undefined {
+  const picked = chosen && voices.find((v) => v.name === chosen)
+  if (picked) return picked
+  const base = lang.split('-')[0].toLowerCase()
+  const norm = (code: string) => code.replace('_', '-').toLowerCase()
+  const fits = voices.filter((v) => norm(v.lang).split('-')[0] === base)
+  const score = (v: V) => voiceQuality(v) * 2 + (norm(v.lang) === lang.toLowerCase() ? 1 : 0)
+  return [...fits].sort((a, b) => score(b) - score(a))[0]
+}
+
+// The browser's voices; empty until it has loaded them.
+export function browserVoiceList(): SpeechSynthesisVoice[] {
+  return browserVoices() ? speechSynthesis.getVoices() : []
+}
+
+// Reads a short text with a browser voice, to hear it in the settings.
+export function trySpeaking(text: string, lang: string, name: string) {
+  if (!browserVoices()) return
+  stopSpeaking()
+  const utterance = new SpeechSynthesisUtterance(text)
+  const voice = bestVoice(speechSynthesis.getVoices(), lang, name)
+  if (voice) utterance.voice = voice
+  utterance.lang = voice?.lang ?? lang
+  speechSynthesis.speak(utterance)
+}
+
 export function canSpeak(): boolean {
   return !!reader || browserVoices()
 }
@@ -136,7 +182,9 @@ async function speakWithService(id: string, text: string, lang: string) {
 function speakWithBrowser(id: string, text: string, lang: string) {
   speechSynthesis.cancel()
   const utterance = new SpeechSynthesisUtterance(text)
-  utterance.lang = lang
+  const voice = bestVoice(speechSynthesis.getVoices(), lang, browserVoice)
+  if (voice) utterance.voice = voice
+  utterance.lang = voice?.lang ?? lang
   utterance.onend = utterance.onerror = () => {
     if (speaking === id) set(null)
   }

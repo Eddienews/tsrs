@@ -941,8 +941,10 @@ test('reads replies aloud with a voice service, once per text', async ({ page })
   const asked: string[] = []
   let refuse = false
   await page.route('https://api.elevenlabs.io/**', (route) => {
-    asked.push(JSON.parse(route.request().postData() ?? '{}').text)
     const headers = { 'access-control-allow-origin': '*' }
+    // The settings list the account's voices and models.
+    if (route.request().method() === 'GET') return route.fulfill({ json: route.request().url().endsWith('/voices') ? { voices: [] } : [], headers })
+    asked.push(JSON.parse(route.request().postData() ?? '{}').text)
     return refuse
       ? route.fulfill({ status: 401, json: { detail: { message: 'invalid key' } }, headers })
       : route.fulfill({ body: silence(), contentType: 'audio/wav', headers })
@@ -974,6 +976,98 @@ test('reads replies aloud with a voice service, once per text', async ({ page })
   await expect(reply(page).last().locator('.speech-problem')).toHaveText(
     /ElevenLabs não leu esta resposta \(ElevenLabs recusou a chave \(401\)\.\); usei a voz do navegador\./,
   )
+})
+
+test('picks an ElevenLabs voice and model, and shows what audio costs', async ({ page }) => {
+  const posted: any[] = []
+  const headers = { 'access-control-allow-origin': '*', 'access-control-expose-headers': 'character-cost' }
+  await page.route('https://api.elevenlabs.io/**', (route) => {
+    const url = route.request().url()
+    if (url.endsWith('/v1/voices'))
+      return route.fulfill({
+        headers,
+        json: {
+          voices: [
+            { voice_id: 'premade-1', name: 'George', category: 'premade', labels: { accent: 'British' } },
+            {
+              voice_id: 'clone-1',
+              name: 'Eddie',
+              category: 'cloned',
+              preview_url: 'https://storage.example/eddie.mp3',
+              labels: { accent: 'Brazilian', gender: 'male' },
+            },
+          ],
+        },
+      })
+    if (url.endsWith('/v1/models'))
+      return route.fulfill({
+        headers,
+        json: [
+          { model_id: 'eleven_multilingual_v2', name: 'Eleven Multilingual v2', can_do_text_to_speech: true },
+          { model_id: 'eleven_flash_v2_5', name: 'Eleven Flash v2.5', can_do_text_to_speech: true },
+          { model_id: 'eleven_english_sts_v2', name: 'Speech to speech', can_do_text_to_speech: false },
+        ],
+      })
+    posted.push({ url, body: JSON.parse(route.request().postData() ?? '{}') })
+    return route.fulfill({
+      body: silence(),
+      contentType: 'audio/mpeg',
+      headers: { ...headers, 'character-cost': '500' },
+    })
+  })
+  await connect(page)
+  await openSettings(page, 'Mídia')
+  await page.getByLabel('Chave de ElevenLabs').fill('xi-key')
+  await page.locator('#media-audio').selectOption('elevenlabs')
+
+  // The account's own voices come first, then the ones ElevenLabs gives everyone.
+  const voice = page.getByLabel('Voz ou tipo de áudio')
+  await expect(voice.locator('optgroup[label="Minhas vozes"] option')).toHaveText(['Eddie'])
+  await expect(voice.locator('optgroup[label="Vozes da ElevenLabs"] option')).toHaveText(['George'])
+  await voice.selectOption('clone-1')
+  await expect(page.getByText('Brazilian, male')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Ouvir uma amostra' }).first()).toBeEnabled()
+  const model = page.getByLabel('Modelo da ElevenLabs')
+  await expect(model.locator('option')).toHaveText([/Multilingual v2 · US\$\s0,08/, /Flash v2\.5 · US\$\s0,04/])
+  await model.selectOption('eleven_flash_v2_5')
+  await expect(page.getByLabel('Opções do modelo de áudio')).toHaveValue('{"model_id":"eleven_flash_v2_5"}')
+
+  // Reading aloud has the same choices, and the browser's voices when chosen.
+  await page.getByLabel('Leitura em voz alta').selectOption('browser')
+  await expect(page.getByLabel('Voz do navegador')).toBeVisible()
+  await page.getByLabel('Leitura em voz alta').selectOption('elevenlabs')
+  await page.getByLabel('Voz da leitura').selectOption('clone-1')
+  await closeSettings(page)
+
+  // The price is shown before, with what the typed text will cost.
+  await page.getByRole('button', { name: 'Áudio' }).click()
+  await page.getByPlaceholder(/texto a narrar/).fill('x'.repeat(250))
+  await expect(page.locator('.media-price')).toContainText('US$ 0,04 por mil caracteres'.replace(' ', '\u00a0'))
+  await expect(page.locator('.media-price')).toContainText('Esta mensagem: 250 caracteres')
+  await page.getByPlaceholder(/texto a narrar/).press('Enter')
+  await expect(reply(page).last().locator('audio')).toBeVisible()
+  expect(posted[0].url).toContain('/v1/text-to-speech/clone-1')
+  expect(posted[0].body.model_id).toBe('eleven_flash_v2_5')
+  // And after, from the characters ElevenLabs counted: 500 at $0.04 per thousand.
+  await reply(page).last().hover()
+  await expect(reply(page).last()).toContainText(/US\$\s0,0200/)
+})
+
+test('asks for the price of a model the app does not know, and shows the cost', async ({ page }) => {
+  await connect(page, 'sk-paid')
+  await send(page, 'primeira')
+  const usage = page.locator('.toolbar .usage')
+  await expect(usage).toContainText('900 tokens')
+  await usage.getByRole('button', { name: 'definir preço' }).click()
+  await page.getByLabel('Entrada (US$)').fill('2')
+  await page.getByLabel('Saída (US$)').fill('10')
+  await page.getByRole('button', { name: 'Salvar' }).click()
+  // 850 tokens in at $2 and 50 out at $10 per million.
+  await expect(usage).toContainText(/US\$\s0,0022/)
+  await expect(usage.getByRole('button', { name: 'preço informado' })).toBeVisible()
+  await send(page, 'segunda')
+  await reply(page).last().hover()
+  await expect(reply(page).last()).toContainText(/US\$\s0,0022/)
 })
 
 test('asks a side question about part of a reply', async ({ page }) => {

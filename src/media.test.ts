@@ -104,7 +104,9 @@ describe('generateMedia', () => {
     routes.push([/elevenlabs/, () => file('audio/mpeg')])
     const settings = settingsWith({ elevenlabs: 'xi' })
     const made = await run(settings, { source: 'elevenlabs', model: 'voz1', options: '' }, 'audio')
-    expect(made).toEqual({ mime: 'audio/mpeg', data: 'AQID' })
+    expect(made).toMatchObject({ mime: 'audio/mpeg', data: 'AQID' })
+    // Seven characters at the list price of Multilingual v2.
+    expect(made.cost).toBeCloseTo((7 / 1000) * 0.08, 10)
     expect(calls[0].url).toBe('https://api.elevenlabs.io/v1/text-to-speech/voz1?output_format=mp3_44100_128')
     expect(calls[0].headers['xi-api-key']).toBe('xi')
     expect(calls[0].body).toEqual({ text: 'um gato', model_id: 'eleven_multilingual_v2' })

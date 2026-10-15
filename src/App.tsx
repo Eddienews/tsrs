@@ -50,7 +50,7 @@ import { MEMORY_TOOLS, runMemoryTool, withMemories } from './memory'
 import { connection, getProvider } from './providers'
 import Sidebar from './Sidebar'
 import { comboOf, SHORTCUT_ACTIONS, shortcutsOf } from './shortcuts'
-import { setReader } from './speech'
+import { setBrowserVoice, setReader } from './speech'
 import type { PriceEstimate } from './mediaPrice'
 import { chime } from './sound'
 import {
@@ -113,6 +113,7 @@ import {
   CONTEXT_WARNING,
   contextUse,
   costOf,
+  formatCost,
   modelInfo,
   totals,
 } from './usage'
@@ -517,6 +518,7 @@ export default function App() {
   useEffect(() => {
     const target = readerSource(settings, locked)
     setReader(target && { settings, target, name: sourceName(target.source) })
+    setBrowserVoice(settings.readAloud.source === 'browser' ? settings.readAloud.model : '')
   }, [settings, locked])
   const blocked = mediaMode
     ? maker
@@ -524,7 +526,7 @@ export default function App() {
       : { text: mediaProblem(settings, mediaMode), fix: 'settings' as const }
     : blocker(settings, locked)
   const info = modelInfo(settings, provider.id, settings.model)
-  const spent = totals(messages ?? [])
+  const spent = totals(messages ?? [], (id, model) => modelInfo(settings, id, model))
   const context = contextUse(messages ?? [], info)
 
   function commitMetas(next: ChatMeta[]) {
@@ -1955,6 +1957,14 @@ export default function App() {
         onMenu={() => setShowDrawer(true)}
         onModel={selectModel}
         onPersona={applyPersona}
+        onPrice={(providerId, model, price) =>
+          setSettings((s) => {
+            const prices = { ...s.modelPrices }
+            if (price) prices[`${providerId}/${model}`] = price
+            else delete prices[`${providerId}/${model}`]
+            return { ...s, modelPrices: prices }
+          })
+        }
         onTools={() => setShowTools(true)}
         onParams={() => setShowParams(true)}
         onTogglePreview={togglePreview}
@@ -2110,6 +2120,15 @@ export default function App() {
                   estimate: price.text,
                   source: price.source,
                 })}
+            {price !== 'unknown' && price.perCharacter && draft.trim() && (
+              <>
+                {' '}
+                {t('Esta mensagem: {count} caracteres, cerca de {total}.', {
+                  count: draft.trim().length,
+                  total: formatCost(draft.trim().length * price.perCharacter),
+                })}
+              </>
+            )}
           </p>
         )}
         {[...toolProblems, ...[attachError, dictation.error].filter(Boolean)].map((problem) => (

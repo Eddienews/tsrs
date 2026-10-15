@@ -216,4 +216,27 @@ export const KNOWN_MODELS: Record<string, ModelInfo> = {
     outputPrice: 0.5,
     longPrompt: { above: 100_000, inputPrice: 0.5, outputPrice: 2.5 },
   },
+  // OpenAI, from developers.openai.com/api/docs/pricing and the model pages,
+  // October 2026. OpenAI's cache has no write charge.
+  'gpt-6-astra': { inputPrice: 10, outputPrice: 50, cacheReadPrice: 1 },
+  'gpt-6.1-sol': { inputPrice: 2, outputPrice: 10, cacheReadPrice: 0.1 },
+  'gpt-6-luna': { inputPrice: 0.1, outputPrice: 0.5, cacheReadPrice: 0.01 },
+  'gpt-5.5': {
+    context: 1_050_000,
+    inputPrice: 5,
+    outputPrice: 30,
+    cacheReadPrice: 0.5,
+    // Above 272K input tokens the whole request costs 2x input and 1.5x output.
+    longPrompt: { above: 272_000, inputPrice: 10, outputPrice: 45 },
+  },
+  'gpt-5.5-pro': { context: 1_050_000, inputPrice: 30, outputPrice: 180 },
+  'gpt-5': { context: 400_000, inputPrice: 1.25, outputPrice: 10, cacheReadPrice: 0.125 },
+  'chat-latest': { inputPrice: 5, outputPrice: 30, cacheReadPrice: 0.5 },
+  'gpt-5.3-codex': { inputPrice: 1.75, outputPrice: 14, cacheReadPrice: 0.175 },
+}
+
+// The built-in prices of a model, also under a dated name such as
+// gpt-5-2025-08-07.
+export function knownModel(model: string): ModelInfo {
+  return KNOWN_MODELS[model] ?? KNOWN_MODELS[model.replace(/-\d{4}-\d{2}-\d{2}$/, '')] ?? {}
 }

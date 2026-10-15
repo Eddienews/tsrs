@@ -419,6 +419,9 @@ export interface Settings {
   embedModel: string
   // Address of the local proxy (npm run proxy) for providers without CORS.
   proxyUrl: string
+  // Prices the user typed for models whose price is not known, in US dollars
+  // per million tokens, by "provider/model".
+  modelPrices?: Record<string, { inputPrice: number; outputPrice: number }>
   knowledgeBases: KnowledgeBase[]
   sync: SyncSettings
   // Present when the API keys are password-protected; the keys are then

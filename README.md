@@ -71,7 +71,15 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
   Runware.
 - Leitura das respostas em voz alta com a voz do navegador ou com uma voz da
   ElevenLabs, da OpenAI ou do Gemini (Configurações → Mídia); respostas longas
-  são lidas em trechos, e cada trecho é gerado uma vez por sessão.
+  são lidas em trechos, e cada trecho é gerado uma vez por sessão. Das vozes do
+  navegador, a escolhida automaticamente é a mais natural do idioma: no
+  Microsoft Edge, as neurais "Online (Natural)", grátis. Na ElevenLabs, a lista
+  traz as vozes da sua conta (as suas primeiro, com amostra para ouvir) e o
+  modelo (Multilingual, v3, Flash), com o preço por mil caracteres.
+- Custo: o preço de cada modelo vem do provedor (OpenRouter), da tabela do app
+  (Anthropic e OpenAI, outubro de 2026) ou do que você informar em "definir
+  preço", ao lado dos tokens da conversa. Áudio da ElevenLabs mostra o custo
+  antes (por caractere) e depois de gerar.
 - Conversa temporária: fica só na memória da aba, sem histórico, sincronização
   nem memória, e some quando você sai dela.
 - Pergunta à parte: selecione um trecho da resposta e pergunte sobre ele num
