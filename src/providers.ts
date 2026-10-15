@@ -46,6 +46,7 @@ export const PROVIDERS: Provider[] = [
     maxTokensField: 'max_completion_tokens',
     transcription: 'gpt-4o-mini-transcribe',
     image: 'gpt-image-2',
+    speech: 'gpt-4o-mini-tts',
     embedding: 'text-embedding-3-small',
   },
   {
@@ -55,6 +56,7 @@ export const PROVIDERS: Provider[] = [
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
     keyRequired: true,
     image: 'imagen-4.0-generate-001',
+    video: 'veo-3.1-fast-generate-preview',
     embedding: 'gemini-embedding-001',
   },
   {

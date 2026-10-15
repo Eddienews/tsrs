@@ -59,8 +59,12 @@ function viaProxy(url: string, proxy: string | undefined): string {
   return proxy ? `${proxy.replace(/\/+$/, '')}/${url}` : url
 }
 
+// Who answers a request, for messages; and whether it is reached through
+// the local proxy.
+type Who = Pick<MediaService, 'name' | 'needsProxy'>
+
 async function call(
-  service: MediaService,
+  service: Who,
   url: string,
   init: RequestInit,
   proxy?: string,
@@ -184,11 +188,11 @@ export function findMediaUrl(result: unknown, kind: MediaKind): string | undefin
   return (byType ?? byExtension ?? found.find((f) => f.field && !f.type))?.url
 }
 
-function tooSlow(service: MediaService): Error {
+function tooSlow(service: Who): Error {
   return new Error(t('{name} demorou demais para responder.', { name: service.name }))
 }
 
-function proxyFor(settings: Settings, service: MediaService): string | undefined {
+function proxyFor(settings: Settings, service: Who): string | undefined {
   if (!service.needsProxy) return undefined
   const proxy = settings.proxyUrl.trim()
   if (!proxy) {
@@ -291,10 +295,12 @@ interface Queue {
   read(status: any): { state: 'done' | 'failed' | 'waiting'; error?: string; progress?: string }
   // What holds the file once the job is done.
   result(ticket: any, status: any, get: (url: string) => Promise<unknown>): unknown
+  // Fetches the file, when its link needs more than a plain download.
+  download?(url: string): Promise<GeneratedMedia>
 }
 
 // Submits a job, polls it until it is done and downloads the file.
-async function queued(job: Job, service: MediaService, queue: Queue): Promise<GeneratedMedia> {
+async function queued(job: Job, service: Who, queue: Queue): Promise<GeneratedMedia> {
   const proxy = proxyFor(job.settings, service)
   const get = async (url: string) =>
     (await call(service, url, { headers: queue.headers, signal: job.signal }, proxy)).json()
@@ -335,6 +341,7 @@ async function queued(job: Job, service: MediaService, queue: Queue): Promise<Ge
   }
   const url = findMediaUrl(await queue.result(ticket, status, get), job.kind)
   if (!url) throw new Error(t('{name} não devolveu nenhum arquivo.', { name: service.name }))
+  if (queue.download) return queue.download(url)
   return fetchMedia(url, job.kind, job.settings.proxyUrl.trim() || undefined, job.signal)
 }
 
@@ -428,19 +435,78 @@ function wavespeedQueue(model: string, key: string, input: object): Queue {
   }
 }
 
+// Veo, through the Gemini API with the Gemini key: a long-running operation
+// polled until done. The video's link needs the key, so the file is fetched
+// with it and never kept as a link, which would carry the key into backups.
+function veoQueue(job: Job, base: string, key: string, options: object): Queue {
+  const headers = { 'x-goog-api-key': key }
+  return {
+    submit: `${base}/models/${job.target.model}:predictLongRunning`,
+    body: { instances: [{ prompt: job.prompt }], parameters: options },
+    headers,
+    statusUrl: (ticket) => ticket.name && `${base}/${ticket.name}`,
+    read(status) {
+      if (!status.done) return { state: 'waiting', progress: t('gerando') }
+      if (status.error) return { state: 'failed', error: String(status.error.message ?? status.error.code) }
+      const reasons = status.response?.generateVideoResponse?.raiMediaFilteredReasons
+      if (reasons?.length) return { state: 'failed', error: `${moderated()} (${reasons.join('; ')})` }
+      return { state: 'done' }
+    },
+    result: (_ticket, status) =>
+      status.response?.generateVideoResponse?.generatedSamples?.map(
+        (sample: { video?: { uri?: string } }) => ({ url: sample.video?.uri, content_type: 'video/mp4' }),
+      ),
+    async download(url) {
+      try {
+        const res = await fetch(url, { headers, signal: job.signal })
+        if (!res.ok) throw new Error(String(res.status))
+        const blob = await res.blob()
+        return { mime: blob.type.startsWith('video/') ? blob.type : 'video/mp4', data: await toBase64(blob) }
+      } catch (err) {
+        if (job.signal?.aborted) throw err
+        throw new Error(t('O vídeo foi gerado, mas não pôde ser baixado do Gemini.'))
+      }
+    },
+  }
+}
+
+// Speech from a chat provider (OpenAI): the text read aloud, in one request.
+async function providerSpeech(job: Job, options: Record<string, unknown>): Promise<GeneratedMedia> {
+  const conn = connection(job.settings, job.target.source)
+  const res = await call(
+    conn.provider,
+    `${conn.baseUrl.replace(/\/+$/, '')}/audio/speech`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${conn.apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: job.target.model,
+        input: job.prompt,
+        voice: 'marin',
+        response_format: 'mp3',
+        ...options,
+      }),
+      signal: job.signal,
+    },
+    conn.proxy,
+  )
+  const blob = await res.blob()
+  return { mime: blob.type.startsWith('audio/') ? blob.type : 'audio/mpeg', data: await toBase64(blob) }
+}
+
 export async function generateMedia(job: Job): Promise<GeneratedMedia> {
   const options = parseOptions(job.target.options)
   const service = mediaService(job.target.source)
   if (!service) {
-    // A chat provider that draws images.
-    const drawn = await generateImage(
-      connection(job.settings, job.target.source),
-      job.target.model,
-      job.prompt,
-      job.signal,
-      options,
-    )
-    return drawn
+    // A chat provider: images from OpenAI or Gemini, Veo videos from Gemini,
+    // speech from OpenAI.
+    const conn = connection(job.settings, job.target.source)
+    if (job.kind === 'audio') return providerSpeech(job, options)
+    if (job.kind === 'video') {
+      const base = conn.baseUrl.replace(/\/+$/, '').replace(/\/openai$/, '')
+      return queued(job, { name: 'Veo' }, veoQueue(job, base, conn.apiKey, options))
+    }
+    return generateImage(conn, job.target.model, job.prompt, job.signal, options)
   }
   const key = job.settings.mediaKeys[service.id]?.trim() ?? ''
   // The services that queue jobs take a prompt and the model's own options.

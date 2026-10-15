@@ -641,8 +641,8 @@ export const en: Record<string, string> = {
     'Services that generate images, video and audio. The Image, Video and Audio buttons, next to Prompts, turn the next message into a request; the generated file stays in the chat. Keys stay in this browser, like the providers\' keys, and each service charges for what it generates.',
   'Chaves': 'Keys',
   'Quem gera cada tipo': 'Who generates each kind',
-  'No automático, usa o primeiro serviço com chave que tenha modelo padrão: para imagem, a OpenAI ou o Gemini antes dos serviços de mídia. Na ElevenLabs, o modelo é o id de uma voz, sound-effects ou music.':
-    'On automatic, the first service with a key and a default model is used: for images, OpenAI or Gemini before the media services. On ElevenLabs, the model is a voice id, sound-effects or music.',
+  'No automático, usa o primeiro com chave que tenha modelo padrão: para imagem, a OpenAI ou o Gemini antes dos serviços de mídia; para vídeo e áudio, os serviços de mídia antes do Veo (chave do Gemini) e da voz da OpenAI. Na ElevenLabs, o modelo é o id de uma voz, sound-effects ou music.':
+    'On automatic, the first with a key and a default model is used: for images, OpenAI or Gemini before the media services; for video and audio, the media services before Veo (Gemini key) and OpenAI\'s voice. On ElevenLabs, the model is a voice id, sound-effects or music.',
   'O arquivo não pôde ser baixado para o app; fica no link do serviço, que pode expirar.':
     'The file could not be downloaded into the app; it stays at the service\'s link, which may expire.',
   'Gerando vídeo…': 'Generating video…',
@@ -653,10 +653,10 @@ export const en: Record<string, string> = {
   'Informe o modelo em Configurações → Mídia.': 'Enter the model in Settings → Media.',
   'Configure uma chave da OpenAI, do Gemini ou de um serviço de mídia para gerar imagens.':
     'Set up an OpenAI, Gemini or media service key to generate images.',
-  'Configure a chave do fal.ai, do Replicate ou da WaveSpeedAI, ou escolha o serviço e o modelo de vídeo em Configurações → Mídia.':
-    'Set up a fal.ai, Replicate or WaveSpeedAI key, or choose the video service and model in Settings → Media.',
-  'Configure a chave da ElevenLabs, do fal.ai ou do Replicate, ou escolha o serviço de áudio em Configurações → Mídia.':
-    'Set up an ElevenLabs, fal.ai or Replicate key, or choose the audio service in Settings → Media.',
+  'Configure a chave do Gemini (Veo), do fal.ai, do Replicate ou da WaveSpeedAI, ou escolha o serviço e o modelo de vídeo em Configurações → Mídia.':
+    'Set up a Gemini (Veo), fal.ai, Replicate or WaveSpeedAI key, or choose the video service and model in Settings → Media.',
+  'Configure a chave da OpenAI, da ElevenLabs, do fal.ai ou do Replicate, ou escolha o serviço de áudio em Configurações → Mídia.':
+    'Set up an OpenAI, ElevenLabs, fal.ai or Replicate key, or choose the audio service in Settings → Media.',
   'As opções do modelo não são um objeto JSON válido.':
     'The model options are not a valid JSON object.',
   'Não foi possível conectar a {name}.': 'Could not connect to {name}.',
@@ -668,4 +668,7 @@ export const en: Record<string, string> = {
   'o conteúdo foi barrado pela moderação': 'the content was blocked by moderation',
   'na fila: {position}': 'in queue: {position}',
   'gerando': 'generating',
+  'Informe a chave de {name} em Configurações → Provedores.': 'Enter the {name} key in Settings → Providers.',
+  'O vídeo foi gerado, mas não pôde ser baixado do Gemini.':
+    'The video was generated, but could not be downloaded from Gemini.',
 }

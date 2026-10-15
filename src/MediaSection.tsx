@@ -30,6 +30,14 @@ function kindName(kind: MediaKind): string {
   return kind === 'image' ? t('Imagem') : kind === 'video' ? t('Vídeo') : t('Áudio')
 }
 
+// Options worth knowing about, shown in the empty field.
+const OPTION_EXAMPLES: Record<string, Partial<Record<MediaKind, string>>> = {
+  openai: { audio: '{"voice": "coral", "instructions": "Fale com entusiasmo"}' },
+  gemini: { video: '{"aspectRatio": "9:16", "durationSeconds": 8, "resolution": "1080p"}' },
+  elevenlabs: { audio: '{"voice_settings": {"stability": 0.5}}' },
+  fal: { video: '{"duration": "5", "aspect_ratio": "16:9"}' },
+}
+
 function isJsonObject(text: string): boolean {
   if (!text.trim()) return true
   try {
@@ -201,7 +209,9 @@ function KindChoice(props: Props & { kind: MediaKind; voices: Voice[] }) {
             aria-label={t('Opções do modelo de {kind}', { kind: kindName(kind).toLowerCase() })}
             rows={3}
             className="mt-1 font-mono text-xs"
-            placeholder={kind === 'video' ? '{"duration": 5, "aspect_ratio": "16:9"}' : '{}'}
+            placeholder={
+              OPTION_EXAMPLES[choice.source]?.[kind] ?? (kind === 'video' ? '{"duration": 5}' : '{}')
+            }
             value={choice.options}
             onChange={(e) => set({ options: e.target.value })}
           />
@@ -241,7 +251,7 @@ export default function MediaSection(props: Props) {
         ))}
         <p className={hint}>
           {t(
-            'No automático, usa o primeiro serviço com chave que tenha modelo padrão: para imagem, a OpenAI ou o Gemini antes dos serviços de mídia. Na ElevenLabs, o modelo é o id de uma voz, sound-effects ou music.',
+            'No automático, usa o primeiro com chave que tenha modelo padrão: para imagem, a OpenAI ou o Gemini antes dos serviços de mídia; para vídeo e áudio, os serviços de mídia antes do Veo (chave do Gemini) e da voz da OpenAI. Na ElevenLabs, o modelo é o id de uma voz, sound-effects ou music.',
           )}
         </p>
       </section>
