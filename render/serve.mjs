@@ -15,6 +15,10 @@
 //   POST /render        {"html","name","audio":{"name","data"(base64)}?,"lufs"?}
 //                       answers NDJSON lines: {"frame","frames"}..., then
 //                       {"done":true,"id","name","path"} or {"error"}
+//   POST /short         {"project","name","html","format","narration","music"?,
+//                        "musicVolume"?,"scenes":[{"file","duration"}]}: a short
+//                       video from files of the project, into its videos/;
+//                       answers like /render
 //   GET  /video/<id>    the MP4
 
 import { randomUUID } from 'node:crypto'
@@ -25,6 +29,7 @@ import { basename, dirname, extname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { allowed, projectsRoot } from '../server/projects.mjs'
 import { freeName, render } from './render.mjs'
+import { renderShort } from './short.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const DEFAULT_ORIGINS = ['http://localhost:5173', 'http://localhost:4173']
@@ -116,7 +121,7 @@ export function renderHandler(config, log = console.log) {
       return true
     }
 
-    if (req.method !== 'POST' || url !== '/render') return false
+    if (req.method !== 'POST' || (url !== '/render' && url !== '/short')) return false
     if (busy) {
       res.writeHead(409, { ...headers, 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ error: 'A video is already being rendered.' }))
@@ -126,9 +131,30 @@ export function renderHandler(config, log = console.log) {
     res.writeHead(200, { ...headers, 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-store' })
     const send = (line) => res.write(JSON.stringify(line) + '\n')
     let work
+    const progress = () => {
+      let last = 0
+      return (frame, frames) => {
+        if (frame === frames || Date.now() - last > 250) {
+          last = Date.now()
+          send({ frame, frames })
+        }
+      }
+    }
     try {
       const job = await body(req)
       if (typeof job.html !== 'string' || !job.html.trim()) throw new Error('nothing to render')
+      if (url === '/short') {
+        if (typeof job.project !== 'string' || !(await allowed(projectsRoot(), job.project)))
+          throw new Error('A short video is made from a project folder.')
+        const into = join(job.project, 'videos')
+        await mkdir(into, { recursive: true })
+        send({ step: 'clips' })
+        const path = await renderShort({ ...job, out: freeName(join(into, `${safeStem(job.name)}.mp4`)) }, log, progress())
+        const id = randomUUID()
+        videos.set(id, path)
+        send({ done: true, id, name: basename(path), path })
+        return true
+      }
       const stem = safeStem(job.name)
       work = await mkdtemp(join(tmpdir(), 'tsrs-render-'))
       const input = join(work, `${stem}.html`)

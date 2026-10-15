@@ -48,7 +48,7 @@ export default function ToolCallBlock({ part, onApprove }: Props) {
           {waiting
             ? t('aguardando permissão')
             : part.status === 'running'
-              ? t('executando…')
+              ? part.progress || t('executando…')
               : failed
                 ? t('falhou')
                 : t('concluída')}

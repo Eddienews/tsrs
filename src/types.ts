@@ -62,6 +62,8 @@ export interface ToolPart {
   result?: string
   error?: boolean
   status: 'approval' | 'running' | 'done'
+  // What a long tool is doing now, such as "montagem 40%".
+  progress?: string
 }
 
 export interface Source {

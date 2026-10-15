@@ -5,6 +5,8 @@ import { chromium, defineConfig } from '@playwright/test'
 
 const PORT = 5174
 const EXT_PORT = 5175
+// The stand-in for Pexels in the short video test.
+const STOCK_PORT = 5179
 
 // CHROMIUM_PATH picks a browser by hand; without it, Playwright's own Chromium
 // is used when installed (npx playwright install chromium), and otherwise the
@@ -46,6 +48,9 @@ export default defineConfig({
       TSRS_RENDERS: join(tmpdir(), 'tsrs-e2e-renders'),
       TSRS_PROJECTS: join(tmpdir(), 'tsrs-e2e-projects'),
       TSRS_EXTENSIONS: join(tmpdir(), port === PORT ? 'tsrs-e2e-no-extensions' : `tsrs-e2e-extensions-${process.pid}`),
+      // Stock video comes from a stand-in the short video test starts.
+      TSRS_PEXELS_API: `http://127.0.0.1:${STOCK_PORT}`,
+      TSRS_STOCK_HOSTS: `127.0.0.1:${STOCK_PORT}`,
     },
   })),
 })

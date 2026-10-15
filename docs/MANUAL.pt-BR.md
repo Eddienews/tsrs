@@ -331,6 +331,45 @@ Precisa do `npm run dev` rodando e do ffmpeg instalado. Peça ajustes à vontade
 ("deixe o título 1 segundo mais cedo", "troque a cor para laranja"): cada nova
 versão vira um MP4 novo, sem apagar os anteriores.
 
+### Vídeo curto (Reels, TikTok, Shorts)
+
+Um vídeo narrado, com imagens de banco e legendas palavra a palavra, feito a
+partir de um tema:
+
+> "Faça um vídeo curto de 30 segundos sobre os benefícios do café, para o
+> Instagram, com música calma e o fechamento 'Siga @minhamarca'."
+
+O modelo escreve o roteiro em cenas (o que é dito e o que aparece) e o TSRS:
+
+1. **narra** com a voz escolhida em **Configurações → Mídia → Leitura em voz alta** (ou o serviço de
+   áudio), sabendo o tempo de cada palavra;
+2. **busca um trecho de vídeo** por cena no Pexels ou no Pixabay e baixa para
+   `midia/stock/`;
+3. **monta** no formato pedido (9:16, 16:9 ou 1:1): cada trecho cortado na duração
+   da sua frase, **legendas palavra a palavra** em destaque laranja, o título no
+   começo, uma barra de progresso e o cartão final com a sua chamada;
+4. põe a **música** por baixo, abaixando sozinha quando a voz fala (gerada pela
+   ElevenLabs, ou um arquivo seu da pasta do projeto);
+5. salva o MP4 em `videos/` e os **créditos** de cada trecho em `CREDITOS.md`.
+
+O vídeo aparece na própria resposta, pronto para baixar.
+
+**O que precisa:**
+
+- a pasta do projeto ligada e o TSRS aberto pelo `npm run dev`, com o ffmpeg;
+- uma chave do **Pexels** e/ou do **Pixabay** (gratuitas) em **Configurações →
+  Mídia → Vídeos de banco**;
+- uma voz de serviço: **ElevenLabs** (os tempos das palavras vêm junto com a voz)
+  ou OpenAI/Gemini. Nessas, com uma chave da OpenAI ou do Groq o TSRS transcreve
+  a narração para acertar os tempos; sem elas, os tempos são estimados.
+
+**Dicas:** cerca de 2,5 palavras por segundo (30 s ≈ 75 palavras, 4 a 7 cenas).
+Peça buscas visuais concretas ("mãos servindo café", "cidade ao amanhecer").
+Para trocar um trecho, peça "troque a imagem da cena 3 por algo com pessoas" e o
+TSRS monta de novo. Os vídeos do Pexels e do Pixabay podem ser usados de graça,
+inclusive comercialmente; dar crédito não é obrigatório, mas o `CREDITOS.md`
+fica pronto se você quiser.
+
 ## 8. Imagem, vídeo, voz e música
 
 Em **Configurações → Mídia** você cola as chaves dos serviços de mídia

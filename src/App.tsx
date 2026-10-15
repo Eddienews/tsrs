@@ -108,6 +108,8 @@ import {
 } from './stream'
 import { SUMMARY_PROMPT, contextResetMark, sinceSummary, withSummary } from './summary'
 import { agentParams, agentPlugins, agentSkills, findMention, withReply } from './agents'
+import { stockToolSet } from './stock'
+import { narrator, shortToolSet } from './shortTool'
 import {
   hashOf,
   itemsOf,
@@ -1465,6 +1467,8 @@ export default function App() {
         toolset = mergeTools([
           ...(sharedCanvas ? [canvasTools(meta.id)] : []),
           ...(project ? [projectTools(meta.id, usings[0].model)] : []),
+          ...(project ? [stockTools(meta.id, usings[0].model)].filter((set): set is ToolSet => !!set) : []),
+          ...(project ? [shortTools(meta.id, first.id, usings[0].model)].filter((set): set is ToolSet => !!set) : []),
           ...(remember ? [memoryTools()] : []),
           ...(bases.length ? [knowledgeTools(bases)] : []),
           ...(skillsOn.length ? [skillTools()] : []),
@@ -1593,6 +1597,50 @@ export default function App() {
       return runProjectTool(project, call, (written) => {
         void saveFiles(project.path, [{ name: 'NOTAS.md', content: historyLine(written, who, new Date()), append: true }])
       })
+    })
+  }
+
+  // Stock video saved into the project, credited in CREDITOS.md.
+  function stockTools(chatId: string, who: string): ToolSet | null {
+    return stockToolSet(
+      settingsRef.current,
+      () => findMeta(chatId)?.project,
+      (files, credits) => {
+        const project = findMeta(chatId)?.project
+        if (!project) return
+        void saveFiles(project.path, [
+          { name: 'CREDITOS.md', content: `${credits.join('\n')}\n`, append: true },
+          { name: 'NOTAS.md', content: historyLine(files, who, new Date()), append: true },
+        ])
+      },
+    )
+  }
+
+  // Short videos made in the project; the video shows in the reply as it is done.
+  function shortTools(chatId: string, replyId: string, who: string): ToolSet | null {
+    const current = settingsRef.current
+    const patchReply = (patch: (m: Message) => Message) => patchThread(chatId, (thread) => patchMessage(thread, replyId, patch))
+    return shortToolSet({
+      settings: current,
+      project: () => findMeta(chatId)?.project,
+      voice: narrator(current, locked, mediaTargets.audio),
+      musicTarget: current.mediaKeys.elevenlabs?.trim() ? { source: 'elevenlabs', model: 'music', options: '' } : null,
+      onStep: (callId, progress) =>
+        patchReply((m) => ({
+          ...m,
+          parts: m.parts?.map((p) => (p.type === 'tool' && p.id === callId ? { ...p, progress } : p)),
+        })),
+      onDone: (result) => {
+        const project = findMeta(chatId)?.project
+        if (project) void saveFiles(project.path, [{ name: 'NOTAS.md', content: historyLine([result.file], who, new Date()), append: true }])
+        patchReply((m) => ({
+          ...m,
+          attachments: [
+            ...(m.attachments ?? []),
+            { id: crypto.randomUUID(), name: result.file.split('/').pop()!, mime: 'video/mp4', kind: 'video', data: '', url: result.url },
+          ],
+        }))
+      },
     })
   }
 

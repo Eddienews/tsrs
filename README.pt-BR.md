@@ -114,6 +114,10 @@ de pacotes) e do Chrome, do Edge ou do Chromium do Playwright.
 - **Vídeo motion**: um bloco `motion` é uma página HTML animada (CSS, anime.js,
   Lottie ou desenho próprio por quadro) com linha do tempo no preview; **Gerar
   MP4** renderiza quadro a quadro, com trilha. Veja [Vídeo motion](#vídeo-motion).
+- **Vídeos curtos** (Reels, TikTok, Shorts): peça um tema e o TSRS narra as cenas
+  com o tempo de cada palavra, busca trechos de vídeo gratuitos (Pexels, Pixabay)
+  para cada uma, corta na voz, põe legendas palavra a palavra, título, cartão final
+  e música por baixo da voz, e salva o MP4 com um `CREDITOS.md` na pasta do projeto.
 
 ### Mídia e voz
 - Imagens, vídeo, voz, música e efeitos sonoros com as chaves dos provedores

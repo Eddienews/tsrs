@@ -272,9 +272,17 @@ function MessageView(props: Props) {
       className={cn('message group flex scroll-mt-16 flex-col gap-1', message.role, isUser && 'items-end')}
     >
       {message.attachments?.length && !image ? (
-        <div className="flex flex-wrap justify-end gap-2">
+        <div className={cn('flex flex-wrap gap-2', isUser ? 'justify-end' : 'justify-start')}>
           {message.attachments.map((a) =>
-            a.kind === 'audio' ? (
+            a.kind === 'video' ? (
+              <video
+                key={a.id}
+                controls
+                src={sourceOf(a)}
+                aria-label={a.name}
+                className="made-video max-h-[32rem] max-w-full rounded-md border bg-black"
+              />
+            ) : a.kind === 'audio' ? (
               <div
                 key={a.id}
                 className="attached-audio flex w-80 max-w-full flex-col gap-1.5 rounded-md border bg-card px-2 py-1.5 text-xs"
