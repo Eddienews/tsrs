@@ -64,9 +64,12 @@ cada seção é a ordem sugerida.
       do Gemini
 - [x] Mostrar o custo estimado antes de gerar (Veo, fal.ai e Runware; os outros
       serviços só informam depois)
-- [ ] Mais serviços com API oficial, cada um testado quanto a CORS: Black Forest
-      Labs, Stability, Ideogram, Recraft, Luma, Runway, Kling, MiniMax, Cartesia,
-      Hume, Deepgram (sem Midjourney, Suno e Udio, que não têm API oficial)
+- [x] Mais serviços com API oficial: Stability, Black Forest Labs (pelo proxy),
+      MiniMax (vídeo e voz), Cartesia e o Grok Imagine da xAI (imagem e vídeo)
+- [ ] Ainda de fora: Luma (a API está mudando para a "Agents API"), Runway (só
+      documenta vídeo a partir de imagem), Ideogram, Recraft, Kling oficial e
+      Hume (não aceitam o navegador; precisariam do proxy), Deepgram (sem vozes em
+      português). Midjourney, Suno e Udio não têm API oficial
 
 ## A confirmar com provedor real
 
@@ -84,7 +87,8 @@ cada seção é a ordem sugerida.
 - [ ] Veo com uma chave do Gemini (o acesso aos modelos preview pode ser
       limitado) e a voz da OpenAI em português
 - [ ] Serviços de mídia com chaves reais (testados só com respostas simuladas):
-      ElevenLabs, Runware, fal.ai, Replicate e Higgsfield pelo proxy, WaveSpeedAI;
+      ElevenLabs, Runware, fal.ai, Replicate e Higgsfield pelo proxy, WaveSpeedAI,
+      Stability, Black Forest Labs, MiniMax, Cartesia e o Grok Imagine da xAI;
       conferir os modelos padrão, se o armazenamento do Runware deixa baixar os
       arquivos e o formato exato das respostas
 - [ ] Memória com um modelo real: se ele salva fatos úteis sem exagerar

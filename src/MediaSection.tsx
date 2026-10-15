@@ -41,6 +41,11 @@ const OPTION_EXAMPLES: Record<string, Partial<Record<MediaKind, string>>> = {
   },
   elevenlabs: { audio: '{"voice_settings": {"stability": 0.5}}' },
   fal: { video: '{"duration": "5", "aspect_ratio": "16:9"}' },
+  stability: { image: '{"aspect_ratio": "16:9"}' },
+  bfl: { image: '{"width": 1440, "height": 1024}' },
+  minimax: { video: '{"resolution": "768P", "duration": 6}' },
+  cartesia: { audio: '{"language": "es"}' },
+  xai: { video: '{"duration": 6}' },
 }
 
 function isJsonObject(text: string): boolean {
@@ -122,9 +127,13 @@ function KeyCard(props: Props & { service: MediaService; onVoices: (voices: Voic
         />
       </div>
       {service.id === 'higgsfield' && (
+        <p className={hint}>{t('Escreva o id e o segredo da chave separados por dois-pontos.')}</p>
+      )}
+      {service.needsProxy && (
         <p className={hint}>
           {t(
-            'Escreva o id e o segredo da chave separados por dois-pontos. A API da Higgsfield não aceita chamadas do navegador: ela só funciona com o proxy local rodando (npm run proxy).',
+            'A API de {name} não aceita chamadas do navegador: ela só funciona com o proxy local rodando (npm run proxy).',
+            { name: service.name },
           )}
         </p>
       )}
@@ -328,7 +337,7 @@ export default function MediaSection(props: Props) {
         ))}
         <p className={hint}>
           {t(
-            'No automático, usa o primeiro com chave que tenha modelo padrão: para imagem, a OpenAI ou o Gemini antes dos serviços de mídia; para vídeo e áudio, os serviços de mídia antes do Veo (chave do Gemini) e da voz da OpenAI. Na ElevenLabs, o modelo é o id de uma voz, sound-effects ou music.',
+            'No automático, usa o primeiro com chave que tenha modelo padrão: para imagem, os provedores antes dos serviços de mídia; para vídeo e áudio, os serviços de mídia antes dos provedores. No áudio da ElevenLabs, da MiniMax e da Cartesia, o modelo é o id de uma voz (na ElevenLabs, também sound-effects ou music).',
           )}
         </p>
       </section>

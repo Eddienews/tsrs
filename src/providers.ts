@@ -95,6 +95,8 @@ export const PROVIDERS: Provider[] = [
     baseUrl: 'https://api.x.ai/v1',
     keyRequired: true,
     efforts: [],
+    image: 'grok-imagine-image-2.0',
+    video: 'grok-imagine-video-1.5',
   },
   {
     ...openaiCompatible,

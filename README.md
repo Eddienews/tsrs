@@ -56,10 +56,11 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
   botão a resume; dali em diante só o resumo e as mensagens seguintes são
   enviados.
 - Geração de imagem, vídeo e áudio pelos botões Imagem, Vídeo e Áudio do campo
-  de envio: imagens pela OpenAI (GPT Image) ou pelo Gemini (Imagen), vídeo pelo
-  Veo e voz pela OpenAI ou pelo Gemini com as chaves dos provedores, e tudo isso
-  também por serviços de mídia com a chave do próprio usuário (ElevenLabs,
-  Runware, fal.ai, Replicate, WaveSpeedAI e Higgsfield), escolhidos em
+  de envio. Com as chaves dos provedores: imagens pela OpenAI (GPT Image), pelo
+  Gemini (Imagen) e pela xAI (Grok Imagine), vídeo pelo Veo e pelo Grok Imagine,
+  e voz pela OpenAI e pelo Gemini. E por serviços de mídia com a chave do próprio
+  usuário: ElevenLabs, Runware, fal.ai, Replicate, WaveSpeedAI, Higgsfield,
+  Stability AI, Black Forest Labs (FLUX), MiniMax e Cartesia, escolhidos em
   Configurações → Mídia, com o modelo e opções em JSON. Vídeos esperam na fila
   do serviço mostrando o progresso; parar a resposta cancela o pedido na fal.ai,
   no Replicate e na Higgsfield. O arquivo gerado é baixado e fica na conversa.
@@ -258,8 +259,8 @@ estilo do código e como mandar um pull request.
   somam no máximo cerca de 1,5 MB.
 - O custo do que é gerado só entra na conta da conversa quando o serviço o
   informa (o Runware informa; os outros não).
-- Replicate e Higgsfield não aceitam chamadas do navegador e precisam do proxy
-  local. Quando o armazenamento de um serviço não deixa o navegador baixar o
+- Replicate, Higgsfield e Black Forest Labs não aceitam chamadas do navegador e
+  precisam do proxy local. Quando o armazenamento de um serviço não deixa o navegador baixar o
   arquivo, ele fica só no link do serviço, que expira (em geral em 7 dias).
 - Vídeos e áudios gerados ficam guardados na conversa e entram no backup e na
   sincronização, o que pode deixá-los grandes.

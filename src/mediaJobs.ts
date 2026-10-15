@@ -1,4 +1,4 @@
-import { t } from './i18n'
+import { locale, t } from './i18n'
 import { mediaService, type MediaService, type MediaTarget } from './media'
 import { connection } from './providers'
 import { generateImage } from './stream'
@@ -89,7 +89,8 @@ async function call(
   try {
     const json = JSON.parse(text)
     message = json.detail?.message ?? json.detail ?? json.message ?? json.error?.message ?? json.error ?? text
-    if (Array.isArray(json.errors) && json.errors[0]?.message) message = json.errors[0].message
+    if (Array.isArray(json.errors) && json.errors[0]) message = json.errors[0].message ?? json.errors[0]
+    if (json.base_resp?.status_msg) message = json.base_resp.status_msg
     if (typeof message !== 'string') message = JSON.stringify(message)
   } catch {
     // not JSON
@@ -435,6 +436,131 @@ function wavespeedQueue(model: string, key: string, input: object): Queue {
   }
 }
 
+// Grok Imagine videos, with the xAI key: a request polled until done.
+function grokVideoQueue(job: Job, base: string, key: string, options: object): Queue {
+  return {
+    submit: `${base}/videos/generations`,
+    body: { model: job.target.model, prompt: job.prompt, ...options },
+    headers: { Authorization: `Bearer ${key}` },
+    statusUrl: (ticket) => ticket.request_id && `${base}/videos/${ticket.request_id}`,
+    read(status) {
+      if (status.status === 'done') return { state: 'done' }
+      if (['failed', 'expired'].includes(status.status)) {
+        return { state: 'failed', error: String(status.error?.message ?? status.error ?? status.status) }
+      }
+      return { state: 'waiting', progress: t('gerando') }
+    },
+    result: (_ticket, status) => status.video,
+  }
+}
+
+// Black Forest Labs (FLUX): the model is the endpoint, polled on the URL the
+// submission gives. The image's signed link expires in 10 minutes and refuses
+// browsers, so it is downloaded through the local proxy.
+function bflQueue(model: string, key: string, input: object): Queue {
+  return {
+    submit: `https://api.bfl.ai/v1/${model.replace(/^\/+/, '')}`,
+    body: input,
+    headers: { 'x-key': key },
+    statusUrl: (ticket) => ticket.polling_url,
+    read(status) {
+      const state = String(status.status)
+      if (state === 'Ready') return { state: 'done' }
+      if (/moderated/i.test(state)) return { state: 'failed', error: moderated() }
+      if (['Error', 'Failed', 'Task not found'].includes(state)) {
+        return { state: 'failed', error: String(status.details ?? state) }
+      }
+      return { state: 'waiting', progress: state === 'Pending' ? t('gerando') : undefined }
+    },
+    result: (_ticket, status) => status.result?.sample,
+  }
+}
+
+// Stability's image endpoints take a form and answer with the image itself.
+async function stability(job: Job, key: string, options: Record<string, unknown>): Promise<GeneratedMedia> {
+  const form = new FormData()
+  form.append('prompt', job.prompt)
+  form.append('output_format', 'png')
+  for (const [name, value] of Object.entries(options)) form.append(name, String(value))
+  const res = await call(
+    mediaService('stability')!,
+    `https://api.stability.ai/v2beta/stable-image/generate/${job.target.model.replace(/^\/+/, '')}`,
+    { method: 'POST', headers: { Authorization: `Bearer ${key}`, Accept: 'image/*' }, body: form, signal: job.signal },
+  )
+  const blob = await res.blob()
+  return { mime: blob.type.startsWith('image/') ? blob.type : 'image/png', data: await toBase64(blob) }
+}
+
+// MiniMax video (H3): a task polled until it succeeds; a queued one can be
+// cancelled.
+function minimaxQueue(job: Job, key: string, options: object): Queue {
+  const base = 'https://api.minimax.io/v2'
+  return {
+    submit: `${base}/video_generation`,
+    body: { model: job.target.model, content: [{ type: 'text', text: job.prompt }], ...options },
+    headers: { Authorization: `Bearer ${key}` },
+    statusUrl: (ticket) => ticket.task_id && `${base}/query/video_generation/${ticket.task_id}`,
+    cancel: (ticket) =>
+      ticket.task_id && { url: `${base}/video_generation/${ticket.task_id}`, method: 'DELETE' },
+    read(status) {
+      if (status.status === 'succeeded') return { state: 'done' }
+      if (['failed', 'cancelled'].includes(status.status)) {
+        return { state: 'failed', error: String(status.error?.message ?? status.status) }
+      }
+      return { state: 'waiting', progress: status.status === 'running' ? t('gerando') : undefined }
+    },
+    result: (_ticket, status) => status.content,
+  }
+}
+
+// MiniMax speech: the model field is a voice; the audio comes back as hex.
+async function minimaxSpeech(job: Job, key: string, options: Record<string, unknown>) {
+  const res = await call(mediaService('minimax')!, 'https://api.minimax.io/v1/t2a_v2', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'speech-2.8-hd',
+      text: job.prompt,
+      voice_setting: { voice_id: job.target.model },
+      audio_setting: { format: 'mp3' },
+      language_boost: 'auto',
+      ...options,
+    }),
+    signal: job.signal,
+  })
+  const json = await res.json()
+  if (json.base_resp?.status_code) throw new Error(`MiniMax: ${json.base_resp.status_msg}`)
+  const hex = String(json.data?.audio ?? '')
+  if (!hex) throw new Error(t('{name} não devolveu nenhum arquivo.', { name: 'MiniMax' }))
+  const bytes = new Uint8Array(hex.length / 2)
+  for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
+  return { mime: 'audio/mpeg', data: await toBase64(new Blob([bytes])) }
+}
+
+// Cartesia speech: the model field is a voice; the language follows the app's
+// unless the options say otherwise.
+async function cartesia(job: Job, key: string, options: Record<string, unknown>) {
+  const res = await call(mediaService('cartesia')!, 'https://api.cartesia.ai/tts/bytes', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${key}`,
+      'Cartesia-Version': '2026-08-14',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model_id: 'sonic-3.6',
+      transcript: job.prompt,
+      voice: { id: job.target.model },
+      output_format: { container: 'mp3', sample_rate: 44100, bit_rate: 128000 },
+      ...(options.locale ? {} : { language: locale().slice(0, 2) }),
+      ...options,
+    }),
+    signal: job.signal,
+  })
+  const blob = await res.blob()
+  return { mime: 'audio/mpeg', data: await toBase64(blob) }
+}
+
 // Veo, through the Gemini API with the Gemini key: a long-running operation
 // polled until done. The video's link needs the key, so the file is fetched
 // with it and never kept as a link, which would carry the key into backups.
@@ -546,6 +672,10 @@ export async function generateMedia(job: Job): Promise<GeneratedMedia> {
     // speech from OpenAI or Gemini.
     const conn = connection(job.settings, job.target.source)
     if (job.kind === 'audio') return providerSpeech(job, options)
+    if (job.kind === 'video' && conn.provider.id === 'xai') {
+      const base = conn.baseUrl.replace(/\/+$/, '')
+      return queued(job, { name: 'xAI' }, grokVideoQueue(job, base, conn.apiKey, options))
+    }
     if (job.kind === 'video') {
       const base = conn.baseUrl.replace(/\/+$/, '').replace(/\/openai$/, '')
       return queued(job, { name: 'Veo' }, veoQueue(job, base, conn.apiKey, options))
@@ -568,6 +698,16 @@ export async function generateMedia(job: Job): Promise<GeneratedMedia> {
       return queued(job, service, replicateQueue(job.target.model, key, input))
     case 'wavespeed':
       return queued(job, service, wavespeedQueue(job.target.model, key, input))
+    case 'bfl':
+      return queued(job, service, bflQueue(job.target.model, key, input))
+    case 'stability':
+      return stability(job, key, options)
+    case 'minimax':
+      return job.kind === 'audio'
+        ? minimaxSpeech(job, key, options)
+        : queued(job, service, minimaxQueue(job, key, options))
+    case 'cartesia':
+      return cartesia(job, key, options)
   }
 }
 
