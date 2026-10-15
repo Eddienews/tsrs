@@ -140,7 +140,11 @@ manager) and Chrome, Edge or Playwright's Chromium.
 - Agents: personas with a model, parameters (temperature, max tokens,
   reasoning), tools, skills and plugins, files, knowledge and starter prompts;
   call one for a single message with **@name**. Four come with the app, along
-  with ready-made prompts with `{{fields}}`.
+  with ready-made prompts with `{{fields}}`, and a community gallery adds more
+  than 50 others, by category.
+- Example skills and plugins that install with one click (Extensions →
+  Examples), including free no-key tools: exchange rates, holidays, weather and
+  Wikipedia.
 - **Prompt chains**: saved prompts with steps, each sent when the previous
   reply is done, with `{{resposta}}` for that reply.
 - Memory (optional): facts the model keeps about you, in a list you can edit.

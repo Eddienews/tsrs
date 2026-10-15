@@ -1,0 +1,10 @@
+{
+  "name": "clima",
+  "description": "O tempo agora numa cidade, em uma linha, em graus Celsius (wttr.in).",
+  "parameters": {
+    "type": "object",
+    "properties": { "cidade": { "type": "string", "description": "Nome da cidade, ex.: Curitiba" } },
+    "required": ["cidade"]
+  },
+  "http": { "url": "https://wttr.in/{cidade}?m&format=4&lang=pt", "method": "GET" }
+}

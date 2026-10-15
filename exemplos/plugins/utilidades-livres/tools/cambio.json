@@ -1,0 +1,13 @@
+{
+  "name": "cambio",
+  "description": "Cotação do dia entre duas moedas (Banco Central Europeu, pela Frankfurter). Ex.: base USD, symbols BRL.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "base": { "type": "string", "description": "Moeda de origem, código ISO (USD, EUR, BRL…)" },
+      "symbols": { "type": "string", "description": "Moedas de destino, separadas por vírgula" }
+    },
+    "required": ["base", "symbols"]
+  },
+  "http": { "url": "https://api.frankfurter.dev/v1/latest", "method": "GET" }
+}

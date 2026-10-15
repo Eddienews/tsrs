@@ -3,9 +3,12 @@
 
 import { sameOrigin } from '../render/vite-plugin.mjs'
 import {
+  examplesRoot,
   extensionsRoot,
+  installExample,
   installPlugin,
   installSkill,
+  listExamples,
   listPlugins,
   listSkills,
   readSkill,
@@ -39,7 +42,7 @@ function send(res, status, value) {
 
 // Answers the extension routes, relative to where it is mounted; false for others.
 // `extra` handles more routes (the schedule) with the same rules.
-export function extensionsHandler(root = extensionsRoot(), extra = async () => false) {
+export function extensionsHandler(root = extensionsRoot(), extra = async () => false, examples = examplesRoot()) {
   return async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://tsrs.local')
     const path = url.pathname
@@ -51,6 +54,7 @@ export function extensionsHandler(root = extensionsRoot(), extra = async () => f
         if (path === '/skill') return send(res, 200, await readSkill(root, q('id'))), true
         if (path === '/skill-file') return send(res, 200, { content: await readSkillFile(root, q('id'), q('file')) }), true
         if (path === '/plugins') return send(res, 200, { plugins: await listPlugins(root) }), true
+        if (path === '/examples') return send(res, 200, await listExamples(root, examples)), true
         return extra(req, res, url, null)
       }
       if (req.method !== 'POST') return false
@@ -59,6 +63,7 @@ export function extensionsHandler(root = extensionsRoot(), extra = async () => f
       if (path === '/skills/save') return send(res, 200, await saveSkill(root, job)), true
       if (path === '/skills/remove') return send(res, 200, { removed: await removeSkill(root, job.id) ?? job.id }), true
       if (path === '/plugins/install') return send(res, 200, await installPlugin(root, job.files ?? [])), true
+      if (path === '/examples/install') return send(res, 200, await installExample(root, examples, job.kind, job.id)), true
       if (path === '/plugins/remove') return send(res, 200, { removed: await removePlugin(root, job.id) ?? job.id }), true
       if (path === '/tools/save') return send(res, 200, await saveTool(root, job.tool ?? {})), true
       if (path === '/tools/http') return send(res, 200, await runHttpTool(root, job.plugin, job.tool, job.input)), true

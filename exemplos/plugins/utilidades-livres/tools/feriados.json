@@ -1,0 +1,13 @@
+{
+  "name": "feriados",
+  "description": "Feriados nacionais de um país num ano (Nager.Date). Ex.: ano 2026, pais BR.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "ano": { "type": "string", "description": "Ano com quatro dígitos" },
+      "pais": { "type": "string", "description": "Código do país com duas letras (BR, PT, US…)" }
+    },
+    "required": ["ano", "pais"]
+  },
+  "http": { "url": "https://date.nager.at/api/v3/PublicHolidays/{ano}/{pais}", "method": "GET" }
+}

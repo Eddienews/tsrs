@@ -496,6 +496,12 @@ Escreva um post para {{rede}} sobre {{assunto}}, em tom {{tom}}, com no máximo 
 
 Use pelo botão **Prompts salvos** da caixa de mensagem ou pela paleta (Ctrl+K).
 
+**Galeria da comunidade.** Em **Biblioteca → Prompts salvos**, o botão **Galeria
+da comunidade** mostra mais de 50 prompts prontos, por categoria (escrita,
+trabalho, estudo, programação, marketing, dados, criação e dia a dia). Busque,
+clique em **Adicionar** num prompt ou adicione todos os mostrados de uma vez; eles
+viram prompts seus, que você pode editar.
+
 **Encadear prompts.** Em **Adicionar etapa**, um prompt ganha etapas seguintes.
 Ao usá-lo, o TSRS manda a primeira, espera a resposta, manda a segunda e assim
 por diante. Escreva `{{resposta}}` numa etapa para incluir a resposta anterior.
@@ -539,6 +545,10 @@ Uma skill é um pacote de instruções (no mesmo formato `SKILL.md` das skills d
 Claude) que o modelo carrega **só quando a tarefa pede**. Ex.: "padrão de
 propostas comerciais da empresa", "guia de estilo do blog".
 
+- **Exemplos** (aba própria) instala com um clique as skills e os plugins que
+  vêm com o TSRS: escrita clara, ata de reunião, roteiro de vídeo curto e o
+  plugin **utilidades-livres** (câmbio, feriados, clima, Wikipédia, contagem de
+  palavras, os comandos `/resumo` e `/post` e o agente revisor técnico).
 - **Nova skill** para escrever uma no app.
 - **Instalar .zip, .skill ou SKILL.md** para usar uma pronta, inclusive skills
   feitas para o Claude.

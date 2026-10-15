@@ -1,0 +1,10 @@
+{
+  "name": "contar_palavras",
+  "description": "Conta palavras, caracteres e frases de um texto e estima o tempo de leitura e de fala.",
+  "parameters": {
+    "type": "object",
+    "properties": { "texto": { "type": "string" } },
+    "required": ["texto"]
+  },
+  "js": "const texto = String(input.texto || ''); const palavras = (texto.match(/\\S+/g) || []).length; const frases = (texto.match(/[.!?…]+(\\s|$)/g) || []).length || (palavras ? 1 : 0); return { palavras, caracteres: texto.length, frases, leitura_min: Math.ceil(palavras / 200), fala_seg: Math.round(palavras / 2.5) }"
+}

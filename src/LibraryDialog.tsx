@@ -19,6 +19,7 @@ import { t } from './i18n'
 import { listPlugins, listSkills, type Plugin, type Skill } from './extensions'
 import { PROVIDERS, getProvider } from './providers'
 import { missingStarters } from './starters'
+import CommunityGallery from './CommunityGallery'
 import type { AgentParams, Memory, Persona, PersonaTools, SavedPrompt, Settings } from './types'
 
 // Settings live in localStorage, which holds a few megabytes at most.
@@ -616,6 +617,13 @@ export default function LibraryDialog(props: Props) {
               {t('Use {{variável}} para campos preenchidos ao inserir o prompt.')}{' '}
               {t('Com etapas, o prompt vira um encadeamento: cada etapa é enviada quando a resposta anterior termina, e {{resposta}} traz essa resposta.')}
             </p>
+            <CommunityGallery
+              language={settings.language}
+              prompts={settings.prompts}
+              onAdd={(added) =>
+                onChange((s) => ({ ...s, prompts: [...s.prompts, ...added.filter((p) => !s.prompts.some((x) => x.id === p.id))] }))
+              }
+            />
             {settings.prompts.map((prompt) => (
               <Card
                 key={prompt.id}
