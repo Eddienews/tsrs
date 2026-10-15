@@ -351,6 +351,8 @@ export const en: Record<string, string> = {
   Reproduzir: 'Play',
   Tempo: 'Time',
   Trilha: 'Soundtrack',
+  'Ligar o som': 'Unmute',
+  'Tirar o som': 'Mute',
   'Branch: {branch}': 'Branch: {branch}',
   'Commit de {date}': 'Commit of {date}',
   '* com alterações ainda não registradas no git': '* with changes not yet committed to git',

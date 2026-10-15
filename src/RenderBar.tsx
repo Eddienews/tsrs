@@ -12,8 +12,13 @@ const PICK_FILE = '__file'
 interface Props {
   code: string
   name: string
-  // Audio already in the conversation.
+  // Audio of the conversation and files picked here.
   tracks: Track[]
+  // The soundtrack chosen, or '' for none; the timeline plays it too.
+  trackId: string
+  onTrack: (id: string) => void
+  // A file picked from the computer, to add to the tracks and choose.
+  onPick: (track: Track) => void
 }
 
 type State =
@@ -24,12 +29,11 @@ type State =
   | { step: 'done'; name: string; path: string; url: string }
   | { step: 'error'; message: string }
 
-// Picks a soundtrack and asks the local renderer (npm run render:serve) for
-// the MP4 of the composition.
+// Picks a soundtrack and asks the video renderer (inside npm run dev, or
+// npm run render:serve) for the MP4 of the composition.
 export default function RenderBar(p: Props) {
-  const [picked, setPicked] = useState<Track[]>([])
-  const tracks = [...picked, ...p.tracks]
-  const [trackId, setTrackId] = useState('')
+  const tracks = p.tracks
+  const trackId = p.trackId
   const [state, setState] = useState<State>({ step: 'idle' })
   const input = useRef<HTMLInputElement>(null)
   const track = tracks.find((item) => item.id === trackId) ?? null
@@ -50,8 +54,7 @@ export default function RenderBar(p: Props) {
       mime: file.type || 'audio/mpeg',
       data: await base64(file),
     }
-    setPicked((current) => [item, ...current])
-    setTrackId(item.id)
+    p.onPick(item)
   }
 
   async function start() {
@@ -85,7 +88,7 @@ export default function RenderBar(p: Props) {
             disabled={busy}
             onChange={(e) => {
               if (e.target.value === PICK_FILE) input.current?.click()
-              else setTrackId(e.target.value)
+              else p.onTrack(e.target.value)
             }}
           >
             <option value="">{t('Sem trilha')}</option>

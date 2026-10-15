@@ -10,4 +10,5 @@ export interface VersionInfo {
 }
 
 export function versionInfo(dev: boolean): VersionInfo
+export function gitStamp(root?: string): string
 export function tsrsVersion(): Plugin

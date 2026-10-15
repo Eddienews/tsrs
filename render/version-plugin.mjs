@@ -5,7 +5,7 @@
 // new number instead of keeping the one from when the server started.
 
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { readFileSync, statSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -15,7 +15,13 @@ const RESOLVED = '\0' + ID
 
 function git(args) {
   try {
-    return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+    // --no-optional-locks: asking must not rewrite the index, or the watch
+    // below would see its own question as a change.
+    return execFileSync('git', ['--no-optional-locks', ...args], {
+      cwd: ROOT,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim()
   } catch {
     return ''
   }
@@ -37,6 +43,27 @@ export function versionInfo(dev) {
   }
 }
 
+// When git's own files last changed: HEAD, the current branch's ref, the
+// packed refs and the index. Cheap to read every few seconds, unlike running
+// git, which would hold up the dev server on a slow disk.
+export function gitStamp(root = ROOT) {
+  const stamp = (path) => {
+    try {
+      return statSync(resolve(root, '.git', path)).mtimeMs
+    } catch {
+      return 0
+    }
+  }
+  let ref = ''
+  try {
+    ref = readFileSync(resolve(root, '.git', 'HEAD'), 'utf8').replace(/^ref:\s*/, '').trim()
+  } catch {
+    // Not a git folder.
+  }
+  const files = ['HEAD', 'index', 'packed-refs', ...(ref.startsWith('refs/') ? [ref] : [])]
+  return files.map((file) => `${file}:${stamp(file)}`).join('|')
+}
+
 export function tsrsVersion() {
   let dev = false
   return {
@@ -47,8 +74,12 @@ export function tsrsVersion() {
     resolveId: (id) => (id === ID ? RESOLVED : null),
     load: (id) => (id === RESOLVED ? `export default ${JSON.stringify(versionInfo(dev))}` : null),
     configureServer(server) {
+      let stamp = gitStamp()
       let last = JSON.stringify(versionInfo(true))
       const timer = setInterval(() => {
+        const next = gitStamp()
+        if (next === stamp) return
+        stamp = next
         const now = JSON.stringify(versionInfo(true))
         if (now === last) return
         last = now

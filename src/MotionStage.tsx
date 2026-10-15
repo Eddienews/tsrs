@@ -1,10 +1,10 @@
-import { Pause, Play, SkipBack } from 'lucide-react'
+import { Pause, Play, SkipBack, Volume2, VolumeX } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { Button } from '@/components/ui/button'
 import { t } from './i18n'
 import { PREVIEW_SOURCE, motionSettings, type MotionSettings } from './preview'
 import RenderBar from './RenderBar'
-import type { Track } from './videoRender'
+import { fadeGain, trackBlob, type Track } from './videoRender'
 
 // Tells the composition in the frame which time to show.
 export const MOTION_SOURCE = 'tsrs-motion'
@@ -37,6 +37,22 @@ export default function MotionStage(p: Props) {
   const timeRef = useRef(0)
   const boxRef = useRef<HTMLDivElement>(null)
   const [box, setBox] = useState({ width: 0, height: 0 })
+
+  // The soundtrack: chosen here, played with the timeline, sent with the render.
+  const [picked, setPicked] = useState<Track[]>([])
+  const tracks = [...picked, ...p.tracks]
+  const [trackId, setTrackId] = useState('')
+  const track = tracks.find((item) => item.id === trackId) ?? null
+  const [muted, setMuted] = useState(false)
+  const audioRef = useRef<HTMLAudioElement>(null)
+  const [audioUrl, setAudioUrl] = useState<string | null>(null)
+  useEffect(() => {
+    if (!track) return setAudioUrl(null)
+    const url = URL.createObjectURL(trackBlob(track))
+    setAudioUrl(url)
+    return () => URL.revokeObjectURL(url)
+    // A track's audio never changes; its id is enough.
+  }, [track?.id])
 
   // A new composition, or the same one loaded again, starts at the beginning.
   useEffect(() => {
@@ -71,21 +87,37 @@ export default function MotionStage(p: Props) {
     p.frameRef.current?.contentWindow?.postMessage({ source: MOTION_SOURCE, seek: time }, '*')
   }, [time, ready, p.frameRef])
 
-  // Playback advances the time with the clock and stops at the end.
+  // Playback advances the time and stops at the end. While the soundtrack
+  // plays, its position is the clock, so picture and sound stay together.
   useEffect(() => {
     if (!playing) return
+    const audio = audioRef.current
+    if (audio && audioUrl) {
+      audio.currentTime = timeRef.current
+      audio.volume = fadeGain(timeRef.current, settings.duration)
+      // A track shorter than the video simply ends; the clock goes on.
+      audio.play().catch(() => {})
+    }
     let frame = 0
     let last = performance.now()
     const tick = (now: number) => {
-      const next = Math.min(settings.duration, timeRef.current + (now - last) / 1000)
+      const sounding = audio && audioUrl && !audio.paused && !audio.ended
+      const next = Math.min(
+        settings.duration,
+        sounding ? audio.currentTime : timeRef.current + (now - last) / 1000,
+      )
       last = now
+      if (audio) audio.volume = fadeGain(next, settings.duration)
       setTime(next)
       if (next >= settings.duration) setPlaying(false)
       else frame = requestAnimationFrame(tick)
     }
     frame = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(frame)
-  }, [playing, settings.duration])
+    return () => {
+      cancelAnimationFrame(frame)
+      audio?.pause()
+    }
+  }, [playing, settings.duration, audioUrl])
 
   useLayoutEffect(() => {
     const element = boxRef.current
@@ -178,8 +210,36 @@ export default function MotionStage(p: Props) {
         >
           {formatTime(time)} / {formatTime(settings.duration)} s
         </span>
+        {audioUrl && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            aria-label={muted ? t('Ligar o som') : t('Tirar o som')}
+            title={muted ? t('Ligar o som') : t('Tirar o som')}
+            aria-pressed={muted}
+            onClick={() => setMuted(!muted)}
+          >
+            {muted ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
+          </Button>
+        )}
+        {audioUrl && <audio ref={audioRef} src={audioUrl} muted={muted} preload="auto" data-testid="motion-audio" />}
       </div>
-      <RenderBar code={p.code} name={p.name} tracks={p.tracks} />
+      <RenderBar
+        code={p.code}
+        name={p.name}
+        tracks={tracks}
+        trackId={trackId}
+        onTrack={(id) => {
+          setPlaying(false)
+          setTrackId(id)
+        }}
+        onPick={(item) => {
+          setPlaying(false)
+          setPicked((current) => [item, ...current])
+          setTrackId(item.id)
+        }}
+      />
     </div>
   )
 }

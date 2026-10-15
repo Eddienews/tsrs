@@ -40,6 +40,22 @@ export function chatTracks(messages: Message[]): Track[] {
   return tracks.reverse()
 }
 
+// The audio as a Blob, for an <audio> element of the preview.
+export function trackBlob(track: Pick<Track, 'mime' | 'data'>): Blob {
+  const binary = atob(track.data)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return new Blob([bytes], { type: track.mime || 'audio/mpeg' })
+}
+
+// Volume of the soundtrack at `time`: the same fade-out at the end that the
+// renderer applies (render/render.mjs), so the preview sounds like the MP4.
+export function fadeGain(time: number, duration: number): number {
+  const fade = Math.min(1.5, duration / 4)
+  if (time <= duration - fade) return 1
+  return Math.max(0, Math.min(1, (duration - time) / fade))
+}
+
 // A file name the renderer accepts for an audio type that came without one.
 export function trackFileName(track: Pick<Track, 'name' | 'mime'>): string {
   if (/\.(mp3|wav|m4a|aac|ogg|oga|opus|flac|webm)$/i.test(track.name)) return track.name

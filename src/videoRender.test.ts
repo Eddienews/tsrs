@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import type { Message } from './types'
-import { chatTracks, findRenderer, jsonLines, renderVideo, trackFileName } from './videoRender'
+import { chatTracks, fadeGain, findRenderer, jsonLines, renderVideo, trackBlob, trackFileName } from './videoRender'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -98,4 +98,16 @@ test('uses the renderer inside the TSRS server first, then the standalone one', 
     throw new TypeError('Failed to fetch')
   })
   expect(await findRenderer()).toBeNull()
+})
+
+test('the preview plays the track as the video will have it', async () => {
+  const blob = trackBlob({ mime: 'audio/wav', data: btoa('RIFF') })
+  expect(blob.type).toBe('audio/wav')
+  expect(await blob.text()).toBe('RIFF')
+  // The same fade-out as the renderer: 1.5 s, or a quarter of a short video.
+  expect(fadeGain(2, 6)).toBe(1)
+  expect(fadeGain(5.25, 6)).toBeCloseTo(0.5)
+  expect(fadeGain(6, 6)).toBe(0)
+  expect(fadeGain(1.5, 2)).toBeCloseTo(1)
+  expect(fadeGain(1.75, 2)).toBeCloseTo(0.5)
 })

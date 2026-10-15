@@ -169,6 +169,21 @@ test('the preview makes the MP4 with a soundtrack, inside TSRS', async ({ page }
     // npm run dev has the renderer built in: pick a track and make the video.
     await panel.getByLabel('Arquivo de áudio').setInputFiles(tone)
     await expect(panel.getByRole('combobox', { name: 'Trilha' })).toHaveText(/trilha\.wav/)
+
+    // The timeline plays the track too, and the track keeps the time.
+    const audio = panel.getByTestId('motion-audio')
+    await panel.getByRole('button', { name: 'Reproduzir' }).click()
+    await expect
+      .poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime))
+      .toBeGreaterThan(0.5)
+    await panel.getByRole('button', { name: 'Pausar' }).click()
+    expect(await audio.evaluate((element: HTMLAudioElement) => element.paused)).toBe(true)
+    const shown = Number((await panel.getByTestId('motion-time').textContent())!.split(' ')[0])
+    const heard = await audio.evaluate((element: HTMLAudioElement) => element.currentTime)
+    expect(Math.abs(shown - heard)).toBeLessThan(0.1)
+    await panel.getByRole('button', { name: 'Tirar o som' }).click()
+    expect(await audio.evaluate((element: HTMLAudioElement) => element.muted)).toBe(true)
+
     await panel.getByRole('button', { name: 'Gerar MP4' }).click()
     await expect(panel.getByText(/Quadro \d+ de 120/)).toBeVisible()
     const link = panel.getByRole('link', { name: /^Baixar motion-1(-\d+)?\.mp4$/ })

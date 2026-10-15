@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { versionInfo } from '../render/version-plugin.mjs'
+import { gitStamp, versionInfo } from '../render/version-plugin.mjs'
 import { VERSION, versionDetails, versionLabel } from './version'
 
 const base = { version: '0.2.0', commit: '16e03fe', branch: 'main', dirty: false, date: '2026-10-14T23:30:00-04:00', dev: false }
@@ -28,4 +28,9 @@ test('the running version comes from package.json and git', async () => {
   expect(info.version).toBe(pkg.version)
   // In a clone, the commit is a short hash.
   if (info.commit) expect(info.commit).toMatch(/^[0-9a-f]{7,}$/)
+})
+
+test('notices a commit by the dates of git files, without running git', () => {
+  expect(gitStamp()).toBe(gitStamp())
+  expect(gitStamp('/no/such/folder')).toBe('HEAD:0|index:0|packed-refs:0')
 })
