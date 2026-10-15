@@ -63,6 +63,7 @@ export function defaultSettings(): Settings {
       audio: { source: 'auto', model: '', options: '' },
     },
     mediaKeys: {},
+    readAloud: { source: 'browser', model: '', options: '' },
     embedProvider: 'off',
     embedModel: '',
     proxyUrl: 'http://localhost:8787',

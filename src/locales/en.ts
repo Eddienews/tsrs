@@ -671,4 +671,14 @@ export const en: Record<string, string> = {
   'Informe a chave de {name} em Configurações → Provedores.': 'Enter the {name} key in Settings → Providers.',
   'O vídeo foi gerado, mas não pôde ser baixado do Gemini.':
     'The video was generated, but could not be downloaded from Gemini.',
+  // Reading aloud with a voice service
+  'Leitura em voz alta': 'Reading aloud',
+  '{name} não leu esta resposta ({error}); usei a voz do navegador.':
+    '{name} did not read this reply ({error}); the browser\'s voice read it.',
+  'O áudio não pôde ser tocado.': 'The audio could not be played.',
+  'O botão Ler em voz alta de cada resposta usa esta voz. A do navegador é grátis e funciona sem internet; um serviço soa mais natural e cobra pelo texto lido (cada trecho é gerado uma vez por sessão). Sem a chave do serviço, volta para a do navegador.':
+    'Each reply\'s Read aloud button uses this voice. The browser\'s is free and works offline; a service sounds more natural and charges for the text read (each part is made once per session). Without the service\'s key, the browser\'s voice is used.',
+  'Opções da voz (JSON)': 'Voice options (JSON)',
+  'Voz do navegador': 'Browser voice',
+  'Voz ou modelo da leitura': 'Reading voice or model',
 }

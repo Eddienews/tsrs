@@ -404,6 +404,9 @@ export interface Settings {
   // Who generates images, video and audio from a message: 'auto' takes the
   // first provider or media service with a key that has a default model.
   media: Record<MediaKind, MediaChoice>
+  // Who reads replies aloud: 'browser' (the system's voices, free and
+  // offline) or a source that speaks, with its voice or model and options.
+  readAloud: MediaChoice
   // API keys of the media services, by service id.
   mediaKeys: Record<string, string>
   // Who turns passages into vectors to search knowledge bases by meaning:

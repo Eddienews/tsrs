@@ -12,6 +12,8 @@ import {
   MEDIA_SERVICES,
   mediaService,
   mediaSources,
+  READER_SOURCES,
+  sourceName,
   type MediaService,
 } from './media'
 import { listVoices } from './mediaJobs'
@@ -232,6 +234,78 @@ function KindChoice(props: Props & { kind: MediaKind; voices: Voice[] }) {
   )
 }
 
+// Who reads replies aloud: the browser's voices or a voice service.
+function ReaderChoice(props: Props & { voices: Voice[] }) {
+  const { settings, onChange } = props
+  const choice = settings.readAloud
+  const service = choice.source === 'browser' ? undefined : choice.source
+  const fallback = service ? defaultModel(service, 'audio') : ''
+  const set = (fields: Partial<MediaChoice>) =>
+    onChange((s) => ({ ...s, readAloud: { ...s.readAloud, ...fields } }))
+  return (
+    <section className="reader space-y-1.5">
+      <Label htmlFor="read-aloud" className="text-sm font-medium">
+        {t('Leitura em voz alta')}
+      </Label>
+      <div className="flex flex-wrap gap-2">
+        <select
+          id="read-aloud"
+          className="select-native"
+          value={choice.source}
+          onChange={(e) => set({ source: e.target.value, model: '', options: '' })}
+        >
+          <option value="browser">{t('Voz do navegador')}</option>
+          {READER_SOURCES.map((id) => (
+            <option key={id} value={id}>
+              {sourceName(id)}
+            </option>
+          ))}
+        </select>
+        {service && (
+          <Input
+            aria-label={t('Voz ou modelo da leitura')}
+            className="h-9 min-w-48 flex-1 font-mono text-xs"
+            list={service === 'elevenlabs' ? 'reader-voices' : undefined}
+            placeholder={fallback}
+            value={choice.model}
+            onChange={(e) => set({ model: e.target.value.trim() })}
+          />
+        )}
+        {service === 'elevenlabs' && (
+          <datalist id="reader-voices">
+            {props.voices.map((voice) => (
+              <option key={voice.id} value={voice.id}>
+                {voice.name}
+              </option>
+            ))}
+          </datalist>
+        )}
+      </div>
+      {service && (
+        <details className={hint} open={!!choice.options}>
+          <summary className="cursor-pointer">{t('Opções da voz (JSON)')}</summary>
+          <Textarea
+            aria-label={t('Opções da voz (JSON)')}
+            rows={2}
+            className="mt-1 font-mono text-xs"
+            placeholder={OPTION_EXAMPLES[service]?.audio ?? '{}'}
+            value={choice.options}
+            onChange={(e) => set({ options: e.target.value })}
+          />
+          {!isJsonObject(choice.options) && (
+            <p className="mt-1 text-destructive">{t('Não é um objeto JSON válido.')}</p>
+          )}
+        </details>
+      )}
+      <p className={hint}>
+        {t(
+          'O botão Ler em voz alta de cada resposta usa esta voz. A do navegador é grátis e funciona sem internet; um serviço soa mais natural e cobra pelo texto lido (cada trecho é gerado uma vez por sessão). Sem a chave do serviço, volta para a do navegador.',
+        )}
+      </p>
+    </section>
+  )
+}
+
 export default function MediaSection(props: Props) {
   const [voices, setVoices] = useState<Voice[]>([])
   return (
@@ -258,6 +332,7 @@ export default function MediaSection(props: Props) {
           )}
         </p>
       </section>
+      <ReaderChoice {...props} voices={voices} />
     </div>
   )
 }

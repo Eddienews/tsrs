@@ -58,12 +58,14 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
 - Geração de imagem, vídeo e áudio pelos botões Imagem, Vídeo e Áudio do campo
   de envio: imagens pela OpenAI (GPT Image) ou pelo Gemini (Imagen), vídeo pelo
   Veo e voz pela OpenAI ou pelo Gemini com as chaves dos provedores, e tudo isso
-  também por
-  serviços de mídia com a chave do próprio usuário (ElevenLabs,
+  também por serviços de mídia com a chave do próprio usuário (ElevenLabs,
   Runware, fal.ai, Replicate, WaveSpeedAI e Higgsfield), escolhidos em
   Configurações → Mídia, com o modelo e opções em JSON. Vídeos esperam na fila
   do serviço mostrando o progresso; parar a resposta cancela o pedido na fal.ai,
   no Replicate e na Higgsfield. O arquivo gerado é baixado e fica na conversa.
+- Leitura das respostas em voz alta com a voz do navegador ou com uma voz da
+  ElevenLabs, da OpenAI ou do Gemini (Configurações → Mídia); respostas longas
+  são lidas em trechos, e cada trecho é gerado uma vez por sessão.
 - Conversa temporária: fica só na memória da aba, sem histórico, sincronização
   nem memória, e some quando você sai dela.
 - Pergunta à parte: selecione um trecho da resposta e pergunte sobre ele num

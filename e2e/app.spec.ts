@@ -805,6 +805,64 @@ test('generates video and audio with media services and keeps the files', async 
   await expect(reply(page).first().locator('video')).toHaveAttribute('src', 'data:video/mp4;base64,AQID')
 })
 
+// A tenth of a second of silence, as a WAV file the browser can play.
+function silence(): Buffer {
+  const samples = 2400
+  const wav = Buffer.alloc(44 + samples * 2)
+  wav.write('RIFF', 0)
+  wav.writeUInt32LE(36 + samples * 2, 4)
+  wav.write('WAVEfmt ', 8)
+  wav.writeUInt32LE(16, 16)
+  wav.writeUInt16LE(1, 20)
+  wav.writeUInt16LE(1, 22)
+  wav.writeUInt32LE(24000, 24)
+  wav.writeUInt32LE(48000, 28)
+  wav.writeUInt16LE(2, 32)
+  wav.writeUInt16LE(16, 34)
+  wav.write('data', 36)
+  wav.writeUInt32LE(samples * 2, 40)
+  return wav
+}
+
+test('reads replies aloud with a voice service, once per text', async ({ page }) => {
+  const asked: string[] = []
+  let refuse = false
+  await page.route('https://api.elevenlabs.io/**', (route) => {
+    asked.push(JSON.parse(route.request().postData() ?? '{}').text)
+    const headers = { 'access-control-allow-origin': '*' }
+    return refuse
+      ? route.fulfill({ status: 401, json: { detail: { message: 'invalid key' } }, headers })
+      : route.fulfill({ body: silence(), contentType: 'audio/wav', headers })
+  })
+  await connect(page)
+  await openSettings(page, 'Mídia')
+  await page.getByLabel('Chave de ElevenLabs').fill('xi-key')
+  await page.getByLabel('Leitura em voz alta').selectOption('elevenlabs')
+  await closeSettings(page)
+  await send(page, 'leia isto')
+
+  const read = reply(page).getByRole('button', { name: 'Ler em voz alta' })
+  const stop = reply(page).getByRole('button', { name: 'Parar a leitura' })
+  // Reading shows the stop button until the audio ends.
+  for (let time = 0; time < 2; time++) {
+    await reply(page).hover()
+    await read.click()
+    await expect(stop).toBeVisible()
+    await expect(read).toBeVisible({ timeout: 10_000 })
+  }
+  expect(asked).toEqual(['Resposta 1. Sou um mock .'])
+  await expect(reply(page).locator('.speech-problem')).toBeHidden()
+
+  // When the service refuses, the browser's voice reads it and the reply says why.
+  refuse = true
+  await send(page, 'de novo')
+  await reply(page).last().hover()
+  await reply(page).last().getByRole('button', { name: 'Ler em voz alta' }).click()
+  await expect(reply(page).last().locator('.speech-problem')).toHaveText(
+    /ElevenLabs não leu esta resposta \(ElevenLabs recusou a chave \(401\)\.\); usei a voz do navegador\./,
+  )
+})
+
 test('asks a side question about part of a reply', async ({ page }) => {
   await connect(page)
   await send(page, 'primeira')

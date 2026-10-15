@@ -60,7 +60,8 @@ cada seção é a ordem sugerida.
 - [x] Vídeo pelo Veo (chave do Gemini) e voz pela OpenAI (`gpt-4o-mini-tts`)
 - [x] Voz pelo Gemini TTS (`gemini-3.8-flash-tts`). O Sora ficou de fora: a
       OpenAI encerrou o Sora 2 e a API de vídeos em 24/09/2026
-- [ ] Leitura em voz alta das respostas com uma voz da ElevenLabs
+- [x] Leitura em voz alta das respostas com uma voz da ElevenLabs, da OpenAI ou
+      do Gemini
 - [ ] Mostrar o custo estimado de um vídeo antes de gerar
 - [ ] Mais serviços com API oficial, cada um testado quanto a CORS: Black Forest
       Labs, Stability, Ideogram, Recraft, Luma, Runway, Kling, MiniMax, Cartesia,

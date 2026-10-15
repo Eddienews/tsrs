@@ -28,7 +28,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { formatWhen, locale, t } from './i18n'
-import { canSpeak, speak, speakable, stopSpeaking, useSpeaking } from './speech'
+import { canSpeak, speak, speakable, stopSpeaking, useSpeaking, useSpeechProblem } from './speech'
 import Markdown, { useCopy } from './Markdown'
 import ToolCallBlock from './ToolCallBlock'
 import type { Attachment, Message, Reference, Usage } from './types'
@@ -202,6 +202,7 @@ function MessageView(props: Props) {
   const isUser = message.role === 'user'
   const pending = streaming && !message.content && !message.parts?.length
   const speaking = useSpeaking(message.id)
+  const speechProblem = useSpeechProblem(message.id)
   const articleRef = useRef<HTMLElement>(null)
   const image = message.imagePrompt !== undefined
 
@@ -607,6 +608,7 @@ function MessageView(props: Props) {
       {line && !versions && (
         <div className="font-mono text-[11px] text-muted-foreground">{line}</div>
       )}
+      {speechProblem && <p className="speech-problem text-xs text-warning">{speechProblem}</p>}
     </article>
   )
 }

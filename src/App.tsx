@@ -27,7 +27,14 @@ import { forget } from './mcp'
 import { artifactName, lastPreviewable, withPreviewHint, type Artifact } from './preview'
 import { CANVAS_NOTE, CANVAS_TOOLS, newCanvas, runCanvasTool, undo, withCanvas } from './canvas'
 import { extractText } from './extract'
-import { MEDIA_KINDS, mediaProblem, mediaSource, type MediaTarget } from './media'
+import {
+  MEDIA_KINDS,
+  mediaProblem,
+  mediaSource,
+  readerSource,
+  sourceName,
+  type MediaTarget,
+} from './media'
 import { embedSource, indexDoc, meaningOf } from './embeddings'
 import {
   chunk,
@@ -42,6 +49,7 @@ import { MEMORY_TOOLS, runMemoryTool, withMemories } from './memory'
 import { connection, getProvider } from './providers'
 import Sidebar from './Sidebar'
 import { comboOf, SHORTCUT_ACTIONS, shortcutsOf } from './shortcuts'
+import { setReader } from './speech'
 import { chime } from './sound'
 import {
   SETTINGS_KEY,
@@ -481,6 +489,11 @@ export default function App() {
     audio: mediaSource(settings, 'audio', locked),
   }
   const maker = mediaMode ? mediaTargets[mediaMode] : null
+  // Replies are read aloud by the voice service chosen, or by the browser.
+  useEffect(() => {
+    const target = readerSource(settings, locked)
+    setReader(target && { settings, target, name: sourceName(target.source) })
+  }, [settings, locked])
   const blocked = mediaMode
     ? maker
       ? null

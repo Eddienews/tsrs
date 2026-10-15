@@ -173,3 +173,20 @@ export function mediaProblem(settings: Settings, kind: MediaKind): string {
           'Configure a chave da OpenAI, da ElevenLabs, do fal.ai ou do Replicate, ou escolha o serviço de áudio em Configurações → Mídia.',
         )
 }
+
+// Sources that read text aloud, for replies; music and sound models do not.
+export const READER_SOURCES = ['elevenlabs', 'openai', 'gemini']
+
+// Who reads replies aloud now, or null for the browser's own voices (also
+// when the chosen source has no key, or the keys are locked).
+export function readerSource(settings: Settings, locked: boolean): MediaTarget | null {
+  const choice = settings.readAloud
+  if (locked || choice.source === 'browser' || !READER_SOURCES.includes(choice.source)) return null
+  if (!hasKey(settings, choice.source)) return null
+  const model = choice.model.trim() || defaultModel(choice.source, 'audio')
+  return model ? { source: choice.source, model, options: choice.options } : null
+}
+
+export function sourceName(source: string): string {
+  return mediaService(source)?.name ?? PROVIDERS.find((p) => p.id === source)?.name ?? source
+}
