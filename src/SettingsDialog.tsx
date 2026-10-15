@@ -23,6 +23,7 @@ import ShortcutsSection from './ShortcutsSection'
 import { chime } from './sound'
 import SyncSection, { type SyncProps } from './SyncSection'
 import type { Appearance, Provider, ProviderSettings, Settings } from './types'
+import { versionDetails } from './version'
 
 interface Props {
   settings: Settings
@@ -192,6 +193,12 @@ export default function SettingsDialog(props: Props) {
                 {sectionName(id)}
               </button>
             ))}
+            <p
+              className="mt-auto hidden whitespace-pre-line px-2.5 pt-3 font-mono text-[10px] leading-relaxed text-muted-foreground select-text sm:block"
+              data-testid="version-details"
+            >
+              {versionDetails()}
+            </p>
           </nav>
 
           <div className="min-w-0 flex-1 space-y-4 overflow-y-auto p-5">

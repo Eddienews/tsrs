@@ -1,7 +1,7 @@
 {
   "name": "tsrs",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "TSRS (The Signal Room Studio) — local-first chat UI for AI models",
   "license": "MIT",
   "type": "module",

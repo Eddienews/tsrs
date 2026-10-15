@@ -358,6 +358,16 @@ test('shows a motion composition with a timeline that seeks it', async ({ page }
   await expect(panel).toContainText('O console está vazio.')
 })
 
+test('shows which version and commit are running', async ({ page }) => {
+  const pkg = JSON.parse(await readFile('package.json', 'utf8'))
+  await page.goto('/')
+  const label = page.getByTestId('version')
+  await expect(label).toHaveText(new RegExp(`^v${pkg.version.replace(/\./g, '\\.')}( · [0-9a-f]{7}\\*?)?$`))
+  await openSettings(page)
+  await expect(page.getByTestId('version-details')).toContainText(`TSRS v${pkg.version}`)
+  await expect(page.getByTestId('version-details')).toContainText('Rodando pelo npm run dev')
+})
+
 test('fills the fields of a saved prompt and switches the theme', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Biblioteca' }).click()

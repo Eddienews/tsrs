@@ -39,6 +39,7 @@ import { cn } from '@/lib/utils'
 import { t } from './i18n'
 import { allTags, hasTag, parseTags, withTag } from './tags'
 import type { ChatMeta, Folder } from './types'
+import { versionDetails, versionLabel } from './version'
 
 const SEARCH_DELAY_MS = 200
 
@@ -357,8 +358,20 @@ export default function Sidebar(props: Props) {
         <div className="flex size-6 items-center justify-center rounded border border-primary/60">
           <span className="live-dot" />
         </div>
-        <span className="font-mono text-sm font-semibold tracking-wider">TSRS</span>
-        <span className="truncate text-xs text-muted-foreground">The Signal Room Studio</span>
+        <div className="flex min-w-0 flex-col leading-tight">
+          <div className="flex min-w-0 items-baseline gap-2">
+            <span className="font-mono text-sm font-semibold tracking-wider">TSRS</span>
+            <span className="truncate text-xs text-muted-foreground">The Signal Room Studio</span>
+          </div>
+          {/* Which code is running, so a screenshot says it too. */}
+          <span
+            className="truncate font-mono text-[10px] text-muted-foreground"
+            title={versionDetails()}
+            data-testid="version"
+          >
+            {versionLabel()}
+          </span>
+        </div>
       </div>
       <div className="space-y-2 px-3 pb-2">
         <div className="flex gap-2">
