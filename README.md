@@ -15,6 +15,7 @@ npm test         # testes unitários (vitest)
 npm run test:e2e # testes de ponta a ponta (Playwright, com um provedor falso)
 npm run proxy    # proxy local opcional para provedores sem CORS (OpenCode)
 npm run render -- motion-1.html  # transforma uma composição motion em MP4 (precisa do ffmpeg)
+npm run render:serve             # renderizador local para o botão Gerar MP4 do preview
 ```
 
 Os testes de ponta a ponta usam o Chromium do Playwright, se instalado
@@ -136,7 +137,17 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
 
 Peça ao modelo uma animação ("faça uma abertura de 6 segundos em 1080x1920 com o
 título X"). A resposta vem num bloco `motion`, que abre no preview com uma linha
-do tempo. Para o MP4:
+do tempo.
+
+O jeito mais simples de fazer o MP4 é pelo próprio preview: deixe
+`npm run render:serve` rodando na pasta do TSRS, escolha a trilha (um áudio da
+conversa, como uma voz ou música gerada, ou um arquivo do computador) e clique em
+**Gerar MP4**. O vídeo aparece para baixar e fica salvo em `renders/`, sem
+sobrescrever os anteriores. O renderizador escuta só em `127.0.0.1:8788` e só
+atende o endereço do TSRS (`--origin` para outros); o áudio vai do navegador para
+ele, no mesmo computador, e não sai daí.
+
+Pelo terminal, com um arquivo baixado do preview:
 
 ```bash
 npm run render -- motion-1.html                      # gera motion-1.mp4 ao lado
@@ -238,6 +249,9 @@ cabeçalhos (com `{apiKey}` como placeholder) e o formato da API (`openai` ou
 | `src/MotionStage.tsx`    | Composição motion no preview, com a linha do tempo          |
 | `render/motion.mjs`      | Contrato motion, comum ao preview e ao render               |
 | `render/render.mjs`      | `npm run render`: composição motion para MP4                |
+| `render/serve.mjs`       | `npm run render:serve`: renderizador do botão Gerar MP4     |
+| `src/RenderBar.tsx`      | Trilha e botão Gerar MP4 do preview                         |
+| `src/videoRender.ts`     | Conversa com o renderizador local                           |
 | `public/motion/`         | Runtime motion, anime.js 4.5.0 e lottie-web 5.13.0 (MIT)    |
 | `src/prompts.ts`         | Campos `{{nome}}` dos prompts salvos                        |
 | `src/starters.ts`        | Personas e prompts que já vêm no app                        |

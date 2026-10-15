@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 import { freeName, insideRoot, parseArgs } from '../render/render.mjs'
+import { audioExtension, safeStem, serveOptions } from '../render/serve.mjs'
 
 test('reads the render options', () => {
   expect(parseArgs(['motion-1.html', '--audio', 'a.wav', '--fps', '240', '-o', 'v.mp4', '--online'])).toEqual({
@@ -31,4 +32,18 @@ test('serves only files inside the composition folder', () => {
   expect(insideRoot(root, '/..%5c..%5ckeys.env')).toBeNull()
   expect(insideRoot(root, '/%E0%A4%A')).toBeNull()
   expect(insideRoot(root, '/')).toBeNull()
+})
+
+test('the local renderer keeps names safe and accepts only audio', () => {
+  expect(safeStem('motion-1.html')).toBe('motion-1')
+  expect(safeStem('../../Abertura: NWLab?.html')).toBe('Abertura- NWLab')
+  expect(safeStem('')).toBe('motion')
+  expect(audioExtension('trilha.MP3')).toBe('.mp3')
+  expect(audioExtension('voz.wav')).toBe('.wav')
+  expect(audioExtension('script.js')).toBeNull()
+  const options = serveOptions(['--port', '9000', '--origin', 'http://localhost:3000/'])
+  expect(options.port).toBe(9000)
+  expect(options.origins).toEqual(['http://localhost:3000'])
+  expect(options.folder).toMatch(/renders$/)
+  expect(serveOptions([]).origins).toEqual(['http://localhost:5173', 'http://localhost:4173'])
 })

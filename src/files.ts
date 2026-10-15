@@ -16,7 +16,7 @@ export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 const BACKUP_APP = 'tsrs'
 const BACKUP_VERSION = 1
 
-async function base64(file: File): Promise<string> {
+export async function base64(file: Blob): Promise<string> {
   const bytes = new Uint8Array(await file.arrayBuffer())
   // Encoded in slices: spreading a large file into one call overflows the stack.
   const SLICE = 0x8000

@@ -25,6 +25,7 @@ import MessageView from './MessageView'
 import ParamsPanel from './ParamsPanel'
 import { forget } from './mcp'
 import { artifactName, lastPreviewable, withPreviewHint, type Artifact } from './preview'
+import { chatTracks } from './videoRender'
 import { CANVAS_NOTE, CANVAS_TOOLS, newCanvas, runCanvasTool, undo, withCanvas } from './canvas'
 import { extractText } from './extract'
 import {
@@ -478,6 +479,8 @@ export default function App() {
   const active = metas.find((c) => c.id === activeId) ?? null
   // Undefined while the active conversation's messages are being read.
   const messages = activeId ? threads[activeId] : undefined
+  // Audio of the conversation, offered as the soundtrack of a motion video.
+  const tracks = useMemo(() => chatTracks(messages ?? []), [messages])
   const params = active ? (active.params ?? {}) : draftParams
   const canvas = active ? active.canvas : draftCanvas
   const temporary = active ? !!active.temporary : draftTemporary
@@ -2114,6 +2117,7 @@ export default function App() {
           onCloseTab={closeArtifact}
           onOpenUrl={(url) => showArtifact('url', url, new URL(url).host)}
           onClose={() => setShowPreview(false)}
+          tracks={tracks}
         />
       )}
     </Suspense>

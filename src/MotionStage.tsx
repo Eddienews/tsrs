@@ -3,6 +3,8 @@ import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 're
 import { Button } from '@/components/ui/button'
 import { t } from './i18n'
 import { PREVIEW_SOURCE, motionSettings, type MotionSettings } from './preview'
+import RenderBar from './RenderBar'
+import type { Track } from './videoRender'
 
 // Tells the composition in the frame which time to show.
 export const MOTION_SOURCE = 'tsrs-motion'
@@ -13,6 +15,8 @@ interface Props {
   name: string
   frameKey: string
   frameRef: RefObject<HTMLIFrameElement | null>
+  // Audio in the conversation, offered as the video's soundtrack.
+  tracks: Track[]
 }
 
 export function formatTime(seconds: number): string {
@@ -175,11 +179,7 @@ export default function MotionStage(p: Props) {
           {formatTime(time)} / {formatTime(settings.duration)} s
         </span>
       </div>
-      <p className="border-t px-3 py-1.5 text-[11px] text-muted-foreground">
-        {t('Para gerar o MP4, baixe o arquivo e rode {command} na pasta do TSRS.', {
-          command: `npm run render -- ${p.name}`,
-        })}
-      </p>
+      <RenderBar code={p.code} name={p.name} tracks={p.tracks} />
     </div>
   )
 }

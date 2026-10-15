@@ -29,6 +29,7 @@ import {
   type Artifact,
   type ConsoleEntry,
 } from './preview'
+import type { Track } from './videoRender'
 
 const MAX_LOG_ENTRIES = 500
 
@@ -48,6 +49,8 @@ interface Props {
   // Opens a page by address in a new tab of the panel.
   onOpenUrl: (url: string) => void
   onClose: () => void
+  // Audio in the conversation, for the soundtrack of a motion video.
+  tracks?: Track[]
 }
 
 // A fence longer than any run of backticks in the code, so it cannot end early.
@@ -339,6 +342,7 @@ export default function PreviewPanel(p: Props) {
                   name={artifact.name}
                   frameKey={frameKey}
                   frameRef={frameRef}
+                  tracks={p.tracks ?? []}
                 />
               </div>
             ) : (

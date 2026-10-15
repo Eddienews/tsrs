@@ -280,6 +280,7 @@ export async function render(options, log = console.log) {
     for (let i = 0; i < frames; i++) {
       await tab.evaluate((t) => window.NWLab.seek(t), i / fps)
       await write(encoder.stdin, await tab.screenshot({ type: 'png' }))
+      options.onFrame?.(i + 1, frames)
       if (i + 1 === frames || Date.now() - reported > 2000) {
         reported = Date.now()
         log(`frame ${i + 1}/${frames}`)

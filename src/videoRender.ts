@@ -1,0 +1,121 @@
+import type { Message } from './types'
+
+// The local renderer started with `npm run render:serve` (render/serve.mjs).
+export const RENDERER = 'http://127.0.0.1:8788'
+
+// Audio to put under a video: base64 data, as attachments keep it.
+export interface Track {
+  id: string
+  name: string
+  mime: string
+  data: string
+}
+
+export interface RenderProgress {
+  frame: number
+  frames: number
+}
+
+export interface RenderedVideo {
+  name: string
+  // Where the renderer saved it on this computer.
+  path: string
+  // The MP4, for the download link.
+  blob: Blob
+}
+
+// Audio in a conversation, newest first: generated speech or music, and audio
+// files attached to messages.
+export function chatTracks(messages: Message[]): Track[] {
+  const tracks: Track[] = []
+  for (const message of messages) {
+    for (const file of message.attachments ?? []) {
+      if (file.mime.startsWith('audio/') && file.data) {
+        tracks.push({ id: file.id, name: file.name, mime: file.mime, data: file.data })
+      }
+    }
+  }
+  return tracks.reverse()
+}
+
+// A file name the renderer accepts for an audio type that came without one.
+export function trackFileName(track: Pick<Track, 'name' | 'mime'>): string {
+  if (/\.(mp3|wav|m4a|aac|ogg|oga|opus|flac|webm)$/i.test(track.name)) return track.name
+  const extension =
+    {
+      'audio/mpeg': 'mp3',
+      'audio/mp3': 'mp3',
+      'audio/wav': 'wav',
+      'audio/x-wav': 'wav',
+      'audio/wave': 'wav',
+      'audio/mp4': 'm4a',
+      'audio/aac': 'aac',
+      'audio/ogg': 'ogg',
+      'audio/opus': 'opus',
+      'audio/flac': 'flac',
+      'audio/webm': 'webm',
+    }[track.mime.split(';')[0].trim().toLowerCase()] ?? 'mp3'
+  return `${track.name || 'audio'}.${extension}`
+}
+
+export async function rendererReady(base = RENDERER): Promise<boolean> {
+  try {
+    const response = await fetch(`${base}/health`, { signal: AbortSignal.timeout(2000) })
+    return response.ok && (await response.json()).ok === true
+  } catch {
+    return false
+  }
+}
+
+// Splits a stream of NDJSON into objects as the lines arrive.
+export async function* jsonLines(stream: ReadableStream<Uint8Array>): AsyncGenerator<any> {
+  const reader = stream.getReader()
+  const decoder = new TextDecoder()
+  let pending = ''
+  for (;;) {
+    const { value, done } = await reader.read()
+    if (done) break
+    pending += decoder.decode(value, { stream: true })
+    const lines = pending.split('\n')
+    pending = lines.pop() ?? ''
+    for (const line of lines) if (line.trim()) yield JSON.parse(line)
+  }
+  pending += decoder.decode()
+  if (pending.trim()) yield JSON.parse(pending)
+}
+
+export async function renderVideo(
+  job: { html: string; name: string; track?: Track | null },
+  onProgress: (progress: RenderProgress) => void,
+  base = RENDERER,
+): Promise<RenderedVideo> {
+  const response = await fetch(`${base}/render`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      html: job.html,
+      name: job.name,
+      ...(job.track ? { audio: { name: trackFileName(job.track), data: job.track.data } } : {}),
+    }),
+  })
+  if (!response.ok || !response.body) {
+    const text = await response.text().catch(() => '')
+    let message = text
+    try {
+      message = JSON.parse(text).error ?? text
+    } catch {
+      // Not JSON: the text itself.
+    }
+    throw new Error(message || `HTTP ${response.status}`)
+  }
+  for await (const line of jsonLines(response.body)) {
+    if (line.error) throw new Error(line.error)
+    if (line.done) {
+      const video = await fetch(`${base}/video/${line.id}`)
+      if (!video.ok) throw new Error(`HTTP ${video.status}`)
+      return { name: line.name, path: line.path, blob: await video.blob() }
+    }
+    if (typeof line.frame === 'number') onProgress({ frame: line.frame, frames: line.frames })
+  }
+  throw new Error('The renderer stopped before the video was done.')
+}

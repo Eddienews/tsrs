@@ -350,8 +350,20 @@ export const en: Record<string, string> = {
   Pausar: 'Pause',
   Reproduzir: 'Play',
   Tempo: 'Time',
-  'Para gerar o MP4, baixe o arquivo e rode {command} na pasta do TSRS.':
-    'To make the MP4, download the file and run {command} in the TSRS folder.',
+  Trilha: 'Soundtrack',
+  'Sem trilha': 'No soundtrack',
+  'Escolher arquivo de áudio…': 'Choose an audio file…',
+  'Arquivo de áudio': 'Audio file',
+  '"{name}" passa de 50 MB.': '"{name}" is over 50 MB.',
+  'Gerar MP4': 'Make MP4',
+  'Quadro {frame} de {frames}': 'Frame {frame} of {frames}',
+  'Preparando…': 'Getting ready…',
+  'O renderizador local não está rodando. Na pasta do TSRS, rode {command} e tente de novo.':
+    'The local renderer is not running. In the TSRS folder, run {command} and try again.',
+  'Baixar {name}': 'Download {name}',
+  'Salvo em {path}': 'Saved to {path}',
+  'O MP4 é feito no seu computador, quadro a quadro, pelo renderizador local ({command}).':
+    'The MP4 is made on your computer, frame by frame, by the local renderer ({command}).',
   'Se a página ficar em branco, o site não permite ser exibido dentro de outros aplicativos.':
     'If the page stays blank, the site does not allow being shown inside other apps.',
   Código: 'Code',

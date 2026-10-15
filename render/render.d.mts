@@ -7,6 +7,8 @@ export interface RenderOptions {
   lufs: number
   online: boolean
   help?: boolean
+  // Called after each frame is encoded.
+  onFrame?: (done: number, frames: number) => void
 }
 
 export function parseArgs(argv: string[]): RenderOptions

@@ -3,6 +3,8 @@ import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
+import { startRenderServer } from '../render/serve.mjs'
+import { startMockProvider } from './mock-provider'
 
 // `npm run render` needs ffmpeg; without it there is nothing to test here.
 const ffmpeg = process.env.FFMPEG || 'ffmpeg'
@@ -133,4 +135,65 @@ test('explains what is wrong instead of rendering', async () => {
   const usage = spawnSync(process.execPath, ['render/render.mjs'], { encoding: 'utf8' })
   expect(usage.status).toBe(1)
   expect(usage.stdout).toContain('Usage: npm run render -- <composition.html>')
+})
+
+test('the preview makes the MP4 with a soundtrack through the local renderer', async ({ page }) => {
+  test.skip(missing, 'ffmpeg and ffprobe are not installed')
+  test.setTimeout(180_000)
+  const folder = await mkdtemp(join(tmpdir(), 'tsrs-renders-'))
+  const tone = join(folder, 'trilha.wav')
+  spawnSync(ffmpeg, ['-v', 'error', '-f', 'lavfi', '-i', 'sine=frequency=330:duration=8', tone])
+  const provider = await startMockProvider()
+  // The app talks to 127.0.0.1:8788; the test's renderer listens on a free port.
+  const renderer = await startRenderServer({ port: 0, origins: ['http://localhost:5174'], folder }, () => {})
+  const port = (renderer.address() as { port: number }).port
+  let running = false
+  await page.route('http://127.0.0.1:8788/**', async (route) => {
+    if (!running) return route.abort('connectionrefused')
+    const url = route.request().url().replace('127.0.0.1:8788', `127.0.0.1:${port}`)
+    await route.fulfill({ response: await route.fetch({ url, timeout: 120_000 }) })
+  })
+  try {
+    await page.goto('/')
+    await page.getByRole('button', { name: 'Configurações', exact: true }).click()
+    const section = page.locator('[data-provider=custom]')
+    await section.getByLabel('URL base').fill(provider.url)
+    await section.getByRole('button', { name: 'Carregar modelos' }).click()
+    await expect(section.getByText('2 modelos carregados.')).toBeVisible()
+    await page.getByTitle('Fechar').click()
+    await page.getByRole('button', { name: 'Escolher modelo' }).click()
+    await page.getByRole('option', { name: /mock-a/ }).click()
+    await page.getByPlaceholder(/Escreva sua mensagem/).fill('faça uma animação')
+    await page.getByPlaceholder(/Escreva sua mensagem/).press('Enter')
+    await page.locator('.message.assistant').getByRole('button', { name: 'Abrir preview' }).click()
+
+    const panel = page.locator('.preview')
+    await expect(panel.getByTestId('motion-time')).toHaveText('0.00 / 4.00 s')
+    // Without the renderer, the panel says how to start it.
+    await panel.getByRole('button', { name: 'Gerar MP4' }).click()
+    await expect(panel.getByRole('status')).toContainText('npm run render:serve')
+
+    running = true
+    await panel.getByLabel('Arquivo de áudio').setInputFiles(tone)
+    await expect(panel.getByRole('combobox', { name: 'Trilha' })).toHaveText(/trilha\.wav/)
+    await panel.getByRole('button', { name: 'Gerar MP4' }).click()
+    const link = panel.getByRole('link', { name: 'Baixar motion-1.mp4' })
+    await expect(link).toBeVisible({ timeout: 120_000 })
+    await expect(panel).toContainText(join(folder, 'motion-1.mp4'))
+
+    const saved = join(folder, 'motion-1.mp4')
+    const probe = spawnSync(ffprobe, ['-v', 'error', '-show_entries', 'stream=codec_type,width,height', '-of', 'json', saved], {
+      encoding: 'utf8',
+    })
+    expect(JSON.parse(probe.stdout).streams).toEqual([
+      { codec_type: 'video', width: 1280, height: 720 },
+      { codec_type: 'audio' },
+    ])
+    const download = page.waitForEvent('download')
+    await link.click()
+    expect((await download).suggestedFilename()).toBe('motion-1.mp4')
+  } finally {
+    renderer.close()
+    await provider.close()
+  }
 })
