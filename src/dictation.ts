@@ -77,7 +77,15 @@ export function useDictation(
       setError(t('O navegador não permitiu usar o microfone ou o reconhecimento de voz.'))
       return
     }
-    const recorder = new MediaRecorder(stream)
+    let recorder: MediaRecorder
+    try {
+      recorder = new MediaRecorder(stream)
+    } catch {
+      // Some browsers refuse to record the stream they just gave; free the microphone.
+      stream.getTracks().forEach((track) => track.stop())
+      setError(t('O navegador não permitiu usar o microfone ou o reconhecimento de voz.'))
+      return
+    }
     const chunks: Blob[] = []
     recorder.ondataavailable = (event) => chunks.push(event.data)
     recorder.onstop = async () => {
@@ -96,7 +104,13 @@ export function useDictation(
         setState('idle')
       }
     }
-    recorder.start()
+    try {
+      recorder.start()
+    } catch {
+      stream.getTracks().forEach((track) => track.stop())
+      setError(t('O navegador não permitiu usar o microfone ou o reconhecimento de voz.'))
+      return
+    }
     stopRef.current = () => recorder.stop()
     setState('recording')
   }

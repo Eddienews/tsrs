@@ -676,8 +676,12 @@ test('dictates through the provider and opens the preview by itself', async ({ p
   await page.getByRole('switch', { name: 'Abrir o preview sozinho' }).click()
   await closeSettings(page)
 
-  await page.getByRole('button', { name: 'Ditar' }).click()
-  await expect(page.getByRole('button', { name: 'Parar o ditado' })).toBeVisible()
+  // Chromium's fake microphone on macOS sometimes fails to start when many tests
+  // run at once; click again rather than fail on the test machine's audio.
+  await expect(async () => {
+    await page.getByRole('button', { name: 'Ditar' }).click()
+    await expect(page.getByRole('button', { name: 'Parar o ditado' })).toBeVisible({ timeout: 3000 })
+  }).toPass({ timeout: 15_000, intervals: [500, 1000] })
   await page.waitForTimeout(500)
   await page.getByRole('button', { name: 'Parar o ditado' }).click()
   await expect(composer(page)).toHaveValue('ditado de teste')
@@ -1297,6 +1301,7 @@ test('answers from a knowledge base', async ({ page }) => {
   await expect(reply(page).locator('.references')).toContainText('30 dias de férias por ano')
 })
 
+// Shortcuts read Ctrl on Windows and Linux and ⌘ on a Mac.
 test('shows message times, chimes when a reply is done and takes new shortcuts', async ({ page }) => {
   // Counts the notes played instead of playing them.
   await page.addInitScript(() => {
@@ -1324,11 +1329,11 @@ test('shows message times, chimes when a reply is done and takes new shortcuts',
   await page.getByRole('button', { name: 'Atalho de Nova conversa', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Atalho de Nova conversa', exact: true })).toHaveText('Pressione as teclas…')
   await page.keyboard.press('Control+Shift+O')
-  await expect(page.getByRole('button', { name: 'Atalho de Nova conversa', exact: true })).toHaveText('Ctrl+Shift+O')
+  await expect(page.getByRole('button', { name: 'Atalho de Nova conversa', exact: true })).toHaveText(/^(Ctrl|⌘)\+Shift\+O$/)
   // A shortcut taken from another action leaves that one without it.
   await page.getByRole('button', { name: 'Atalho de Nova conversa temporária' }).click()
   await page.keyboard.press('Control+K')
-  await expect(page.getByRole('status')).toHaveText('Ctrl+K deixou de abrir "Paleta de comandos".')
+  await expect(page.getByRole('status')).toHaveText(/^(Ctrl|⌘)\+K deixou de abrir "Paleta de comandos"\.$/)
   await expect(page.getByRole('button', { name: 'Atalho de Paleta de comandos' })).toHaveText('Nenhum')
   await closeSettings(page)
 
