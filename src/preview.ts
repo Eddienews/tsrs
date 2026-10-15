@@ -1,4 +1,7 @@
+import { insertHead, motionHead } from '../render/motion.mjs'
 import { t } from './i18n'
+
+export { motionSettings, type MotionSettings } from '../render/motion.mjs'
 
 // Something shown in the preview panel: a code block from a reply, or a page
 // opened by address.
@@ -31,6 +34,8 @@ const EXTENSIONS: Record<string, string> = {
   react: 'jsx',
   mermaid: 'mmd',
   mmd: 'mmd',
+  // An animated composition that becomes a video (render/motion.mjs).
+  motion: 'motion',
 }
 
 // Libraries the React and Mermaid previews load from public CDNs, pinned.
@@ -52,7 +57,12 @@ export function isScript(lang: string): boolean {
   return EXTENSIONS[lang.toLowerCase()] === 'js'
 }
 
+export function isMotion(lang: string): boolean {
+  return EXTENSIONS[lang.toLowerCase()] === 'motion'
+}
+
 export function artifactName(lang: string, number: number): string {
+  if (isMotion(lang)) return `motion-${number}.html`
   return `preview-${number}.${EXTENSIONS[lang.toLowerCase()] ?? 'txt'}`
 }
 
@@ -177,6 +187,22 @@ if (mermaid) {
   )
 }
 
+// Where the motion runtime and its libraries are served from: public/motion/
+// of this app. The address is absolute because a preview opened in a new tab
+// has no base of its own.
+function motionBase(): string {
+  const root = import.meta.env?.BASE_URL ?? '/'
+  return typeof location === 'undefined'
+    ? `${root}motion/`
+    : new URL(`${root}motion/`, location.href).href
+}
+
+// A composition with the motion runtime in front of its own scripts. It
+// stands still until the preview's timeline seeks it.
+export function motionDocument(code: string, base = motionBase()): string {
+  return withBridge(insertHead(code, motionHead(code, base)))
+}
+
 // The HTML document that renders a code block, or null when the language is
 // not one that runs in a frame.
 export function previewDocument(lang: string, code: string): string | null {
@@ -192,6 +218,8 @@ export function previewDocument(lang: string, code: string): string | null {
       return reactDocument(code)
     case 'mmd':
       return mermaidDocument(code)
+    case 'motion':
+      return motionDocument(code)
     case 'js':
       return withBridge(
         `<!doctype html><body><script>${code.replace(/<\/script/gi, '<\\/script')}</script></body>`,
@@ -233,19 +261,36 @@ export function urlSandbox(url: string, origin: string): string {
     : 'allow-scripts allow-same-origin allow-forms allow-popups'
 }
 
+// How to write a motion block: the same contract as NWLab ForgeOS's motion pages.
+const MOTION_HINT =
+  '\n\nFor an animation or video (an intro, a teaser, an animated title, a social clip), write ' +
+  'one complete HTML document in a block tagged motion. The panel shows it with a timeline and ' +
+  'the user turns it into an MP4 with `npm run render`, frame by frame, so the page must never ' +
+  'move by itself: everything it shows at a time t must come from t alone. Declare in <head> ' +
+  '<meta name="nwlab:duration" content="SECONDS">, <meta name="nwlab:size" content="1080x1920"> ' +
+  '(or 1920x1080, 1080x1080) and optionally <meta name="nwlab:fps" content="30">; html and body ' +
+  'already have that size. Animate with any of: CSS animations and transitions (they are paused ' +
+  'and seeked); anime.js v4, which is already loaded as the global `anime` (create timelines ' +
+  'with autoplay: false and pass them to NWLab.register(tl)); NWLab.onSeek((seconds) => { ... }) ' +
+  'to draw a frame yourself; lottie (global `lottie`, renderer svg, autoplay false, inline ' +
+  'animationData, then goToAndStop in onSeek). Never use Date, performance.now, ' +
+  'requestAnimationFrame, setTimeout or Math.random without a fixed seed to move things. Keep ' +
+  'everything inline: no external images, fonts or scripts, since the video is rendered offline.'
+
 // Appended to the system prompt so the model knows the reader can render code,
 // instead of telling them to save a file or use another site. `button` is the
 // name of the button in the interface's language.
 export function withPreviewHint(system: string, button: string): string {
   const hint =
     'The user is reading this conversation in an app with a built-in preview panel. Every ' +
-    'fenced code block tagged html, svg, javascript, jsx, tsx, mermaid or markdown gets a ' +
+    'fenced code block tagged html, svg, javascript, jsx, tsx, mermaid, markdown or motion gets a ' +
     `"${button}" button that renders it in that panel. When asked to show, build or preview a ` +
     'page, drawing, diagram or script, write one complete, self-contained block (CSS and ' +
     'scripts inline) and point to that button. A React component goes in one jsx or tsx ' +
     'block that default-exports it; it may import npm packages and use Tailwind classes. Do ' +
     'not say you cannot show a preview, and do not suggest saving files or using other sites ' +
-    'to see the result.'
+    'to see the result.' +
+    MOTION_HINT
   return system.trim() ? `${system.trim()}\n\n${hint}` : hint
 }
 

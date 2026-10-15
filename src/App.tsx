@@ -143,7 +143,7 @@ const PREFETCH_DELAY = 2000
 
 const TITLE_LENGTH = 60
 // Code blocks that open the preview by themselves, when that is turned on.
-const AUTO_PREVIEW = ['html', 'svg', 'jsx', 'tsx', 'react', 'mermaid']
+const AUTO_PREVIEW = ['html', 'svg', 'jsx', 'tsx', 'react', 'mermaid', 'motion']
 const TITLE_EXCERPT = 1000
 const TITLE_PROMPT =
   'Crie um título curto (no máximo 6 palavras) para a conversa abaixo, no mesmo idioma dela. ' +

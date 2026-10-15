@@ -54,6 +54,27 @@ export default function Contador() {
   return <button onClick={() => setN(n + 1)}>Cliques: {n}</button>
 }`
 
+// A motion composition that moves in the three ways the contract seeks: an
+// anime.js timeline, a CSS animation and a seek handler.
+const MOTION = `<!doctype html>
+<html><head>
+<meta name="nwlab:duration" content="4">
+<meta name="nwlab:size" content="1280x720">
+<style>
+  body { background: #05070a; color: #fff; font: 48px sans-serif }
+  #bar { height: 20px; background: orange; animation: grow 2s linear forwards }
+  @keyframes grow { from { width: 0 } to { width: 100px } }
+</style>
+</head><body>
+<div id="bar"></div>
+<p id="box" style="opacity: 0">Caixa</p>
+<p id="clock"></p>
+<script>
+  NWLab.register(anime.createTimeline({ autoplay: false }).add('#box', { opacity: { from: 0, to: 1 }, duration: 1000, ease: 'linear' }))
+  NWLab.onSeek((t) => { document.getElementById('clock').textContent = 't=' + t.toFixed(2) })
+</script>
+</body></html>`
+
 // A pretend embedding: one dimension per topic, so texts about the same topic
 // point the same way even without a word in common.
 const TOPICS = [/férias|descanso|folga/i, /prazo|entrega/i, /reembolso|despesa/i]
@@ -146,6 +167,8 @@ export async function startMockProvider(): Promise<MockProvider> {
         ? [`A ferramenta respondeu: ${last.content}`]
         : String(last.content).includes('componente')
           ? ['Aqui:\n\n', '```tsx\n' + COMPONENT + '\n```\n\n```mermaid\ngraph TD\n  A[Início] --> B[Fim]\n```']
+          : String(last.content).includes('animação')
+          ? ['Sua animação:\n\n', '```motion\n' + MOTION + '\n```']
           : String(last.content).includes('página')
           ? ['Aqui está:\n\n', '```html\n' + PAGE + '\n```']
           : [`Resposta ${++replies}. `, 'Sou um **mock**.\n\n', '```js\nconst x = "oi"\n```']

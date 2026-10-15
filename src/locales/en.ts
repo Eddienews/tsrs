@@ -343,8 +343,15 @@ export const en: Record<string, string> = {
   'Abrir em nova aba': 'Open in new tab',
   Baixar: 'Download',
   'Nada para mostrar ainda': 'Nothing to show yet',
-  'Use “Abrir preview” em um bloco de código HTML, SVG, JavaScript ou Markdown, ou digite um endereço acima.':
-    'Use “Open preview” on an HTML, SVG, JavaScript or Markdown code block, or type an address above.',
+  'Use “Abrir preview” em um bloco de código HTML, SVG, JavaScript, Markdown ou motion, ou digite um endereço acima.':
+    'Use “Open preview” on an HTML, SVG, JavaScript, Markdown or motion code block, or type an address above.',
+  'Linha do tempo': 'Timeline',
+  'Voltar ao início': 'Back to the start',
+  Pausar: 'Pause',
+  Reproduzir: 'Play',
+  Tempo: 'Time',
+  'Para gerar o MP4, baixe o arquivo e rode {command} na pasta do TSRS.':
+    'To make the MP4, download the file and run {command} in the TSRS folder.',
   'Se a página ficar em branco, o site não permite ser exibido dentro de outros aplicativos.':
     'If the page stays blank, the site does not allow being shown inside other apps.',
   Código: 'Code',

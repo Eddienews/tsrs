@@ -323,6 +323,41 @@ test('previews React and Mermaid, and explains when the libraries cannot load', 
   await expect(panel).toContainText('Não foi possível carregar as bibliotecas do preview')
 })
 
+test('shows a motion composition with a timeline that seeks it', async ({ page }) => {
+  await connect(page)
+  await send(page, 'faça uma animação')
+  await reply(page).getByRole('button', { name: 'Abrir preview' }).click()
+
+  const panel = page.locator('.preview')
+  await expect(panel.getByRole('tab', { name: 'motion-1.html' })).toBeVisible()
+  await expect(panel).toContainText('1280×720 · 30 fps')
+  const frame = panel.frameLocator('iframe')
+  await expect(panel.locator('iframe')).toHaveAttribute('sandbox', 'allow-scripts')
+  // Ready at the first frame: nothing has moved.
+  await expect(panel.getByTestId('motion-time')).toHaveText('0.00 / 4.00 s')
+  await expect(frame.locator('#clock')).toHaveText('t=0.00')
+  await expect(frame.locator('#box')).toHaveCSS('opacity', '0')
+  await expect(frame.locator('#bar')).toHaveCSS('width', '0px')
+
+  // Scrubbing seeks all three kinds of animation to the same time.
+  await panel.getByRole('slider', { name: 'Tempo' }).fill('1')
+  await expect(frame.locator('#clock')).toHaveText('t=1.00')
+  await expect(frame.locator('#box')).toHaveCSS('opacity', '1')
+  await expect(frame.locator('#bar')).toHaveCSS('width', '50px')
+
+  // Playing runs to the end and stops there.
+  await panel.getByRole('button', { name: 'Reproduzir' }).click()
+  await expect(panel.getByRole('button', { name: 'Pausar' })).toBeVisible()
+  await expect(panel.getByTestId('motion-time')).toHaveText('4.00 / 4.00 s', { timeout: 10_000 })
+  await expect(frame.locator('#clock')).toHaveText('t=4.00')
+  await expect(panel.getByRole('button', { name: 'Reproduzir' })).toBeVisible()
+  await expect(panel).toContainText('npm run render -- motion-1.html')
+
+  // The ready message is for the timeline; the console stays clean.
+  await panel.getByRole('tab', { name: /Console/ }).click()
+  await expect(panel).toContainText('O console está vazio.')
+})
+
 test('fills the fields of a saved prompt and switches the theme', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Biblioteca' }).click()
