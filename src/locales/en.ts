@@ -1021,4 +1021,47 @@ export const en: Record<string, string> = {
     'Downloading local Whisper: {loaded} of {total} MB',
   'Piper (local, grátis)': 'Piper (local, free)',
   'O Piper só faz voz.': 'Piper only makes speech.',
+
+  // Making ElevenLabs voices
+  'Criar voz…': 'Create voice…',
+  'Voz criada e escolhida para a leitura.': 'Voice created and chosen for reading aloud.',
+  'Criar voz na ElevenLabs': 'Create a voice on ElevenLabs',
+  'A voz fica na sua conta da ElevenLabs e passa a ler as respostas. A ElevenLabs cobra créditos por isso, conforme o seu plano.':
+    'The voice is kept in your ElevenLabs account and starts reading the replies. ElevenLabs charges credits for it, according to your plan.',
+  'Descrever': 'Describe',
+  'Clonar de um áudio': 'Clone from audio',
+  'Como é a voz': 'What the voice is like',
+  'Ex.: locutor brasileiro de uns 40 anos, voz grave e calma, sotaque paulista, ritmo de podcast':
+    'E.g.: a Brazilian announcer in his 40s, deep and calm voice, São Paulo accent, podcast pace',
+  'Texto da amostra (opcional)': 'Sample text (optional)',
+  'De 100 a 1.000 caracteres. Em branco, a ElevenLabs escreve um que combina com a voz.':
+    '100 to 1,000 characters. Left blank, ElevenLabs writes one that suits the voice.',
+  'Com menos de 100 caracteres, a ElevenLabs escreve o texto.':
+    'With fewer than 100 characters, ElevenLabs writes the text.',
+  'Gerar outras versões': 'Make other versions',
+  'Gerar versões': 'Make versions',
+  'Descreva com pelo menos 20 caracteres.': 'Describe it in at least 20 characters.',
+  'Escolha uma versão': 'Choose a version',
+  'Versão {n}': 'Version {n}',
+  'Parar a versão {n}': 'Stop version {n}',
+  'Ouvir a versão {n}': 'Listen to version {n}',
+  'Nome da voz': 'Voice name',
+  'Salvar voz': 'Save voice',
+  'O navegador não permitiu usar o microfone.': "The browser didn't allow using the microphone.",
+  'A ElevenLabs pede para verificar esta voz no site antes de usá-la.':
+    'ElevenLabs asks you to verify this voice on its website before using it.',
+  'Use de 1 a 5 minutos de fala limpa da mesma pessoa, sem música nem outras vozes. Grave aqui ou envie arquivos de áudio.':
+    'Use 1 to 5 minutes of clean speech from the same person, with no music or other voices. Record here or upload audio files.',
+  'Parar ({seconds} s)': 'Stop ({seconds} s)',
+  'Gravar': 'Record',
+  'Enviar áudio': 'Upload audio',
+  'Arquivos de áudio para clonar': 'Audio files to clone',
+  'Amostras': 'Samples',
+  'Ouvir {name}': 'Listen to {name}',
+  'Tirar': 'Remove',
+  'Remover ruído de fundo': 'Remove background noise',
+  'A voz é minha ou tenho autorização da pessoa para cloná-la.':
+    "The voice is mine, or I have the person's permission to clone it.",
+  'Clonar voz': 'Clone voice',
+  'A ElevenLabs não devolveu a voz criada.': "ElevenLabs didn't return the new voice.",
 }

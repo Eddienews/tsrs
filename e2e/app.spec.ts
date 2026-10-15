@@ -1990,3 +1990,78 @@ test('offers Piper voices and local Whisper, which need no key', async ({ page }
   expect(saved.readAloud).toMatchObject({ source: 'piper', model: 'pt_BR-cadu-medium' })
   expect(saved.dictation).toBe('local')
 })
+
+test('designs and clones ElevenLabs voices and picks the new one to read', async ({ page }) => {
+  const headers = { 'access-control-allow-origin': '*' }
+  const voices = [{ voice_id: 'premade-1', name: 'George', category: 'premade' }]
+  const asked: { url: string; body: string; type: string }[] = []
+  await page.route('https://api.elevenlabs.io/**', async (route) => {
+    const request = route.request()
+    const url = request.url()
+    if (url.endsWith('/v1/voices')) return route.fulfill({ headers, json: { voices } })
+    if (url.endsWith('/v1/models')) return route.fulfill({ headers, json: [] })
+    asked.push({ url, body: request.postData() ?? '', type: (await request.allHeaders())['content-type'] ?? '' })
+    if (url.includes('/v1/text-to-voice/design'))
+      return route.fulfill({
+        headers,
+        json: {
+          text: 'Texto escrito pela ElevenLabs para combinar com a voz descrita.',
+          previews: ['a', 'b', 'c'].map((id) => ({
+            generated_voice_id: `gen-${id}`,
+            audio_base_64: silence().toString('base64'),
+            media_type: 'audio/wav',
+            duration_secs: 1,
+          })),
+        },
+      })
+    if (url.endsWith('/v1/text-to-voice')) {
+      voices.push({ voice_id: 'designed-1', name: 'Locutor', category: 'generated' })
+      return route.fulfill({ headers, json: { voice_id: 'designed-1' } })
+    }
+    if (url.endsWith('/v1/voices/add')) {
+      voices.push({ voice_id: 'cloned-1', name: 'Minha voz', category: 'cloned' })
+      return route.fulfill({ headers, json: { voice_id: 'cloned-1', requires_verification: false } })
+    }
+    return route.fulfill({ status: 404, headers, json: {} })
+  })
+  await page.goto('/')
+  await openSettings(page, 'Mídia')
+  await page.getByLabel('Chave de ElevenLabs').fill('xi-key')
+  await page.getByLabel('Leitura em voz alta').selectOption('elevenlabs')
+
+  // Designed from a description: three versions, one saved.
+  await page.getByRole('button', { name: 'Criar voz…' }).click()
+  const maker = page.getByRole('dialog', { name: 'Criar voz na ElevenLabs' })
+  await maker.getByLabel('Como é a voz').fill('Locutor brasileiro, voz grave e calma, ritmo de podcast')
+  await maker.getByRole('button', { name: 'Gerar versões' }).click()
+  const versions = maker.getByRole('group', { name: 'Escolha uma versão' }).getByRole('radio')
+  await expect(versions).toHaveCount(3)
+  await expect(maker.getByLabel('Texto da amostra (opcional)')).toHaveValue(/Texto escrito pela ElevenLabs/)
+  await versions.nth(1).check()
+  await maker.getByLabel('Nome da voz').fill('Locutor')
+  await maker.getByRole('button', { name: 'Salvar voz' }).click()
+  await expect(maker).toBeHidden()
+  const reader = page.getByLabel('Voz da leitura')
+  await expect(reader).toHaveValue('designed-1')
+  await expect(page.getByText('Voz criada e escolhida para a leitura.')).toBeVisible()
+  const design = JSON.parse(asked[0].body)
+  expect(design).toMatchObject({ voice_description: 'Locutor brasileiro, voz grave e calma, ritmo de podcast', auto_generate_text: true })
+  expect(JSON.parse(asked[1].body)).toEqual({ voice_name: 'Locutor', voice_description: design.voice_description, generated_voice_id: 'gen-b' })
+
+  // Cloned from a file, only with consent.
+  await page.getByRole('button', { name: 'Criar voz…' }).click()
+  await maker.getByRole('radio', { name: 'Clonar de um áudio' }).click()
+  await maker.getByLabel('Arquivos de áudio para clonar').setInputFiles({ name: 'amostra.wav', mimeType: 'audio/wav', buffer: silence() })
+  await expect(maker.getByRole('list', { name: 'Amostras' })).toContainText('amostra.wav')
+  await maker.getByLabel('Nome da voz').fill('Minha voz')
+  const clone = maker.getByRole('button', { name: 'Clonar voz' })
+  await expect(clone).toBeDisabled()
+  await maker.getByLabel('A voz é minha ou tenho autorização da pessoa para cloná-la.').check()
+  await clone.click()
+  await expect(maker).toBeHidden()
+  await expect(reader).toHaveValue('cloned-1')
+  expect(asked[2].url).toMatch(/\/v1\/voices\/add$/)
+  expect(asked[2].type).toContain('multipart/form-data')
+  expect(asked[2].body).toContain('name="files"; filename="amostra.wav"')
+  expect(asked[2].body).toContain('Minha voz')
+})

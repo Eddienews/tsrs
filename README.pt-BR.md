@@ -126,7 +126,9 @@ de pacotes) e do Chrome, do Edge ou do Chromium do Playwright.
   Cartesia), com o custo estimado antes de enviar quando o serviço publica.
 - Leitura das respostas em voz alta com a voz mais natural do navegador (as
   vozes neurais grátis do Microsoft Edge) ou com uma voz da ElevenLabs, da
-  OpenAI ou do Gemini; escolha as suas vozes da ElevenLabs, com amostra e preço.
+  OpenAI ou do Gemini; escolha as suas vozes da ElevenLabs, com amostra e preço,
+  ou crie uma nova pelo app: desenhada a partir de uma descrição (três versões
+  para escolher) ou clonada de gravações, com a autorização de quem fala.
 - Vozes locais grátis, sem chave e sem internet depois do primeiro download: o
   Piper lê as respostas em voz alta (e narra os vídeos curtos) e o Whisper
   transcreve o ditado e os áudios anexados, os dois rodando no navegador. O
