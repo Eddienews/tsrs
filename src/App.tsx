@@ -5,7 +5,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useIsMobile } from '@/lib/use-mobile'
 import { applyAppearance } from './appearance'
-import { useDictation } from './dictation'
+import { fileTranscriber, useDictation } from './dictation'
 import { branchAt, patchMessage, switchVersion, versions, type Branch } from './branches'
 import ChatTopBar from './ChatTopBar'
 import type { PaletteAction } from './CommandPalette'
@@ -25,7 +25,7 @@ import MessageView from './MessageView'
 import ParamsPanel from './ParamsPanel'
 import { forget } from './mcp'
 import { artifactName, lastPreviewable, withPreviewHint, type Artifact } from './preview'
-import { chatTracks } from './videoRender'
+import { chatTracks, trackBlob, trackFileName } from './videoRender'
 import { CANVAS_NOTE, CANVAS_TOOLS, newCanvas, runCanvasTool, undo, withCanvas } from './canvas'
 import { extractText } from './extract'
 import {
@@ -77,6 +77,7 @@ import {
   streamChat,
   type Connection,
   type RequestMessage,
+  transcribe,
 } from './stream'
 import { SUMMARY_PROMPT, sinceSummary, withSummary } from './summary'
 import {
@@ -425,6 +426,8 @@ export default function App() {
   const [draft, setDraft] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [attachError, setAttachError] = useState('')
+  // Attached audio files whose transcription is on its way; sending waits for it.
+  const [transcribing, setTranscribing] = useState<string[]>([])
   // Parameters for the conversation that has not been created yet.
   const [draftParams, setDraftParams] = useState<ChatParams>({})
   const [showSettings, setShowSettings] = useState(false)
@@ -1525,6 +1528,7 @@ export default function App() {
     const text = (request ?? draft).trim()
     const files = typed ? attachments : []
     if ((!text && !files.length) || streaming || blocked) return
+    if (typed && transcribing.length) return
     if (mediaMode && typed && !text) return
     const existing = findMeta(activeId)
     const history = existing ? threadsRef.current[existing.id] : []
@@ -1717,9 +1721,37 @@ export default function App() {
       try {
         const attachment = await readAttachment(file)
         setAttachments((list) => [...list, attachment])
+        if (attachment.kind === 'audio') void transcribeAttachment(attachment)
       } catch (err) {
         setAttachError(err instanceof Error ? err.message : String(err))
       }
+    }
+  }
+
+  // The model reads what an attached audio file says: chat APIs take no audio.
+  // Without a provider that transcribes, the file still goes along (the motion
+  // preview can use it as a soundtrack) and the model is told it cannot hear it.
+  async function transcribeAttachment(attachment: Attachment) {
+    const providerId = fileTranscriber(settings, locked)
+    if (!providerId) return
+    setTranscribing((list) => [...list, attachment.id])
+    try {
+      const text = await transcribe(
+        connection(settings, providerId),
+        trackBlob(attachment),
+        '',
+        trackFileName(attachment),
+      )
+      setAttachments((list) => list.map((a) => (a.id === attachment.id ? { ...a, transcript: text } : a)))
+    } catch (err) {
+      setAttachError(
+        t('Não foi possível transcrever "{name}": {error}', {
+          name: attachment.name,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      )
+    } finally {
+      setTranscribing((list) => list.filter((id) => id !== attachment.id))
     }
   }
 
@@ -2031,6 +2063,7 @@ export default function App() {
         blocked={!!blocked}
         dragging={dragging}
         attachments={attachments}
+        transcribing={transcribing}
         onAttach={attach}
         onRemoveAttachment={(id) => setAttachments((list) => list.filter((a) => a.id !== id))}
         prompts={settings.prompts}

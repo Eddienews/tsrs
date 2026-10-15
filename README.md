@@ -111,6 +111,11 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
 - Anexos: imagens e PDFs (colar, arrastar ou escolher), arquivos de texto e
   planilhas do Excel (.xlsx), lidas no navegador e enviadas como CSV, uma por
   aba, com datas e resultados de fórmulas como o Excel mostra.
+- Áudio anexado (MP3, WAV, M4A, OGG, FLAC, até 25 MB) toca na conversa e é
+  transcrito na hora pela OpenAI ou pelo Groq (o mesmo provedor do ditado, se
+  houver chave); o modelo recebe o texto, já que as APIs de chat não aceitam
+  áudio. Sem chave, o arquivo vai junto e o modelo é avisado de que não o ouviu.
+  O áudio da conversa também aparece como trilha do vídeo motion.
 - Conversas com busca, pastas, etiquetas, arquivo, fixar, renomear e título
   gerado automaticamente; várias de uma vez podem ser arquivadas, movidas,
   etiquetadas ou excluídas.

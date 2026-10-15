@@ -36,6 +36,8 @@ interface Props {
   // True while files are being dragged over the conversation.
   dragging: boolean
   attachments: Attachment[]
+  // Ids of attached audio files still being transcribed; sending waits.
+  transcribing: string[]
   onAttach: (files: File[]) => void
   onRemoveAttachment: (id: string) => void
   prompts: SavedPrompt[]
@@ -139,10 +141,33 @@ export default function Composer(p: Props) {
                   />
                 ) : a.kind === 'pdf' ? (
                   <FileType2 className="size-4 text-destructive" />
+                ) : a.kind === 'audio' ? (
+                  <AudioLines className="size-4 text-primary" />
                 ) : (
                   <FileText className="size-4 text-muted-foreground" />
                 )}
                 <span className="max-w-32 truncate">{a.name}</span>
+                {a.kind === 'audio' && (
+                  <span
+                    className="flex items-center gap-1 text-[10px] text-muted-foreground"
+                    title={
+                      a.transcript === undefined && !p.transcribing.includes(a.id)
+                        ? t('Configure uma chave da OpenAI ou do Groq para o modelo receber o que o áudio diz.')
+                        : undefined
+                    }
+                  >
+                    {p.transcribing.includes(a.id) ? (
+                      <>
+                        <Loader2 className="size-3 animate-spin" />
+                        {t('transcrevendo…')}
+                      </>
+                    ) : a.transcript !== undefined ? (
+                      t('transcrito')
+                    ) : (
+                      t('sem transcrição')
+                    )}
+                  </span>
+                )}
                 <button
                   aria-label={t('Remover anexo')}
                   title={t('Remover anexo')}
@@ -319,7 +344,7 @@ export default function Composer(p: Props) {
               className={cn('size-8', !p.dictation.available && 'ml-auto')}
               aria-label={t('Enviar')}
               title={t('Enviar')}
-              disabled={empty || p.blocked}
+              disabled={empty || p.blocked || p.transcribing.length > 0}
               onClick={p.onSend}
             >
               <ArrowUp className="size-4" />

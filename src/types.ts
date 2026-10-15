@@ -14,6 +14,9 @@ export interface Attachment {
   data: string
   // Where generated media can be fetched, when it could not be kept here.
   url?: string
+  // What an attached audio file says, transcribed when it was attached; the
+  // model gets this text, since chat APIs take no audio files.
+  transcript?: string
 }
 
 // What a media generation produces.

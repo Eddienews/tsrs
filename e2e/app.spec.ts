@@ -368,6 +368,64 @@ test('shows which version and commit are running', async ({ page }) => {
   await expect(page.getByTestId('version-details')).toContainText('Rodando pelo npm run dev')
 })
 
+// Half a second of silence as a WAV file.
+function silentWav(): Buffer {
+  const samples = 8000
+  const wav = Buffer.alloc(44 + samples * 2)
+  wav.write('RIFF', 0)
+  wav.writeUInt32LE(36 + samples * 2, 4)
+  wav.write('WAVEfmt ', 8)
+  wav.writeUInt32LE(16, 16)
+  wav.writeUInt16LE(1, 20)
+  wav.writeUInt16LE(1, 22)
+  wav.writeUInt32LE(16000, 24)
+  wav.writeUInt32LE(32000, 28)
+  wav.writeUInt16LE(2, 32)
+  wav.writeUInt16LE(16, 34)
+  wav.write('data', 36)
+  wav.writeUInt32LE(samples * 2, 40)
+  return wav
+}
+
+test('attaches audio, sends its transcription and offers it as a soundtrack', async ({ page }) => {
+  await connect(page)
+  const audio = { name: 'nota.wav', mimeType: 'audio/wav', buffer: silentWav() }
+  const fileInput = page.locator('footer input[type=file]')
+
+  // With no provider that transcribes, the file is attached and marked as such.
+  await fileInput.setInputFiles(audio)
+  const chip = page.locator('.chip', { hasText: 'nota.wav' })
+  await expect(chip).toContainText('sem transcrição')
+  await chip.getByRole('button', { name: 'Remover anexo' }).click()
+
+  await openSettings(page)
+  const openai = page.locator('[data-provider=openai]')
+  await openai.getByLabel('URL base').fill(provider.url)
+  await openai.getByLabel(/Chave de API/).fill('sk-audio')
+  await closeSettings(page)
+  await fileInput.setInputFiles(audio)
+  await expect(chip).toContainText('transcrito')
+  const sent = provider.transcriptions[0]
+  expect(sent).toContain('filename="nota.wav"')
+  expect(sent).toContain('gpt-4o-mini-transcribe')
+  // The language is left for the model to detect: a file may be in any language.
+  expect(sent).not.toContain('name="language"')
+
+  await send(page, 'Resuma o áudio')
+  const question = provider.chats.at(-1)!.body.messages.at(-1)
+  expect(JSON.stringify(question)).toContain('<audio name=\\"nota.wav\\" transcription=\\"automatic\\">\\nditado de teste')
+  const card = page.locator('.message.user .attached-audio')
+  await expect(card.locator('audio')).toHaveCount(1)
+  await card.getByText('Transcrição').click()
+  await expect(card).toContainText('ditado de teste')
+
+  // The same file is a soundtrack for a motion video.
+  await send(page, 'faça uma animação')
+  await page.locator('.message.assistant').last().getByRole('button', { name: 'Abrir preview' }).click()
+  const track = page.locator('.preview').getByRole('combobox', { name: 'Trilha' })
+  await expect(track.locator('option', { hasText: 'nota.wav' })).toHaveCount(1)
+})
+
 test('fills the fields of a saved prompt and switches the theme', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Biblioteca' }).click()

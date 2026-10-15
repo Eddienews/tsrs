@@ -157,11 +157,20 @@ async function request(target: string, init: RequestInit, conn?: Connection): Pr
   return res
 }
 
-// Text files have no native content block, so they travel inside the text.
-function textOf(message: RequestMessage): string {
-  const files = (message.attachments ?? [])
-    .filter((a) => a.kind === 'text')
-    .map((a) => `<file name="${a.name}">\n${a.data}\n</file>`)
+// Text files have no native content block, so they travel inside the text,
+// and so does what an audio file says: chat APIs take no audio files.
+export function textOf(message: RequestMessage): string {
+  const files = (message.attachments ?? []).flatMap((a) =>
+    a.kind === 'text'
+      ? [`<file name="${a.name}">\n${a.data}\n</file>`]
+      : a.kind === 'audio'
+        ? [
+            a.transcript
+              ? `<audio name="${a.name}" transcription="automatic">\n${a.transcript}\n</audio>`
+              : `[Audio file attached: ${a.name}. It was not transcribed, so its sound is not available to you.]`,
+          ]
+        : [],
+  )
   return [message.content, ...files].filter(Boolean).join('\n\n')
 }
 
@@ -701,11 +710,18 @@ function infoOf(model: any): ModelInfo {
 }
 
 // Turns recorded speech into text with the provider's transcription model.
-export async function transcribe(conn: Connection, audio: Blob, language: string): Promise<string> {
+// Speech to text with the provider's transcription model. `name` tells the
+// API the format; without a language, the model detects it.
+export async function transcribe(
+  conn: Connection,
+  audio: Blob,
+  language: string,
+  name = `dictation.${audio.type.includes('ogg') ? 'ogg' : 'webm'}`,
+): Promise<string> {
   const form = new FormData()
-  form.append('file', audio, `dictation.${audio.type.includes('ogg') ? 'ogg' : 'webm'}`)
+  form.append('file', audio, name)
   form.append('model', conn.provider.transcription ?? '')
-  form.append('language', language)
+  if (language) form.append('language', language)
   const init = { method: 'POST', headers: headers(conn), body: form }
   const res = await request(url(conn, '/audio/transcriptions'), init, conn)
   const json = await res.json()
