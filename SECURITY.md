@@ -8,9 +8,9 @@
 
 Please **don't open a public issue** for a security problem. Use
 **Security → Report a vulnerability** on the repository page; the report goes
-privately to the maintainers. If that option isn't available, contact the
-maintainer ([@Eddienews](https://github.com/Eddienews)) privately and we'll set
-up a private channel.
+privately to the maintainers. If that option isn't available, write to
+[nwlabapp@gmail.com](mailto:nwlabapp@gmail.com) with "TSRS security" in the
+subject.
 
 Include what you found, how to reproduce it, and what an attacker could do with
 it. Never include real API keys. We'll acknowledge the report as soon as we can,
@@ -55,9 +55,9 @@ to improve them are welcome.
 
 Por favor, **não abra uma issue pública** para um problema de segurança. Use
 **Security → Report a vulnerability** na página do repositório; o relato vai só
-para os mantenedores. Se essa opção não aparecer, fale com o mantenedor
-([@Eddienews](https://github.com/Eddienews)) em particular, e combinamos um
-canal privado.
+para os mantenedores. Se essa opção não aparecer, escreva para
+[nwlabapp@gmail.com](mailto:nwlabapp@gmail.com) com "TSRS segurança" no
+assunto.
 
 Conte o que encontrou, como reproduzir e o que um atacante poderia fazer com
 isso. Nunca inclua chaves de API reais. Vamos confirmar o recebimento assim que

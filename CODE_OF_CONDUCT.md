@@ -23,9 +23,9 @@ and deliberately disrupting conversations.
 This applies in issues, pull requests, Discussions, reviews and any other
 project space, and when someone represents the project elsewhere.
 
-**Reporting.** If something happens, contact the maintainer
-([@Eddienews](https://github.com/Eddienews)) privately, or use GitHub's
-"Report content" on the comment. Reports are handled confidentially. Depending on
+**Reporting.** If something happens, write to
+[nwlabapp@gmail.com](mailto:nwlabapp@gmail.com), or use GitHub's "Report
+content" on the comment. Reports are handled confidentially. Depending on
 what happened, the maintainers may ask for a change, remove content, or block
 someone from the project, temporarily or permanently.
 
@@ -54,9 +54,9 @@ alguém e atrapalhar conversas de propósito.
 Vale nas issues, nos pull requests, nas Discussions, nas revisões e em qualquer
 outro espaço do projeto, e quando alguém representa o projeto em outro lugar.
 
-**Como relatar.** Se algo acontecer, fale com o mantenedor
-([@Eddienews](https://github.com/Eddienews)) em particular, ou use o "Report
-content" do GitHub no comentário. Os relatos são tratados com sigilo. Conforme o
+**Como relatar.** Se algo acontecer, escreva para
+[nwlabapp@gmail.com](mailto:nwlabapp@gmail.com), ou use o "Report content" do
+GitHub no comentário. Os relatos são tratados com sigilo. Conforme o
 caso, os mantenedores podem pedir uma mudança, remover conteúdo ou bloquear
 alguém do projeto, por um tempo ou de vez.
 
