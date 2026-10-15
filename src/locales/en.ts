@@ -1079,4 +1079,8 @@ export const en: Record<string, string> = {
   '1 novo': '1 new',
   '{count} novos': '{count} new',
   novo: 'new',
+  // Azure OpenAI
+  'Implantações (deployments)': 'Deployments',
+  'Os nomes das implantações do recurso, separados por vírgula, como aparecem no Azure AI Foundry; cada uma vira um modelo na lista. A URL base é a do recurso, terminada em /openai/v1, e a chave fica em Chaves e Endpoint.':
+    "The resource's deployment names, separated by commas, as Azure AI Foundry shows them; each one becomes a model in the list. The base URL is the resource's, ending in /openai/v1, and the key is under Keys and Endpoint.",
 }

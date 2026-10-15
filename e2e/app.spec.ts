@@ -2124,3 +2124,24 @@ test('refreshes model lists once a day and points out the new ones', async ({ pa
   expect(saved.listed).toEqual(['mock-a', 'mock-b'])
   expect(Date.now() - saved.modelsCheckedAt).toBeLessThan(60_000)
 })
+
+test('talks to Azure OpenAI deployments with the api-key header', async ({ page }) => {
+  await page.goto('/')
+  await openSettings(page)
+  const azure = page.locator('[data-provider=azure]')
+  await expect(azure.getByLabel('URL base')).toHaveAttribute('placeholder', 'https://SEU-RECURSO.openai.azure.com/openai/v1')
+  await azure.getByLabel('URL base').fill(provider.url)
+  await azure.getByLabel(/Chave de API/).fill('azure-key')
+  // No list to load: the deployments are typed.
+  await expect(azure.getByRole('button', { name: 'Carregar modelos' })).toHaveCount(0)
+  await azure.getByLabel('Implantações (deployments)').fill('meu-gpt, outro-gpt')
+  await closeSettings(page)
+  await modelPicker(page).click()
+  await page.getByRole('option', { name: /outro-gpt/ }).click()
+  await send(page, 'Olá Azure')
+  await expect(reply(page)).toContainText('Resposta 1')
+  const request = provider.chats.at(-1)!
+  expect(request.body.model).toBe('outro-gpt')
+  expect(request.headers['api-key']).toBe('azure-key')
+  expect(request.headers.authorization).toBeUndefined()
+})

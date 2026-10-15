@@ -320,6 +320,13 @@ export interface Provider {
   // The provider's API does not accept calls from a browser; it is reached
   // through the local proxy by default.
   needsProxy?: boolean
+  // Offers the local proxy as an option, for accounts that block browsers.
+  proxyOption?: boolean
+  // An example of the base URL, when each account has its own.
+  baseUrlExample?: string
+  // Models are the account's own deployments, named by the user: no list to
+  // load, a field to type them in.
+  deployments?: boolean
   // How the provider offers web search (and, for Anthropic, page fetching)
   // run on its own servers; absent when it does not.
   webTools?: 'anthropic' | 'openrouter'

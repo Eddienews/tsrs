@@ -180,6 +180,21 @@ export const PROVIDERS: Provider[] = [
     efforts: [],
   },
   {
+    // Azure's v1 API speaks the OpenAI format at the resource's own address,
+    // with the key in an api-key header; the model is the deployment's name.
+    ...openaiCompatible,
+    id: 'azure',
+    name: 'Azure OpenAI',
+    baseUrl: '',
+    baseUrlExample: 'https://SEU-RECURSO.openai.azure.com/openai/v1',
+    modelsPath: '',
+    headers: { 'api-key': '{apiKey}' },
+    keyRequired: true,
+    maxTokensField: 'max_completion_tokens',
+    deployments: true,
+    proxyOption: true,
+  },
+  {
     ...openaiCompatible,
     id: 'custom',
     name: 'Custom (OpenAI-compatible)',

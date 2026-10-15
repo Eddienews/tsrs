@@ -155,6 +155,14 @@ Modelos que você digitou à mão continuam lá; os que o provedor tirou do ar s
 com uma chave só. É um bom começo para experimentar antes de abrir conta em
 cada provedor.
 
+**Azure OpenAI:** no provedor **Azure OpenAI**, a URL base é a do seu recurso
+terminada em `/openai/v1` (por exemplo,
+`https://meu-recurso.openai.azure.com/openai/v1`) e a chave fica em **Chaves e
+Endpoint** no portal do Azure. Em vez de carregar a lista, digite os nomes das
+suas **implantações** (deployments), separados por vírgula: cada uma vira um
+modelo. Se a sua organização bloquear chamadas do navegador, ligue **Usar o
+proxy local**.
+
 ### Proteja as chaves
 
 Em **Configurações → Segurança**, defina uma **senha**. As chaves passam a ficar

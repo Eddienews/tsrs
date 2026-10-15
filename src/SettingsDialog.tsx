@@ -273,13 +273,13 @@ export default function SettingsDialog(props: Props) {
                       <Input
                         id={`url-${provider.id}`}
                         type="url"
-                        placeholder={t('https://exemplo.com/v1')}
+                        placeholder={provider.baseUrlExample ?? t('https://exemplo.com/v1')}
                         className="font-mono text-xs"
                         value={conn.baseUrl}
                         onChange={(e) => patch(provider.id, { baseUrl: e.target.value.trim() })}
                       />
                     </div>
-                    {(provider.needsProxy || !provider.keyRequired || provider.id === 'custom') && (
+                    {(provider.needsProxy || provider.proxyOption || !provider.keyRequired || provider.id === 'custom') && (
                       <label className="flex items-center justify-between gap-4 text-sm">
                         {t('Usar o proxy local')}
                         <Switch
@@ -289,6 +289,13 @@ export default function SettingsDialog(props: Props) {
                         />
                       </label>
                     )}
+                    {provider.deployments ? (
+                      <DeploymentsField
+                        id={provider.id}
+                        models={conn.models}
+                        onModels={(models) => patch(provider.id, { models })}
+                      />
+                    ) : (
                     <div className="flex flex-wrap items-center gap-3">
                       <Button
                         variant="outline"
@@ -304,6 +311,7 @@ export default function SettingsDialog(props: Props) {
                           t('{count} modelos na lista.', { count: conn.models.length })}
                       </span>
                     </div>
+                    )}
                   </div>
                 )
               })}
@@ -816,6 +824,31 @@ function LocalWhisperFields(props: { size: WhisperSize; onSize: (size: WhisperSi
             : t('Ainda não baixado.')}
         </p>
       )}
+    </div>
+  )
+}
+
+// The deployments of an Azure resource, by name: they are the models to pick.
+function DeploymentsField(props: { id: string; models: string[]; onModels: (models: string[]) => void }) {
+  const [text, setText] = useState(props.models.join(', '))
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={`deployments-${props.id}`}>{t('Implantações (deployments)')}</Label>
+      <Input
+        id={`deployments-${props.id}`}
+        placeholder="gpt-5-mini, gpt-4o"
+        className="font-mono text-xs"
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value)
+          props.onModels([...new Set(e.target.value.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean))])
+        }}
+      />
+      <p className="text-xs text-muted-foreground">
+        {t(
+          'Os nomes das implantações do recurso, separados por vírgula, como aparecem no Azure AI Foundry; cada uma vira um modelo na lista. A URL base é a do recurso, terminada em /openai/v1, e a chave fica em Chaves e Endpoint.',
+        )}
+      </p>
     </div>
   )
 }
