@@ -227,9 +227,10 @@ npm run render -- motion-1.html --fps 60 --crf 16 --out abertura.mp4
 ## Provedores
 
 Anthropic, OpenAI, Google Gemini, OpenRouter, DeepSeek, Mistral, xAI (Grok),
-Groq, Perplexity, Command Code, OpenCode Zen e Go (pelo proxy local), Ollama e
-LM Studio (locais) e qualquer endpoint compatível com a API de chat da OpenAI
-("Custom").
+Groq, Perplexity, Command Code, OpenCode Zen e Go (pelo proxy local), Azure
+OpenAI (o endpoint v1 do seu recurso, com as implantações digitadas pelo nome),
+Ollama e LM Studio (locais) e qualquer endpoint compatível com a API de chat da
+OpenAI ("Custom").
 
 Cada provedor é uma linha em `src/providers.ts`: URL base, caminhos, cabeçalhos
 (com `{apiKey}` no lugar da chave) e o formato da API (`openai` ou `anthropic`).

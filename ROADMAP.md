@@ -99,6 +99,7 @@ each section, the order is the suggested order.
 - [x] Make ElevenLabs voices from the app: designed from a description or cloned from recordings
 - [x] Talk about videos: frames and the transcription of their sound, for any model with vision
 - [x] Model lists that update once a day and mark new models, fine-tuned ones included
+- [x] Azure OpenAI, through the resource's v1 endpoint and its deployments
 
 ## Next
 

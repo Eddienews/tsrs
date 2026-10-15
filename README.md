@@ -218,6 +218,7 @@ This is the same contract as NWLab ForgeOS motion pages.
 
 Anthropic, OpenAI, Google Gemini, OpenRouter, DeepSeek, Mistral, xAI (Grok),
 Groq, Perplexity, Command Code, OpenCode Zen and Go (through the local proxy),
+Azure OpenAI (your resource's v1 endpoint, with deployments typed by name),
 Ollama and LM Studio (local), and any endpoint compatible with OpenAI's chat API
 ("Custom").
 

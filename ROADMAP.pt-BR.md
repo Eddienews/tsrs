@@ -98,6 +98,7 @@ cada seção é a ordem sugerida.
 - [x] Criar vozes da ElevenLabs pelo app: desenhadas por descrição ou clonadas de gravações
 - [x] Conversar sobre vídeos: quadros e a transcrição do som, para qualquer modelo com visão
 - [x] Listas de modelos que se atualizam uma vez por dia e marcam os modelos novos, inclusive os de fine-tuning
+- [x] Azure OpenAI, pelo endpoint v1 do recurso e as suas implantações
 
 ## Próximos
 
