@@ -88,7 +88,8 @@ import {
   type Meaning,
 } from './knowledge'
 import { MEMORY_TOOLS, runMemoryTool, withMemories } from './memory'
-import { connection, getProvider } from './providers'
+import { connection, getProvider, PROVIDERS } from './providers'
+import { modelsDue, withFreshModels, withoutNewModels } from './modelUpdates'
 import Sidebar from './Sidebar'
 import { comboOf, SHORTCUT_ACTIONS, shortcutsOf } from './shortcuts'
 import { setBrowserVoice, setReader } from './speech'
@@ -116,6 +117,7 @@ import {
 } from './storage'
 import {
   completeText,
+  listModels,
   streamChat,
   type Connection,
   type RequestMessage,
@@ -889,6 +891,33 @@ export default function App() {
     setBackupOn(true)
     return note ? `${summary} ${note}` : summary
   }
+
+  // Once a day each provider's model list is asked for again, so new models
+  // show up by themselves and are pointed out in the model picker.
+  useEffect(() => {
+    if (locked) return
+    async function refreshModelLists() {
+      const now = Date.now()
+      for (const provider of PROVIDERS) {
+        if (!modelsDue(provider, settingsRef.current.providers[provider.id], now)) continue
+        try {
+          const fresh = await listModels(connection(settingsRef.current, provider.id))
+          setSettings((s) => {
+            const { next } = withFreshModels(provider, s.providers[provider.id], fresh, now)
+            return { ...s, providers: { ...s.providers, [provider.id]: next } }
+          })
+        } catch {
+          // Offline or a key that stopped working: tried again within the hour.
+        }
+      }
+    }
+    const first = window.setTimeout(refreshModelLists, 5_000)
+    const hourly = window.setInterval(refreshModelLists, 60 * 60 * 1000)
+    return () => {
+      window.clearTimeout(first)
+      window.clearInterval(hourly)
+    }
+  }, [locked])
 
   // With a vault, the keys are written only in encrypted form. While locked
   // the in-memory keys are empty and the stored vault is left as it is.
@@ -2393,6 +2422,7 @@ export default function App() {
         showMenu={isMobile}
         onMenu={() => setShowDrawer(true)}
         onModel={selectModel}
+        onSeenNewModels={() => setSettings(withoutNewModels)}
         onPersona={applyPersona}
         project={settings.projects !== false ? active?.project : undefined}
         onOpenUrl={(url, name) => showArtifact('url', url, name)}

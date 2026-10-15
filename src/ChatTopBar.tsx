@@ -32,6 +32,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { t } from './i18n'
+import { newModelCount } from './modelUpdates'
 import { PROVIDERS } from './providers'
 import { fileUrl, listFiles } from './projects'
 import type { ChatProject, Provider, Settings } from './types'
@@ -55,6 +56,8 @@ interface Props {
   showMenu: boolean
   onMenu: () => void
   onModel: (providerId: string, model: string) => void
+  // The model picker was opened with new models in it.
+  onSeenNewModels: () => void
   onPersona: (id: string) => void
   // Saves the price typed for a model whose price is not known; null removes it.
   onPrice: (providerId: string, model: string, price: { inputPrice: number; outputPrice: number } | null) => void
@@ -279,18 +282,26 @@ function ProjectButton(p: {
   )
 }
 
-function ModelPicker({ settings, onModel }: Pick<Props, 'settings' | 'onModel'>) {
+function ModelPicker({ settings, onModel, onSeenNewModels }: Pick<Props, 'settings' | 'onModel' | 'onSeenNewModels'>) {
   const [open, setOpen] = useState(false)
+  const fresh = newModelCount(settings)
+  // New models stay marked while the list is open, and are cleared after.
+  const [shown, setShown] = useState<Set<string>>(new Set())
+  const toggle = (next: boolean) => {
+    if (next) setShown(new Set(Object.entries(settings.providers).flatMap(([id, p]) => (p.newModels ?? []).map((m) => `${id}/${m}`))))
+    else if (fresh) onSeenNewModels()
+    setOpen(next)
+  }
   const [query, setQuery] = useState('')
   const typed = query.trim()
   const pick = (providerId: string, model: string) => {
     onModel(providerId, model)
-    setOpen(false)
+    toggle(false)
     setQuery('')
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={toggle}>
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
@@ -300,6 +311,11 @@ function ModelPicker({ settings, onModel }: Pick<Props, 'settings' | 'onModel'>)
         >
           <span className="size-1.5 shrink-0 rounded-full bg-primary" />
           <span className="truncate">{settings.model || t('Escolher modelo')}</span>
+          {fresh > 0 && (
+            <span className="new-models shrink-0 rounded-full bg-primary px-1.5 font-sans text-[10px] text-primary-foreground">
+              {fresh === 1 ? t('1 novo') : t('{count} novos', { count: fresh })}
+            </span>
+          )}
           <ChevronDown className="size-3.5 opacity-60" />
         </Button>
       </PopoverTrigger>
@@ -341,6 +357,9 @@ function ModelPicker({ settings, onModel }: Pick<Props, 'settings' | 'onModel'>)
                         onSelect={() => pick(p.id, model)}
                       >
                         <span className="truncate font-mono text-xs">{model}</span>
+                        {shown.has(`${p.id}/${model}`) && (
+                          <span className="shrink-0 rounded bg-primary/15 px-1 text-[10px] text-primary">{t('novo')}</span>
+                        )}
                         {info.context && (
                           <span className="ml-auto shrink-0 font-mono text-[10px] text-muted-foreground">
                             {formatTokens(info.context)}
@@ -399,7 +418,7 @@ export default function ChatTopBar(p: Props) {
         </Button>
       )}
       <span className="hidden text-xs text-muted-foreground lg:inline">{p.provider.name}</span>
-      <ModelPicker settings={settings} onModel={p.onModel} />
+      <ModelPicker settings={settings} onModel={p.onModel} onSeenNewModels={p.onSeenNewModels} />
       {settings.personas.length > 0 && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

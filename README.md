@@ -47,7 +47,9 @@ npm run dev        # http://localhost:5173
 ```
 
 Open **Settings**, paste the API key of a provider, click **Load models** (or
-type a model name in the top bar) and send a message. With
+type a model name in the top bar) and send a message. After that the list
+updates itself once a day, and new models (fine-tuned ones included) are marked
+as new in the model picker. With
 [Ollama](https://ollama.com) installed, local models work with no key at all.
 
 Optional extras:

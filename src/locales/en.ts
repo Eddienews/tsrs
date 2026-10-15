@@ -1075,4 +1075,8 @@ export const en: Record<string, string> = {
     'No transcription: the model only saw the frames.',
   'O navegador não conseguiu abrir este vídeo; tente em MP4 ou WebM.':
     "The browser couldn't open this video; try MP4 or WebM.",
+  // New models
+  '1 novo': '1 new',
+  '{count} novos': '{count} new',
+  novo: 'new',
 }

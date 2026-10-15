@@ -146,6 +146,11 @@ O LM Studio funciona do mesmo jeito.
    em **Carregar modelos**.
 3. Escolha o modelo na barra superior (ou digite o nome dele) e envie uma mensagem.
 
+Depois disso a lista se atualiza sozinha uma vez por dia. Quando um provedor
+lança um modelo (ou você treina um modelo seu, com fine-tuning), ele aparece com
+a marca **novo** na lista e um aviso no botão do modelo, até você abrir a lista.
+Modelos que você digitou à mão continuam lá; os que o provedor tirou do ar somem.
+
 **Dica:** o **OpenRouter** dá acesso a centenas de modelos de várias empresas
 com uma chave só. É um bom começo para experimentar antes de abrir conta em
 cada provedor.
