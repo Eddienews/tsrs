@@ -75,7 +75,8 @@ export function totals(
 // Fraction of the context window the next request will start from, judged by
 // the latest reply; undefined when either number is unknown.
 export function contextUse(messages: Message[], info: ModelInfo): number | undefined {
-  const last = messages.findLast((m) => m.usage)?.usage
+  // After a cleared context, nothing before the mark counts.
+  const last = messages.findLast((m) => m.usage || m.contextReset)?.usage
   if (!last || !info.context) return undefined
   return (last.context ?? last.input + last.output) / info.context
 }

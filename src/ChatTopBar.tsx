@@ -2,6 +2,7 @@ import {
   AlertTriangle,
   ChevronDown,
   Copy,
+  Eraser,
   FolderOpen,
   Menu,
   MessageSquareDashed,
@@ -69,6 +70,8 @@ interface Props {
   temporary: boolean
   // Absent once the conversation has started: it stays what it is.
   onToggleTemporary?: () => void
+  // Clears the context from here on; absent when there is nothing to clear.
+  onClearContext?: () => void
 }
 
 // Asks for a model's price when neither the provider nor the app knows it, so
@@ -449,6 +452,18 @@ export default function ChatTopBar(p: Props) {
               </span>
             )}
           </div>
+        )}
+        {p.onClearContext && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            aria-label={t('Limpar o contexto')}
+            title={t('Limpar o contexto: o modelo deixa de ver as mensagens anteriores')}
+            onClick={p.onClearContext}
+          >
+            <Eraser className="size-4" />
+          </Button>
         )}
         <Button
           variant="ghost"

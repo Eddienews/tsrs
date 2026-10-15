@@ -1,4 +1,5 @@
 import { locale, t } from './i18n'
+import { isOffice, isOtherDocument, officeText, otherDocument } from './office'
 import { isOtherSpreadsheet, isSpreadsheet, otherSpreadsheet, spreadsheetText } from './spreadsheet'
 import type {
   Attachment,
@@ -67,6 +68,10 @@ export async function readAttachment(file: File): Promise<Attachment> {
     return { ...base, mime: 'text/csv', kind: 'text', data: await spreadsheetText(file) }
   }
   if (isOtherSpreadsheet(file.name)) throw new Error(otherSpreadsheet(file.name))
+  if (isOffice(file)) {
+    return { ...base, mime: 'text/markdown', kind: 'text', data: await officeText(file) }
+  }
+  if (isOtherDocument(file.name)) throw new Error(otherDocument(file.name))
   const text = await file.text()
   if (text.includes('\u0000')) {
     throw new Error(t('"{name}" não é imagem, PDF, áudio nem texto.', { name: file.name }))
@@ -93,6 +98,10 @@ export function chatToMarkdown(chat: Chat): string {
     `_${chat.model} · ${new Date(chat.createdAt).toLocaleString(locale())}_`,
   ]
   for (const message of chat.messages) {
+    if (message.contextReset) {
+      parts.push('---', `_${t('Contexto limpo aqui: o modelo não vê as mensagens acima.')}_`)
+      continue
+    }
     parts.push(`## ${message.role === 'user' ? t('Você') : t('Assistente')}`)
     if (message.content) parts.push(message.content)
     if (message.attachments?.length) {

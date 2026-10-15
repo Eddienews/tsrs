@@ -27,7 +27,7 @@ export const en: Record<string, string> = {
   Desbloquear: 'Unlock',
   'Abrir configurações': 'Open settings',
   'Remover anexo': 'Remove attachment',
-  'Anexar imagens, PDFs ou arquivos de texto': 'Attach images, PDFs or text files',
+  'Anexar imagens, PDFs, Word, PowerPoint, planilhas, áudio ou texto': 'Attach images, PDFs, Word, PowerPoint, spreadsheets, audio or text',
   Anexar: 'Attach',
   'Inserir um prompt salvo': 'Insert a saved prompt',
   'Sem título': 'Untitled',
@@ -614,6 +614,11 @@ export const en: Record<string, string> = {
   'Memória': 'Memory',
   'Esta conversa já ocupa {percent}% do contexto do modelo. Resuma a conversa para continuar com menos tokens, ou comece uma nova.':
     'This chat already fills {percent}% of the model context. Summarize it to go on with fewer tokens, or start a new chat.',
+  'Limpar o contexto': 'Clear the context',
+  'Limpar o contexto: o modelo deixa de ver as mensagens anteriores': 'Clear the context: the model stops seeing the earlier messages',
+  'Limpar o contexto da conversa': 'Clear the conversation context',
+  'Contexto limpo aqui: o modelo não vê as mensagens acima.': 'Context cleared here: the model does not see the messages above.',
+  Desfazer: 'Undo',
   'Resumir a conversa': 'Summarize the chat',
   'Descreva a imagem que você quer gerar…': 'Describe the image you want to generate…',
   'Gerar uma imagem com a próxima mensagem': 'Generate an image from the next message',
@@ -828,6 +833,14 @@ export const en: Record<string, string> = {
   // Spreadsheets
   'O arquivo não é uma planilha .xlsx válida.': 'The file is not a valid .xlsx spreadsheet.',
   '"{name}" não tem nenhuma célula preenchida.': '"{name}" has no filled-in cells.',
+  '"{name}" é uma apresentação num formato que o TSRS não lê. Salve como .pptx ou PDF.':
+    '"{name}" is a presentation in a format TSRS cannot read. Save it as .pptx or PDF.',
+  '"{name}" é um documento num formato que o TSRS não lê. Salve como .docx ou PDF.':
+    '"{name}" is a document in a format TSRS cannot read. Save it as .docx or PDF.',
+  '"{name}" está corrompido ou não é um arquivo do Office.': '"{name}" is damaged or not an Office file.',
+  '"{name}" não tem texto que dê para ler.': '"{name}" has no text that can be read.',
+  'Slide {n}': 'Slide {n}',
+  Notas: 'Notes',
   '"{name}" é uma planilha num formato que o TSRS não lê. Salve como .xlsx ou CSV.':
     '"{name}" is a spreadsheet in a format TSRS cannot read. Save it as .xlsx or CSV.',
   // Starter library

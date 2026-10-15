@@ -443,9 +443,10 @@ test('saves the files of a conversation into its own folder, and carries on from
   expect(folder).toContain('tsrs-e2e-projects')
   await expect.poll(() => readFile(join(folder, 'index.html'), 'utf8').catch(() => '')).toContain('NorthWind Lab')
   expect(await readFile(join(folder, 'styles.css'), 'utf8')).toBe('h1 { color: rgb(220, 80, 0) }')
-  const notes = await readFile(join(folder, 'NOTAS.md'), 'utf8')
-  expect(notes).toContain('## Pedido\n\ncrie o site do NWLab')
-  expect(notes).toMatch(/index\.html, styles\.css · mock-a/)
+  // The history line is appended after the files are written; wait for it.
+  const notes = () => readFile(join(folder, 'NOTAS.md'), 'utf8').catch(() => '')
+  await expect.poll(notes).toMatch(/index\.html, styles\.css · mock-a/)
+  expect(await notes()).toContain('## Pedido\n\ncrie o site do NWLab')
 
   // The folder's page opens in the preview with its stylesheet.
   await button.click()
@@ -463,6 +464,15 @@ test('saves the files of a conversation into its own folder, and carries on from
   // And writes new files into the folder.
   await send(page, 'grave a página sobre')
   await expect.poll(() => readFile(join(folder, 'paginas', 'sobre.html'), 'utf8').catch(() => '')).toBe('<h1>Sobre</h1>')
+  // Word and PowerPoint files: written as real Office files, read back as text.
+  await send(page, 'chame project_write_word {"file":"proposta","markdown":"# Proposta\\n\\n- Site novo\\n- Blog"}')
+  await expect.poll(() => readFile(join(folder, 'proposta.docx')).then((b) => b.subarray(0, 2).toString()).catch(() => '')).toBe('PK')
+  await send(page, 'chame project_write_powerpoint {"file":"deck.pptx","title":"TSRS","slides":[{"title":"Vantagens","bullets":["Suas chaves"],"notes":"Falar devagar"}]}')
+  await expect(reply(page).last()).toContainText('Saved deck.pptx with 2 slides.')
+  await send(page, 'chame project_read_file {"file":"deck.pptx"}')
+  await expect(reply(page).last()).toContainText('Suas chaves')
+  await send(page, 'chame project_read_file {"file":"proposta.docx"}')
+  await expect(reply(page).last()).toContainText('Site novo')
 
   // The conversation can move to another folder; its files go along.
   const other = await mkdtemp(join(tmpdir(), 'tsrs-other-'))
@@ -938,6 +948,28 @@ test('summarizes a long chat and continues from the summary', async ({ page }) =
   await page.reload()
   await chatRow(page, 'Saudação inicial').click()
   await expect(page.locator('.summary')).toBeVisible()
+})
+
+test('clears the context from a point and can undo it', async ({ page }) => {
+  await connect(page)
+  await send(page, 'primeira')
+  await send(page, 'segunda')
+  await page.locator('.toolbar').getByRole('button', { name: 'Limpar o contexto' }).click()
+  await expect(page.locator('.context-reset')).toContainText('o modelo não vê as mensagens acima')
+  // Nothing new to clear until the conversation goes on.
+  await expect(page.locator('.toolbar').getByRole('button', { name: 'Limpar o contexto' })).toBeHidden()
+
+  await send(page, 'terceira')
+  const sent = (): string[] => provider.chats.at(-1)!.body.messages.map((m: any) => JSON.stringify(m.content))
+  expect(sent().join(' ')).not.toContain('primeira')
+  expect(sent().at(-1)).toContain('terceira')
+  // The mark survives a reload, and undoing it brings the history back.
+  await page.reload()
+  await chatRow(page, 'Saudação inicial').click()
+  await page.locator('.context-reset').getByRole('button', { name: 'Desfazer' }).click()
+  await expect(page.locator('.context-reset')).toHaveCount(0)
+  await send(page, 'quarta')
+  expect(sent().join(' ')).toContain('primeira')
 })
 
 test('generates an image and regenerates it', async ({ page }) => {

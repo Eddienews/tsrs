@@ -215,6 +215,11 @@ O indicador de contexto mostra quanto da memória do modelo a conversa já usa.
 Perto do limite, **Resumir a conversa** troca o começo por um resumo e libera
 espaço sem perder o fio.
 
+Para mudar de assunto sem abrir outra conversa, use **Limpar o contexto** (o
+ícone de borracha na barra superior, ou Ctrl+K). Aparece uma linha na conversa:
+dali para cima, nada mais vai para o modelo, e cada pergunta fica mais barata.
+O histórico continua visível, e **Desfazer** na linha devolve tudo.
+
 ### Organizar
 
 - **Pastas** e **etiquetas** na barra lateral; arraste conversas para as pastas.
@@ -232,6 +237,10 @@ Clique em **Anexar** (ou arraste para a caixa de mensagem):
 - **Imagens** e **PDFs**: o modelo vê o conteúdo (nos modelos com visão).
 - **Textos, código, CSV, Markdown, HTML**.
 - **Planilhas Excel (.xlsx)**: cada aba vira uma tabela que o modelo lê.
+- **Word (.docx)** e **PowerPoint (.pptx)**: o texto vira Markdown, com títulos,
+  listas e tabelas; nas apresentações, slide a slide, com as notas do
+  apresentador. Formatos antigos (.doc, .ppt) precisam ser salvos como .docx ou
+  .pptx antes.
 - **Áudio** (MP3, WAV, M4A…): toca na conversa e é **transcrito** pela OpenAI ou
   pelo Groq, para qualquer modelo entender; também serve de trilha para os vídeos
   motion.
@@ -252,6 +261,23 @@ pasta do TSRS, com um `NOTAS.md` que registra o que foi feito.
 
 **Dica:** peça "crie a página inicial do site X em arquivos separados
 (index.html, estilo.css, app.js)" e o projeto já nasce organizado.
+
+### Word e PowerPoint
+
+Com a pasta do projeto ligada, peça o documento ou a apresentação direto:
+
+> "Monte uma proposta comercial em Word para a Acme, com escopo, cronograma e
+> tabela de preços."
+>
+> "Faça uma apresentação de 8 slides sobre o lançamento, tema escuro, com notas
+> para o apresentador."
+
+O TSRS grava o `.docx` ou o `.pptx` na pasta do projeto, pronto para abrir no
+Word, no PowerPoint, no Google Docs/Slides, no Keynote ou no LibreOffice. Para
+ajustar, peça a mudança na conversa: o modelo lê o arquivo atual antes de
+reescrever. Os arquivos saem com estilos padrão (títulos, listas, tabelas);
+para a identidade visual da empresa, aplique o modelo dela depois, no próprio
+Word ou PowerPoint.
 
 ### Contexto da pasta
 

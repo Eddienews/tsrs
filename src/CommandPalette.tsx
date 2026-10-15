@@ -1,4 +1,5 @@
 import {
+  Eraser,
   BarChart3,
   Cpu,
   Library,
@@ -34,12 +35,15 @@ export type PaletteAction =
   | 'usage'
   | 'theme'
   | 'lock'
+  | 'clear'
 
 interface Props {
   chats: ChatMeta[]
   settings: Settings
   // Whether there are unlocked, password-protected keys to lock.
   canLock: boolean
+  // Whether the open conversation has messages whose context can be cleared.
+  canClear?: boolean
   onChat: (id: string) => void
   onModel: (providerId: string, model: string) => void
   onAction: (action: PaletteAction) => void
@@ -61,6 +65,7 @@ export default function CommandPalette(p: Props) {
     ['settings', t('Configurações'), SettingsIcon],
     ['theme', t('Alternar tema'), SunMoon],
   ]
+  if (p.canClear) actions.push(['clear', t('Limpar o contexto da conversa'), Eraser])
   if (p.canLock) actions.push(['lock', t('Bloquear agora'), Lock])
 
   return (

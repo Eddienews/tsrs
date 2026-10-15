@@ -14,6 +14,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Eraser,
   Columns2,
   Columns3,
   Copy,
@@ -89,6 +90,21 @@ function IconAction(props: {
       </TooltipTrigger>
       <TooltipContent>{props.label}</TooltipContent>
     </Tooltip>
+  )
+}
+
+// Where the user cleared the context: what is above is no longer sent.
+export function ContextReset({ busy, onUndo }: { busy: boolean; onUndo: () => void }) {
+  return (
+    <div className="context-reset flex w-full items-center gap-3 text-xs text-muted-foreground" role="separator">
+      <span className="h-px flex-1 bg-border" />
+      <Eraser className="size-3.5 shrink-0" />
+      <span>{t('Contexto limpo aqui: o modelo não vê as mensagens acima.')}</span>
+      <button className="underline underline-offset-2 hover:text-foreground disabled:opacity-50" disabled={busy} onClick={onUndo}>
+        {t('Desfazer')}
+      </button>
+      <span className="h-px flex-1 bg-border" />
+    </div>
   )
 }
 

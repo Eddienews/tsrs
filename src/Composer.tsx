@@ -221,7 +221,7 @@ export default function Composer(p: Props) {
             size="icon"
             className="size-8"
             aria-label={t('Anexar')}
-            title={t('Anexar imagens, PDFs ou arquivos de texto')}
+            title={t('Anexar imagens, PDFs, Word, PowerPoint, planilhas, áudio ou texto')}
             onClick={() => fileRef.current?.click()}
           >
             <Paperclip className="size-4" />

@@ -82,14 +82,17 @@ de pacotes) e do Chrome, do Edge ou do Chromium do Playwright.
 - Prompt de sistema, temperatura, máximo de tokens e nível de raciocínio por
   conversa; o raciocínio do modelo, recolhido acima da resposta, quando o
   provedor envia.
-- Resumo do contexto quando a conversa se aproxima do limite do modelo.
+- Resumo do contexto quando a conversa se aproxima do limite do modelo, ou limpar
+  o contexto a partir de qualquer ponto (dá para desfazer), para as mensagens
+  anteriores deixarem de ser enviadas.
 - Paleta de comandos (Ctrl/⌘+K), atalhos configuráveis, data e hora, som ao
   terminar, tema claro e escuro, cor de destaque, tamanho da fonte e densidade.
 - Interface em português e inglês.
 
 ### Arquivos e conhecimento
-- Anexe imagens, PDFs, textos, planilhas do Excel (lidas como CSV, uma por aba)
-  e áudio (transcrito pela OpenAI ou pelo Groq, para qualquer modelo usar).
+- Anexe imagens, PDFs, textos, arquivos do Word e do PowerPoint (lidos como
+  Markdown, slide a slide com as notas), planilhas do Excel (lidas como CSV, uma
+  por aba) e áudio (transcrito pela OpenAI ou pelo Groq, para qualquer modelo usar).
 - Bases de conhecimento locais: PDFs, textos, Markdown e HTML divididos em
   trechos e buscados por palavras (BM25, sem API) e, se quiser, por sentido
   (embeddings), por conversa ou por agente; o modelo pode buscar de novo com
@@ -97,7 +100,8 @@ de pacotes) e do Chrome, do Edge ou do Chromium do Playwright.
 - **Pasta do projeto**: os arquivos que a conversa cria ficam em
   `projetos/<conversa>/`, com um `NOTAS.md`; o modelo lê a versão atual antes de
   mudar algo, então dá para alternar entre o TSRS e outras ferramentas. Qualquer
-  outra pasta pode ser usada no lugar.
+  outra pasta pode ser usada no lugar. O modelo também cria arquivos do **Word
+  (.docx) e do PowerPoint (.pptx)** ali, e lê esses arquivos de volta.
 - **Contexto da pasta**: instruções, arquivos e um agente para todas as
   conversas de uma pasta da barra lateral.
 
