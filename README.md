@@ -75,13 +75,15 @@ manager) and Chrome, Edge or Playwright's Chromium.
 - Temporary conversations that leave no history.
 - Per-conversation system prompt, temperature, max tokens and reasoning effort;
   the model's reasoning, folded above the reply, when the provider sends it.
-- Context summary when a conversation approaches the model's limit.
+- Context summary when a conversation approaches the model's limit, or clear the
+  context from any point (undoable) so earlier messages stop being sent.
 - Command palette (Ctrl/⌘+K), configurable shortcuts, timestamps, a sound when a
   reply ends, light and dark themes, accent colour, font size and density.
 - Interface in English and Portuguese.
 
 ### Files and knowledge
-- Attach images, PDFs, text files, Excel spreadsheets (read as CSV, one per
+- Attach images, PDFs, text files, Word and PowerPoint files (read as Markdown,
+  slide by slide with the notes), Excel spreadsheets (read as CSV, one per
   sheet) and audio (transcribed by OpenAI or Groq so any model can use it).
 - Local knowledge bases: PDFs, text, Markdown and HTML split into passages and
   searched by words (BM25, no API) and optionally by meaning (embeddings), per
@@ -89,7 +91,8 @@ manager) and Chrome, Edge or Playwright's Chromium.
 - **Project folder**: the files a conversation makes are saved in
   `projetos/<conversation>/` with a `NOTAS.md`; the model reads the current
   version before changing anything, so you can switch between TSRS and other
-  tools. Any other folder can be used instead.
+  tools. Any other folder can be used instead. The model can also write **Word
+  (.docx) and PowerPoint (.pptx)** files there, and read them back.
 - **Folder context**: instructions, files and an agent for every conversation in
   a sidebar folder.
 

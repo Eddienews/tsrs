@@ -21,7 +21,7 @@ import {
 } from './files'
 import { setLanguage, t } from './i18n'
 import { PreviewContext } from './Markdown'
-import MessageView from './MessageView'
+import MessageView, { ContextReset } from './MessageView'
 import ParamsPanel from './ParamsPanel'
 import { forget } from './mcp'
 import { artifactName, lastPreviewable, withPreviewHint, type Artifact } from './preview'
@@ -106,7 +106,7 @@ import {
   type RequestMessage,
   transcribe,
 } from './stream'
-import { SUMMARY_PROMPT, sinceSummary, withSummary } from './summary'
+import { SUMMARY_PROMPT, contextResetMark, sinceSummary, withSummary } from './summary'
 import {
   hashOf,
   itemsOf,
@@ -1153,6 +1153,7 @@ export default function App() {
     else if (action === 'settings') setShowSettings(true)
     else if (action === 'usage') setShowUsage(true)
     else if (action === 'theme') toggleTheme()
+    else if (action === 'clear') clearContext()
     else lock()
   }
 
@@ -1603,6 +1604,22 @@ export default function App() {
       setSettings((s) => ({ ...s, memories }))
       return result
     })
+  }
+
+  // Marks the end of the conversation so far: later requests start after it.
+  function clearContext() {
+    const meta = findMeta(activeId)
+    const thread = meta && threadsRef.current[meta.id]
+    if (!meta || !thread?.length || streaming || thread.at(-1)?.contextReset) return
+    commitThreads({ ...threadsRef.current, [meta.id]: [...thread, contextResetMark()] })
+    persistThread(meta.id)
+  }
+
+  function undoClearContext(id: string) {
+    const meta = findMeta(activeId)
+    if (!meta || streaming) return
+    patchThread(meta.id, (messages) => messages.filter((m) => m.id !== id))
+    persistThread(meta.id)
   }
 
   // Replaces what came before with a summary the next requests start from.
@@ -2231,6 +2248,7 @@ export default function App() {
         onTogglePreview={togglePreview}
         temporary={temporary}
         onToggleTemporary={active ? undefined : () => setDraftTemporary((on) => !on)}
+        onClearContext={messages?.length && !messages.at(-1)?.contextReset && !streaming ? clearContext : undefined}
       />
       {!active && draftFolder && (
         <p
@@ -2306,7 +2324,10 @@ export default function App() {
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6">
             {!messages && <p className="text-sm text-muted-foreground">{t('Carregando…')}</p>}
             <PreviewContext.Provider value={openPreview}>
-              {messages?.map((m, index) => (
+              {messages?.map((m, index) =>
+                m.contextReset ? (
+                  <ContextReset key={m.id} busy={streaming} onUndo={() => undoClearContext(m.id)} />
+                ) : (
                 <MessageView
                   key={m.id}
                   message={m}
@@ -2328,7 +2349,8 @@ export default function App() {
                   onTogglePin={onTogglePin}
                   onAside={onAside}
                 />
-              ))}
+                ),
+              )}
             </PreviewContext.Provider>
           </div>
         )}
@@ -2388,6 +2410,13 @@ export default function App() {
               onClick={summarize}
             >
               {t('Resumir a conversa')}
+            </button>{' '}
+            <button
+              className="underline underline-offset-2 disabled:opacity-50"
+              disabled={streaming}
+              onClick={clearContext}
+            >
+              {t('Limpar o contexto')}
             </button>
           </p>
         )}
@@ -2593,6 +2622,7 @@ export default function App() {
           chats={listed}
           settings={settings}
           canLock={!!settings.vault && !locked}
+          canClear={!!messages?.length && !messages.at(-1)?.contextReset && !streaming}
           onChat={selectChat}
           onModel={selectModel}
           onAction={runAction}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { sinceSummary, withSummary } from './summary'
+import { contextResetMark, sinceSummary, withSummary } from './summary'
 import type { Message } from './types'
 
 const m = (id: string, fields: Partial<Message> = {}): Message => ({
@@ -20,6 +20,16 @@ describe('summaries', () => {
     const { summary, messages } = sinceSummary(thread)
     expect(summary).toBe('s2')
     expect(messages.map((x) => x.id)).toEqual(['c'])
+  })
+
+  it('starts after a cleared context, leaving earlier summaries behind', () => {
+    const reset = contextResetMark()
+    expect(reset).toMatchObject({ role: 'assistant', content: '', contextReset: true })
+    const thread = [m('a'), m('s1', { summary: true }), m('b'), reset, m('c')]
+    expect(sinceSummary(thread)).toEqual({ messages: [thread[4]] })
+    // A summary made after the mark is used again.
+    const later = [...thread, m('s2', { summary: true }), m('d')]
+    expect(sinceSummary(later)).toEqual({ summary: 's2', messages: [later[6]] })
   })
 
   it('adds the summary after the system prompt', () => {

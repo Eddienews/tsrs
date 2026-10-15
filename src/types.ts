@@ -108,6 +108,9 @@ export interface Message {
   // A summary of everything before it, which replaces those messages in later
   // requests.
   summary?: boolean
+  // A mark the user set: messages before it are no longer sent to the model.
+  // It has no content and is shown as a divider that can be undone.
+  contextReset?: boolean
   // Media generated from this prompt; the file is in `attachments`.
   imagePrompt?: string
   // What was generated, when not an image.

@@ -10,11 +10,18 @@ export const SUMMARY_PROMPT =
   'relevant, and what the user is trying to achieve. Write in the language of the conversation, ' +
   'as a structured summary, without addressing the user.'
 
-// What the model needs to see: the latest summary and the messages after it.
+// What the model needs to see: the messages after the latest summary or
+// cleared context, with the summary when that is what came last.
 export function sinceSummary(messages: Message[]): { summary?: string; messages: Message[] } {
-  const at = messages.findLastIndex((m) => m.summary)
+  const at = messages.findLastIndex((m) => m.summary || m.contextReset)
   if (at < 0) return { messages }
-  return { summary: messages[at].content, messages: messages.slice(at + 1) }
+  const rest = messages.slice(at + 1)
+  return messages[at].contextReset ? { messages: rest } : { summary: messages[at].content, messages: rest }
+}
+
+// The mark that clears the context from here on.
+export function contextResetMark(): Message {
+  return { id: crypto.randomUUID(), role: 'assistant', content: '', createdAt: Date.now(), contextReset: true }
 }
 
 export function withSummary(system: string, summary: string | undefined): string {

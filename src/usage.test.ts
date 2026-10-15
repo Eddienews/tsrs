@@ -48,6 +48,9 @@ describe('usage', () => {
     expect(contextUse(messages, { context: 1000 })).toBe(0.8)
     expect(contextUse(messages, {})).toBeUndefined()
     expect(contextUse([], { context: 1000 })).toBeUndefined()
+    // A cleared context starts the count over.
+    const cleared = [...messages, { id: 'x', role: 'assistant' as const, content: '', contextReset: true }]
+    expect(contextUse(cleared, { context: 1000 })).toBeUndefined()
   })
 })
 
