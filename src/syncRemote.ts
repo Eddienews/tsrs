@@ -1,6 +1,7 @@
 import { t } from './i18n'
 import type { SyncStore } from './sync'
 import type { S3Sync, WebdavSync } from './types'
+import { decodeXml } from './xml'
 
 // Syncing without a folder, for browsers that cannot reach one (Firefox,
 // Safari): files kept on a WebDAV server or in an S3-compatible bucket of the
@@ -36,15 +37,6 @@ async function fail(res: Response, what: string): Promise<Error> {
   return new Error(`${what}: ${res.status}${text ? ` ${text.slice(0, 200)}` : ''}`)
 }
 
-function decodeXml(text: string): string {
-  return text
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
-    .replace(/&amp;/g, '&')
-}
 
 function utf8Base64(text: string): string {
   let binary = ''

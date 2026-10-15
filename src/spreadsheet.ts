@@ -1,4 +1,5 @@
 import { t } from './i18n'
+import { decodeXml } from './xml'
 
 // Excel workbooks (.xlsx) read in the browser and turned into text: one CSV
 // block per sheet, with the values as Excel shows them (dates as dates, the
@@ -7,6 +8,11 @@ import { t } from './i18n'
 
 // Rows sent per sheet; past this the text is cut and says so.
 export const MAX_ROWS = 5000
+// Excel's last column, XFD.
+const MAX_COLUMNS = 16384
+// What the XML parts may add up to once unzipped. A zip can claim any size;
+// fflate stops at the claimed one, so capping the claims caps the memory.
+export const MAX_UNZIPPED = 200 * 1024 * 1024
 
 export function isSpreadsheet(file: { name: string; type: string }): boolean {
   return (
@@ -32,16 +38,6 @@ export interface Sheet {
   total?: number
 }
 
-function decodeXml(text: string): string {
-  return text
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
-    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
-    .replace(/&amp;/g, '&')
-}
 
 function attr(tag: string, name: string): string | undefined {
   const match = new RegExp(`\\s${name}="([^"]*)"`).exec(tag)
@@ -91,9 +87,18 @@ function excelDate(serial: number): string {
   return serial % 1 === 0 ? iso.slice(0, 10) : `${iso.slice(0, 10)} ${iso.slice(11, 16)}`
 }
 
+// A broken or hostile file, refused with one message.
+function invalid(): Error {
+  return new Error(t('O arquivo não é uma planilha .xlsx válida.'))
+}
+
+// The column of a reference such as AB12, counted from 0.
 function column(ref: string): number {
+  const letters = /^([A-Z]{1,3})\d*$/.exec(ref)?.[1]
+  if (!letters) throw invalid()
   let n = 0
-  for (const ch of ref.replace(/\d+$/, '')) n = n * 26 + ch.charCodeAt(0) - 64
+  for (const ch of letters) n = n * 26 + ch.charCodeAt(0) - 64
+  if (n > MAX_COLUMNS) throw invalid()
   return n - 1
 }
 
@@ -103,6 +108,7 @@ function readSheet(xml: string, strings: string[], dates: boolean[]): { rows: st
   for (const [, rowTag, body] of xml.matchAll(/<row\b([^>]*)>([\s\S]*?)<\/row>|<row\b([^>]*)\/>/g)) {
     if (body === undefined) continue
     const index = Number(attr(rowTag ?? '', 'r') ?? rows.length + 1) - 1
+    if (!Number.isInteger(index) || index < 0) throw invalid()
     total = Math.max(total, index + 1)
     if (index >= MAX_ROWS) continue
     const cells: string[] = []
@@ -110,6 +116,7 @@ function readSheet(xml: string, strings: string[], dates: boolean[]): { rows: st
     for (const [, cellTag, inner = ''] of body.matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
       const ref = attr(cellTag, 'r')
       const at = ref ? column(ref) : next
+      if (at >= MAX_COLUMNS) throw invalid()
       next = at + 1
       const type = attr(cellTag, 't')
       const raw = /<v>([\s\S]*?)<\/v>/.exec(inner)?.[1]
@@ -153,14 +160,22 @@ function sheetParts(files: Record<string, string>): { name: string; path: string
 export async function readWorkbook(bytes: Uint8Array): Promise<Sheet[]> {
   const { strFromU8, unzipSync } = await import('fflate')
   let zip: Record<string, Uint8Array>
+  let unzipped = 0
   try {
-    zip = unzipSync(bytes, { filter: (file) => file.name.endsWith('.xml') || file.name.endsWith('.rels') })
+    zip = unzipSync(bytes, {
+      filter: (file) => {
+        if (!file.name.endsWith('.xml') && !file.name.endsWith('.rels')) return false
+        unzipped += file.originalSize
+        if (unzipped > MAX_UNZIPPED) throw invalid()
+        return true
+      },
+    })
   } catch {
-    throw new Error(t('O arquivo não é uma planilha .xlsx válida.'))
+    throw invalid()
   }
   const files: Record<string, string> = {}
   for (const [name, data] of Object.entries(zip)) files[name] = strFromU8(data)
-  if (!files['xl/workbook.xml']) throw new Error(t('O arquivo não é uma planilha .xlsx válida.'))
+  if (!files['xl/workbook.xml']) throw invalid()
   const strings = sharedStrings(files['xl/sharedStrings.xml'])
   const dates = dateStyles(files['xl/styles.xml'])
   return sheetParts(files)

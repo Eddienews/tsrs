@@ -65,6 +65,8 @@ describe('parsePropfind', () => {
         </D:response>
       </D:multistatus>`
     expect(parsePropfind(xml)).toEqual(['chat~a~1.json', 'item~prompt~p~2.json'])
+    // A code outside Unicode does not stop the listing.
+    expect(parsePropfind(xml.replace('chat~a~1.json', 'x&#1114112;.json'))[0]).toBe('x\ufffd.json')
     expect(parsePropfind(xml.replace(/D:/g, 'd:').replace(/xmlns:D/, 'xmlns:d'))).toHaveLength(2)
   })
 })
