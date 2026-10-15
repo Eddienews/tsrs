@@ -4,11 +4,13 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
 import { tsrsVersion } from './render/version-plugin.mjs'
 import { tsrsRenderer } from './render/vite-plugin.mjs'
+import { tsrsProjects } from './server/projects-plugin.mjs'
 
 export default defineConfig({
   // tsrsRenderer: the "Gerar MP4" button's renderer, on npm run dev and vite preview.
   // tsrsVersion: the version and git commit shown in the interface.
-  plugins: [react(), tailwindcss(), tsrsRenderer(), tsrsVersion()],
+  // tsrsProjects: the folders where conversations save their files.
+  plugins: [react(), tailwindcss(), tsrsRenderer(), tsrsVersion(), tsrsProjects()],
   // Imported only when a chat is exported as HTML; listed so the dev server
   // does not discover it mid-session and reload the page.
   optimizeDeps: { include: ['react-dom/server'] },

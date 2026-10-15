@@ -350,6 +350,27 @@ export const en: Record<string, string> = {
   Reproduzir: 'Play',
   Tempo: 'Time',
   Trilha: 'Soundtrack',
+  Projeto: 'Project',
+  'Os arquivos desta conversa não foram salvos numa pasta: abra o TSRS pelo npm run dev na pasta do projeto para isso.':
+    "This conversation's files were not saved to a folder: open TSRS through npm run dev in the project folder for that.",
+  'Os arquivos desta conversa não foram salvos na pasta: {error}': "This conversation's files were not saved to the folder: {error}",
+  'Pasta do projeto': 'Project folder',
+  'Pasta do projeto: {path}': 'Project folder: {path}',
+  'Copiar o caminho': 'Copy the path',
+  'Os arquivos que a conversa cria ficam aqui. Abra esta pasta no Claude Code, no Codex ou num editor para continuar; o TSRS lê a versão atual.':
+    'The files the conversation makes are kept here. Open this folder in Claude Code, Codex or an editor to carry on; TSRS reads the current version.',
+  'Ainda vazia.': 'Still empty.',
+  'Abrir no preview': 'Open in the preview',
+  'Usar outra pasta': 'Use another folder',
+  'Caminho da outra pasta': 'Path of the other folder',
+  Usar: 'Use',
+  'Os arquivos atuais são copiados para lá.': 'The current files are copied there.',
+  'Salvar os arquivos de cada conversa numa pasta': "Save each conversation's files in a folder",
+  'Páginas, estilos, scripts e vídeos motion que o modelo escreve são gravados como arquivos de verdade numa pasta da conversa, criada sozinha. Nada se perde se o navegador fechar, e o Claude Code, o Codex ou um editor podem continuar a partir dela. Cada conversa pode usar outra pasta pelo botão da pasta no topo.':
+    "Pages, styles, scripts and motion videos the model writes are saved as real files in the conversation's own folder, made by itself. Nothing is lost if the browser closes, and Claude Code, Codex or an editor can carry on from it. Each conversation can use another folder through the folder button at the top.",
+  'Pastas em: {root}': 'Folders in: {root}',
+  'Este TSRS não está rodando pelo npm run dev, então não consegue gravar pastas.':
+    'This TSRS is not running through npm run dev, so it cannot save folders.',
   'Voz ou tipo de áudio': 'Voice or kind of audio',
   'Voz da leitura': 'Reading voice',
   'ID da voz': 'Voice ID',

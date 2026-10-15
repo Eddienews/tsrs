@@ -26,6 +26,19 @@ import ParamsPanel from './ParamsPanel'
 import { forget } from './mcp'
 import { artifactName, lastPreviewable, withPreviewHint, type Artifact } from './preview'
 import { chatTracks, trackBlob, trackFileName } from './videoRender'
+import {
+  PROJECT_TOOLS,
+  copyFiles,
+  filesFromReply,
+  historyLine,
+  openProject,
+  projectNote,
+  projectNotes,
+  projectsRoot,
+  runProjectTool,
+  saveFiles,
+  type SavedFile,
+} from './projects'
 import { CANVAS_NOTE, CANVAS_TOOLS, newCanvas, runCanvasTool, undo, withCanvas } from './canvas'
 import { extractText } from './extract'
 import {
@@ -455,6 +468,8 @@ export default function App() {
   const artifactCount = useRef(0)
   // MCP servers that could not be reached for the last reply.
   const [toolProblems, setToolProblems] = useState<string[]>([])
+  // Whether the user was already told why files could not be saved to a folder.
+  const projectWarned = useRef(false)
   // Tool calls waiting for the user to allow or deny them, by call id.
   const approvals = useRef(new Map<string, (allowed: boolean) => void>())
   // Position in the conversation of the reply whose versions are shown side
@@ -1143,6 +1158,9 @@ export default function App() {
     // Comparing models would let each of them change the same canvas.
     const sharedCanvas = !media && !targets ? meta.canvas : undefined
     if (sharedCanvas) system = `${system ? `${system}\n\n` : ''}${CANVAS_NOTE}`
+    // The project folder, read when the request is sent: an earlier reply may have made it.
+    const project = settings.projects !== false && !targets ? findMeta(meta.id)?.project : undefined
+    if (project) system = `${system ? `${system}\n\n` : ''}${projectNote(project)}`
     let toolset: ToolSet | null = null
 
     async function paint(reply: Message, job: MediaJob): Promise<boolean> {
@@ -1296,6 +1314,7 @@ export default function App() {
         )
         toolset = mergeTools([
           ...(sharedCanvas ? [canvasTools(meta.id)] : []),
+          ...(project ? [projectTools(meta.id, usings[0].model)] : []),
           ...(remember ? [memoryTools()] : []),
           ...(bases.length ? [knowledgeTools(bases)] : []),
           ...(servers.length ? [await gatherTools(servers)] : []),
@@ -1316,6 +1335,13 @@ export default function App() {
     } finally {
       setStreaming(false)
       persistThread(meta.id)
+    }
+
+    // The files the reply made go to the conversation's folder.
+    if (completed && !targets && !media && settings.projects !== false && !meta.temporary) {
+      const reply = threadsRef.current[meta.id]?.find((m) => m.id === first.id)
+      const files = reply ? filesFromReply(reply.content) : []
+      if (files.length) void saveToProject(meta.id, files, usings[0].model)
     }
 
     if (completed && !targets && !media && settings.autoPreview) {
@@ -1346,6 +1372,69 @@ export default function App() {
       }
       return result
     })
+  }
+
+  // The folder a conversation saves into, made the first time it has files.
+  async function ensureProject(chatId: string) {
+    const meta = findMeta(chatId)
+    if (!meta) return null
+    if (meta.project) return meta.project
+    const thread = threadsRef.current[chatId] ?? []
+    const request = thread.find((m) => m.role === 'user')?.content ?? meta.title
+    const project = await openProject({
+      name: meta.title || request.slice(0, 48),
+      notes: projectNotes(meta.title || t('Projeto'), request, new Date()),
+    })
+    updateChat(chatId, { project })
+    return project
+  }
+
+  function warnProject(error: string) {
+    if (projectWarned.current) return
+    projectWarned.current = true
+    setToolProblems((list) => [...list, error])
+  }
+
+  // Saves files into the conversation's folder and notes it in NOTAS.md.
+  async function saveToProject(chatId: string, files: SavedFile[], who: string) {
+    try {
+      if (!findMeta(chatId)?.project && !(await projectsRoot())) {
+        return warnProject(
+          t(
+            'Os arquivos desta conversa não foram salvos numa pasta: abra o TSRS pelo npm run dev na pasta do projeto para isso.',
+          ),
+        )
+      }
+      const project = await ensureProject(chatId)
+      if (!project) return
+      const written = await saveFiles(project.path, files)
+      await saveFiles(project.path, [{ name: 'NOTAS.md', content: historyLine(written, who, new Date()), append: true }])
+    } catch (err) {
+      warnProject(
+        t('Os arquivos desta conversa não foram salvos na pasta: {error}', {
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      )
+    }
+  }
+
+  // Reading and writing the conversation's folder, without asking: it is its own.
+  function projectTools(chatId: string, who: string): ToolSet {
+    return localTools(PROJECT_TOOLS, t('Pasta do projeto'), async (call) => {
+      const project = findMeta(chatId)?.project
+      if (!project) return { content: 'This conversation has no project folder.', isError: true }
+      return runProjectTool(project, call, (written) => {
+        void saveFiles(project.path, [{ name: 'NOTAS.md', content: historyLine(written, who, new Date()), append: true }])
+      })
+    })
+  }
+
+  // Points the conversation at another folder, bringing its files along.
+  async function moveProject(chatId: string, path: string) {
+    const meta = findMeta(chatId)
+    const next = await openProject({ path, name: meta?.title })
+    if (meta?.project && meta.project.path !== next.path) await copyFiles(meta.project.path, next.path)
+    updateChat(chatId, { project: next })
   }
 
   // Searching the conversation's knowledge bases again, with the model's words.
@@ -1957,6 +2046,9 @@ export default function App() {
         onMenu={() => setShowDrawer(true)}
         onModel={selectModel}
         onPersona={applyPersona}
+        project={settings.projects !== false ? active?.project : undefined}
+        onOpenUrl={(url, name) => showArtifact('url', url, name)}
+        onMoveProject={(path) => (active ? moveProject(active.id, path) : Promise.resolve())}
         onPrice={(providerId, model, price) =>
           setSettings((s) => {
             const prices = { ...s.modelPrices }

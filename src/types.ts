@@ -165,6 +165,15 @@ export interface ChatMeta {
   tags?: string[]
   // Kept out of the main lists, in a section of its own; still searchable.
   archived?: boolean
+  // The folder on this computer where the conversation saves its files.
+  project?: ChatProject
+}
+
+export interface ChatProject {
+  // Full path of the folder.
+  path: string
+  // The folder's name, to show.
+  name: string
 }
 
 export interface Chat extends ChatMeta {
@@ -422,6 +431,9 @@ export interface Settings {
   // Prices the user typed for models whose price is not known, in US dollars
   // per million tokens, by "provider/model".
   modelPrices?: Record<string, { inputPrice: number; outputPrice: number }>
+  // Save the files a conversation makes into a project folder (on unless
+  // switched off; needs TSRS served by npm run dev).
+  projects?: boolean
   knowledgeBases: KnowledgeBase[]
   sync: SyncSettings
   // Present when the API keys are password-protected; the keys are then

@@ -1,6 +1,8 @@
 import {
   AlertTriangle,
   ChevronDown,
+  Copy,
+  FolderOpen,
   Menu,
   MessageSquareDashed,
   NotebookPen,
@@ -9,7 +11,7 @@ import {
   UserRound,
   Wrench,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -30,7 +32,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils'
 import { t } from './i18n'
 import { PROVIDERS } from './providers'
-import type { Provider, Settings } from './types'
+import { fileUrl, listFiles } from './projects'
+import type { ChatProject, Provider, Settings } from './types'
 import { Input } from '@/components/ui/input'
 import { CONTEXT_WARNING, formatCost, formatTokens, modelInfo, type Totals } from './usage'
 
@@ -58,6 +61,10 @@ interface Props {
   onParams: () => void
   onTogglePreview: () => void
   onToggleCanvas: () => void
+  // The folder where the conversation saves its files, once it has one.
+  project?: ChatProject
+  onOpenUrl: (url: string, name: string) => void
+  onMoveProject: (path: string) => Promise<void>
   // The conversation is temporary, or the next one will be.
   temporary: boolean
   // Absent once the conversation has started: it stays what it is.
@@ -139,6 +146,130 @@ function PriceButton(p: Pick<Props, 'settings' | 'provider' | 'onPrice'>) {
               {t('Salvar')}
             </Button>
           </div>
+        </form>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+// The conversation's folder: where it is, what is in it, and moving it.
+function ProjectButton(p: {
+  project: ChatProject
+  onOpenUrl: Props['onOpenUrl']
+  onMoveProject: Props['onMoveProject']
+}) {
+  const [open, setOpen] = useState(false)
+  const [files, setFiles] = useState<{ name: string; size: number }[] | null>(null)
+  const [error, setError] = useState('')
+  const [path, setPath] = useState('')
+  const [moving, setMoving] = useState(false)
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!open) return
+    setFiles(null)
+    setError('')
+    listFiles(p.project.path)
+      .then(setFiles)
+      .catch((err) => setError(err instanceof Error ? err.message : String(err)))
+  }, [open, p.project.path])
+  const pages = (files ?? []).filter((f) => /\.(html?|svg)$/i.test(f.name))
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="project h-8 max-w-48 gap-1.5 text-xs"
+          title={t('Pasta do projeto: {path}', { path: p.project.path })}
+        >
+          <FolderOpen className="size-3.5 shrink-0" />
+          <span className="truncate">{p.project.name}</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-96 space-y-3 text-xs">
+        <div className="space-y-1">
+          <p className="font-medium">{t('Pasta do projeto')}</p>
+          <div className="flex items-center gap-1">
+            <code className="min-w-0 flex-1 select-all break-all rounded bg-code px-2 py-1 font-mono text-[11px]">
+              {p.project.path}
+            </code>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 shrink-0"
+              aria-label={t('Copiar o caminho')}
+              title={copied ? t('Copiado') : t('Copiar o caminho')}
+              onClick={() => {
+                void navigator.clipboard.writeText(p.project.path)
+                setCopied(true)
+                setTimeout(() => setCopied(false), 1500)
+              }}
+            >
+              <Copy className="size-3.5" />
+            </Button>
+          </div>
+          <p className="text-muted-foreground">
+            {t(
+              'Os arquivos que a conversa cria ficam aqui. Abra esta pasta no Claude Code, no Codex ou num editor para continuar; o TSRS lê a versão atual.',
+            )}
+          </p>
+        </div>
+        <div className="space-y-1">
+          <p className="font-medium">{t('Arquivos')}</p>
+          {error && <p className="text-destructive">{error}</p>}
+          {!files && !error && <p className="text-muted-foreground">{t('Carregando…')}</p>}
+          {files && files.length === 0 && <p className="text-muted-foreground">{t('Ainda vazia.')}</p>}
+          <ul className="max-h-40 space-y-0.5 overflow-y-auto font-mono text-[11px]">
+            {(files ?? []).map((f) => (
+              <li key={f.name} className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                {pages.includes(f) && (
+                  <button
+                    className="shrink-0 text-primary underline-offset-2 hover:underline"
+                    onClick={() => {
+                      p.onOpenUrl(fileUrl(p.project.path, f.name), f.name)
+                      setOpen(false)
+                    }}
+                  >
+                    {t('Abrir no preview')}
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <form
+          className="space-y-1"
+          onSubmit={async (e) => {
+            e.preventDefault()
+            if (!path.trim()) return
+            setMoving(true)
+            setError('')
+            try {
+              await p.onMoveProject(path.trim())
+              setPath('')
+              setOpen(false)
+            } catch (err) {
+              setError(err instanceof Error ? err.message : String(err))
+            } finally {
+              setMoving(false)
+            }
+          }}
+        >
+          <p className="font-medium">{t('Usar outra pasta')}</p>
+          <div className="flex gap-1">
+            <Input
+              aria-label={t('Caminho da outra pasta')}
+              placeholder={'C:\\Users\\voce\\Sites\\nwlab'}
+              className="h-8 font-mono text-[11px]"
+              value={path}
+              onChange={(e) => setPath(e.target.value)}
+            />
+            <Button type="submit" size="sm" className="h-8" disabled={moving || !path.trim()}>
+              {t('Usar')}
+            </Button>
+          </div>
+          <p className="text-muted-foreground">{t('Os arquivos atuais são copiados para lá.')}</p>
         </form>
       </PopoverContent>
     </Popover>
@@ -293,6 +424,9 @@ export default function ChatTopBar(p: Props) {
         </DropdownMenu>
       )}
       <div className="ml-auto flex flex-wrap items-center gap-1">
+        {p.project && (
+          <ProjectButton project={p.project} onOpenUrl={p.onOpenUrl} onMoveProject={p.onMoveProject} />
+        )}
         {spent.tokens > 0 && (
           <div
             className={cn(

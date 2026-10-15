@@ -146,6 +146,27 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
 - Interface em português e inglês: segue o idioma do navegador e pode ser
   trocada em Configurações.
 
+## Pasta do projeto
+
+Quando uma conversa cria arquivos (uma página, seus estilos e scripts, um vídeo
+motion), o TSRS grava cada um como arquivo de verdade numa pasta da conversa,
+criada sozinha em `projetos/` na pasta do TSRS, com o nome da conversa. Junto
+vai um `NOTAS.md` com o pedido e o histórico do que foi salvo. Assim nada se
+perde se o navegador fechar, e o trabalho continua em qualquer ferramenta:
+abra a pasta no Claude Code, no Codex ou num editor. Ao voltar à conversa, o
+modelo lê a versão atual dos arquivos (ferramentas `project_list_files`,
+`project_read_file` e `project_write_file`, só dentro da pasta).
+
+- O botão da pasta no topo da conversa mostra o caminho, os arquivos (páginas
+  abrem no preview) e permite usar outra pasta, para onde os arquivos atuais
+  são copiados.
+- Um bloco de código vira arquivo quando nomeia o arquivo depois da linguagem
+  (` ```html index.html `) ou quando é uma página, um SVG ou um vídeo motion
+  inteiros; trechos soltos de uma explicação não criam pasta.
+- Liga e desliga em Configurações → Geral. Precisa do TSRS aberto pelo
+  `npm run dev` (ou `vite preview`): o navegador sozinho não grava pastas.
+  `TSRS_PROJECTS` muda a pasta de projetos.
+
 ## Vídeos com motion
 
 Peça ao modelo uma animação ("faça uma abertura de 6 segundos em 1080x1920 com o
@@ -266,6 +287,8 @@ cabeçalhos (com `{apiKey}` como placeholder) e o formato da API (`openai` ou
 | `render/render.mjs`      | `npm run render`: composição motion para MP4                |
 | `render/serve.mjs`       | Renderizador do botão Gerar MP4 (e `npm run render:serve`)  |
 | `render/vite-plugin.mjs` | Renderizador dentro do `npm run dev`, em `/__tsrs/render`   |
+| `server/projects.mjs`    | Pastas de projeto: criar, gravar, ler, listar e servir arquivos |
+| `src/projects.ts`        | Arquivos das respostas, notas e ferramentas da pasta do projeto |
 | `src/RenderBar.tsx`      | Trilha e botão Gerar MP4 do preview                         |
 | `src/videoRender.ts`     | Conversa com o renderizador local                           |
 | `public/motion/`         | Runtime motion, anime.js 4.5.0 e lottie-web 5.13.0 (MIT)    |

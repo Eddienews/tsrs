@@ -34,7 +34,10 @@ export default defineConfig({
     command: `npm run dev -- --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
-    // Videos made by the tests' Gerar MP4 go to a temporary folder, not renders/.
-    env: { TSRS_RENDERS: join(tmpdir(), 'tsrs-e2e-renders') },
+    // Videos and project folders made by the tests go to temporary folders.
+    env: {
+      TSRS_RENDERS: join(tmpdir(), 'tsrs-e2e-renders'),
+      TSRS_PROJECTS: join(tmpdir(), 'tsrs-e2e-projects'),
+    },
   },
 })

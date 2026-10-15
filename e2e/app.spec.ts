@@ -1,4 +1,6 @@
-import { readFile } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import { startMockMcp } from './mock-mcp'
 import { startMockProvider, type MockProvider } from './mock-provider'
@@ -427,6 +429,56 @@ test('attaches audio, sends its transcription and offers it as a soundtrack', as
   // Attached to ask for the video, it is already the soundtrack: no need to pick it.
   await expect(track.locator('option:checked')).toHaveText('nota.wav')
   await expect(page.locator('.preview').getByTestId('motion-audio')).toHaveCount(1)
+})
+
+test('saves the files of a conversation into its own folder, and carries on from it', async ({ page }) => {
+  await connect(page)
+  await send(page, 'crie o site do NWLab')
+
+  // The folder is made by itself, named after the conversation (its title, or the request
+  // while there is none yet), with the files and the notes.
+  const button = page.locator('.toolbar .project')
+  await expect(button).toContainText(/^(saudacao-inicial|crie-o-site-do-nwlab)(-\d+)?$/)
+  const folder = (await button.getAttribute('title'))!.replace(/^Pasta do projeto: /, '')
+  expect(folder).toContain('tsrs-e2e-projects')
+  await expect.poll(() => readFile(join(folder, 'index.html'), 'utf8').catch(() => '')).toContain('NorthWind Lab')
+  expect(await readFile(join(folder, 'styles.css'), 'utf8')).toBe('h1 { color: rgb(220, 80, 0) }')
+  const notes = await readFile(join(folder, 'NOTAS.md'), 'utf8')
+  expect(notes).toContain('## Pedido\n\ncrie o site do NWLab')
+  expect(notes).toMatch(/index\.html, styles\.css · mock-a/)
+
+  // The folder's page opens in the preview with its stylesheet.
+  await button.click()
+  await expect(page.getByText('styles.css', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Abrir no preview' }).click()
+  const heading = page.locator('.preview').frameLocator('iframe').getByRole('heading', { name: 'NorthWind Lab' })
+  await expect(heading).toHaveCSS('color', 'rgb(220, 80, 0)')
+
+  // Someone edits the file outside TSRS; the model reads the current version.
+  await writeFile(join(folder, 'index.html'), '<h1>Editado no Claude Code</h1>')
+  await send(page, 'leia o index')
+  await expect(reply(page).last()).toContainText('Editado no Claude Code')
+  const request = provider.chats.at(-2)!.body
+  expect(request.messages[0].content).toContain(`project folder on the user's computer: ${folder}`)
+  // And writes new files into the folder.
+  await send(page, 'grave a página sobre')
+  await expect.poll(() => readFile(join(folder, 'paginas', 'sobre.html'), 'utf8').catch(() => '')).toBe('<h1>Sobre</h1>')
+
+  // The conversation can move to another folder; its files go along.
+  const other = await mkdtemp(join(tmpdir(), 'tsrs-other-'))
+  await button.click()
+  await page.getByLabel('Caminho da outra pasta').fill(other)
+  await page.getByRole('button', { name: 'Usar', exact: true }).click()
+  await expect(button).toHaveAttribute('title', `Pasta do projeto: ${other}`)
+  expect(await readFile(join(other, 'paginas', 'sobre.html'), 'utf8')).toBe('<h1>Sobre</h1>')
+  expect(await readFile(join(other, 'styles.css'), 'utf8')).toContain('rgb(220, 80, 0)')
+})
+
+test('a snippet in an explanation does not make a project folder', async ({ page }) => {
+  await connect(page)
+  await send(page, 'primeira')
+  await expect(reply(page)).toContainText('Resposta 1.')
+  await expect(page.locator('.toolbar .project')).toHaveCount(0)
 })
 
 test('fills the fields of a saved prompt and switches the theme', async ({ page }) => {
