@@ -105,6 +105,10 @@ manager) and Chrome, Edge or Playwright's Chromium.
 - **Motion video**: a `motion` block is an animated HTML page (CSS, anime.js,
   Lottie or your own drawing per frame) with a timeline in the preview; **Make
   MP4** renders it frame by frame with a soundtrack. See [Motion video](#motion-video).
+- **Short videos** (Reels, TikTok, Shorts): ask for a topic and TSRS narrates the
+  scenes with word timings, finds free stock clips (Pexels, Pixabay) for each,
+  cuts them to the voice, adds word-by-word captions, title, end card and music
+  under the voice, and saves the MP4 with a `CREDITOS.md` in the project folder.
 
 ### Media and voice
 - Images, video, speech, music and sound effects with the providers' keys

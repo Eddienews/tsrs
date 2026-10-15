@@ -732,6 +732,27 @@ export async function transcribe(
   return String(json.text ?? '').trim()
 }
 
+// Transcribes with the time of every word (OpenAI's whisper-1, Groq's
+// Whisper), for captions that follow a voice.
+export async function transcribeWords(
+  conn: Connection,
+  audio: Blob,
+  language: string,
+  signal?: AbortSignal,
+): Promise<{ words: { text: string; start: number; end: number }[]; duration: number }> {
+  const form = new FormData()
+  form.append('file', audio, `narration.${audio.type.includes('wav') ? 'wav' : 'mp3'}`)
+  // gpt-4o transcription models give no word times; whisper-1 does.
+  form.append('model', conn.provider.id === 'openai' ? 'whisper-1' : (conn.provider.transcription ?? ''))
+  form.append('response_format', 'verbose_json')
+  form.append('timestamp_granularities[]', 'word')
+  if (language) form.append('language', language)
+  const res = await request(url(conn, '/audio/transcriptions'), { method: 'POST', headers: headers(conn), body: form, signal }, conn)
+  const json = await res.json()
+  const words = (json.words ?? []).map((w: any) => ({ text: String(w.word ?? '').trim(), start: Number(w.start) || 0, end: Number(w.end) || 0 }))
+  return { words, duration: Number(json.duration) || words.at(-1)?.end || 0 }
+}
+
 export interface GeneratedImage {
   mime: string
   // Base64.

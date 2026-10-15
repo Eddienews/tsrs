@@ -16,9 +16,15 @@ const MAX_DOWNLOAD = 300 * 1024 * 1024
 // Where clips may be downloaded from: the services' own file hosts.
 const HOSTS = [/(^|\.)pexels\.com$/, /(^|\.)pixabay\.com$/, /^player\.vimeo\.com$/, /(^|\.)vimeocdn\.com$/]
 
+// The tests point the services at a local stand-in: TSRS_PEXELS_API for the
+// search, TSRS_STOCK_HOSTS (host:port, comma-separated) for its files.
+const pexelsApi = () => (process.env.TSRS_PEXELS_API || 'https://api.pexels.com').replace(/\/+$/, '')
+const extraHosts = () => (process.env.TSRS_STOCK_HOSTS ?? '').split(',').map((h) => h.trim()).filter(Boolean)
+
 export function stockHost(url) {
   try {
     const parsed = new URL(url)
+    if (extraHosts().includes(parsed.host)) return true
     return parsed.protocol === 'https:' && HOSTS.some((host) => host.test(parsed.hostname))
   } catch {
     return false
@@ -64,7 +70,7 @@ async function json(res, service) {
 // Clips as { provider, id, url, width, height, duration, page, author, authorUrl, thumbnail }.
 async function searchPexels({ key, query, orientation, count }, fetchImpl) {
   const params = new URLSearchParams({ query, per_page: String(count), orientation })
-  const res = await fetchImpl(`https://api.pexels.com/videos/search?${params}`, {
+  const res = await fetchImpl(`${pexelsApi()}/videos/search?${params}`, {
     headers: { Authorization: key },
     signal: AbortSignal.timeout(20_000),
   })

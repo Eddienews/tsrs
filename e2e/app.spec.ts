@@ -1,4 +1,6 @@
+import { spawnSync } from 'node:child_process'
 import { mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
@@ -970,6 +972,84 @@ test('clears the context from a point and can undo it', async ({ page }) => {
   await expect(page.locator('.context-reset')).toHaveCount(0)
   await send(page, 'quarta')
   expect(sent().join(' ')).toContain('primeira')
+})
+
+test('makes a short video: narration with word times, stock clips, captions and credits', async ({ page }) => {
+  const ffmpeg = process.env.FFMPEG || 'ffmpeg'
+  test.skip(spawnSync(ffmpeg, ['-version']).status !== 0, 'ffmpeg is not installed')
+  test.setTimeout(240_000)
+  // A stand-in for Pexels on the port the test servers point at.
+  const work = await mkdtemp(join(tmpdir(), 'tsrs-short-e2e-'))
+  const make = (args: string[]) => expect(spawnSync(ffmpeg, ['-v', 'error', '-y', ...args]).status).toBe(0)
+  make(['-f', 'lavfi', '-i', 'color=c=green:s=360x640:d=2:r=30', '-pix_fmt', 'yuv420p', join(work, 'clip.mp4')])
+  make(['-f', 'lavfi', '-i', 'sine=frequency=300:duration=2', join(work, 'voz.mp3')])
+  const clip = await readFile(join(work, 'clip.mp4'))
+  const searches: string[] = []
+  const stock = createServer((req, res) => {
+    if (req.url?.startsWith('/videos/search')) {
+      searches.push(new URL(req.url, 'http://x').searchParams.get('query') ?? '')
+      const id = searches.length
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      return res.end(
+        JSON.stringify({
+          videos: [{ id, duration: 2, url: `https://www.pexels.com/video/${id}/`, user: { name: `Autor ${id}`, url: 'https://www.pexels.com/@a' }, video_files: [{ link: `http://127.0.0.1:5179/clip-${id}.mp4`, width: 360, height: 640 }] }],
+        }),
+      )
+    }
+    res.writeHead(200, { 'Content-Type': 'video/mp4', 'Content-Length': String(clip.length) })
+    res.end(clip)
+  })
+  await new Promise<void>((ok) => stock.listen(5179, '127.0.0.1', ok))
+  try {
+    // ElevenLabs answers with the audio and the time of every character.
+    const voice = (await readFile(join(work, 'voz.mp3'))).toString('base64')
+    await page.route('https://api.elevenlabs.io/v1/text-to-speech/**', async (route) => {
+      const text = route.request().postDataJSON().text as string
+      const chars = [...text]
+      const step = 2 / chars.length
+      await route.fulfill({
+        json: {
+          audio_base64: voice,
+          alignment: { characters: chars, character_start_times_seconds: chars.map((_, i) => i * step), character_end_times_seconds: chars.map((_, i) => (i + 1) * step) },
+        },
+      })
+    })
+    await connect(page)
+    await openSettings(page, 'Mídia')
+    await page.getByLabel('Chave de ElevenLabs').fill('xi-key')
+    await page.getByLabel('Chave de Pexels').fill('px-key')
+    await closeSettings(page)
+
+    // A conversation with a project folder, then the video.
+    await send(page, 'crie o site do NWLab')
+    await expect(page.locator('.toolbar .project')).toBeVisible()
+    const scenes = [
+      { text: 'O TSRS chegou.', search: 'sunrise city' },
+      { text: 'Todos os modelos numa tela.', search: 'laptop screen' },
+    ]
+    // Making the video takes a while: the reply stays open until it is done.
+    await composer(page).fill(`chame make_short_video ${JSON.stringify({ title: 'TSRS', scenes, cta: 'github.com/Eddienews/tsrs' })}`)
+    await composer(page).press('Enter')
+    await expect(reply(page).last()).toContainText(/narração|imagens|montagem/)
+    const video = reply(page).last().locator('video.made-video')
+    await expect(video).toBeVisible({ timeout: 200_000 })
+    expect(searches).toEqual(['sunrise city', 'laptop screen'])
+    await expect(reply(page).last()).toContainText('Saved videos/tsrs.mp4')
+    await expect(reply(page).last()).toContainText('captions timed by voice')
+
+    const button = page.locator('.toolbar .project')
+    const folder = (await button.getAttribute('title'))!.replace(/^Pasta do projeto: /, '')
+    expect(await readdir(join(folder, 'videos'))).toContain('tsrs.mp4')
+    expect(await readdir(join(folder, 'midia'))).toEqual(expect.arrayContaining(['tsrs-narracao.mp3', 'stock']))
+    const credits = await readFile(join(folder, 'CREDITOS.md'), 'utf8')
+    expect(credits).toContain('## videos/tsrs.mp4')
+    expect(credits).toContain('vídeo de [Autor 1](https://www.pexels.com/@a) no [Pexels](https://www.pexels.com/video/1/)')
+    // 2 s of narration and the end card.
+    const probe = spawnSync(process.env.FFPROBE || 'ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', join(folder, 'videos', 'tsrs.mp4')], { encoding: 'utf8' })
+    expect(Number(probe.stdout)).toBeCloseTo(4.5, 0)
+  } finally {
+    stock.close()
+  }
 })
 
 test('generates an image and regenerates it', async ({ page }) => {

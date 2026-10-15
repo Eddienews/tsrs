@@ -133,7 +133,7 @@ function serve(page, folder) {
   return new Promise((ok) => server.listen(0, '127.0.0.1', () => ok(server)))
 }
 
-function ffmpegPath() {
+export function ffmpegPath() {
   const command = process.env.FFMPEG || 'ffmpeg'
   const probe = spawnSync(command, ['-version'], { encoding: 'utf8' })
   if (probe.error || probe.status !== 0)
@@ -259,11 +259,17 @@ export async function render(options, log = console.log) {
     const fatal = problems.filter((p) => p.startsWith('page error'))
     if (fatal.length) throw new Error(`the composition failed to start:\n${fatal.join('\n')}`)
 
+    // Over a video (a short's clips), the frames are drawn with a transparent
+    // background and laid on top of it.
+    const background = options.background ?? null
     const args = ['-hide_banner', '-loglevel', 'error', '-y']
+    if (background) args.push('-i', background)
     args.push('-f', 'image2pipe', '-framerate', String(fps), '-c:v', 'png', '-i', 'pipe:0')
     if (audio) args.push('-i', audio)
-    args.push('-map', '0:v:0')
-    if (audio) args.push('-map', '1:a:0', '-af', audioFilter(ffmpeg, audio, duration, options.lufs))
+    const audioInput = background ? 2 : 1
+    if (background) args.push('-filter_complex', '[0:v][1:v]overlay=0:0:format=auto:shortest=1[v]', '-map', '[v]')
+    else args.push('-map', '0:v:0')
+    if (audio) args.push('-map', `${audioInput}:a:0`, '-af', audioFilter(ffmpeg, audio, duration, options.lufs))
     args.push('-c:v', 'libx264', '-preset', 'medium', '-crf', String(options.crf), '-pix_fmt', 'yuv420p')
     args.push('-r', String(fps), '-movflags', '+faststart')
     if (audio) args.push('-c:a', 'aac', '-b:a', '192k', '-ar', '48000')
@@ -279,7 +285,7 @@ export async function render(options, log = console.log) {
     let reported = 0
     for (let i = 0; i < frames; i++) {
       await tab.evaluate((t) => window.NWLab.seek(t), i / fps)
-      await write(encoder.stdin, await tab.screenshot({ type: 'png' }))
+      await write(encoder.stdin, await tab.screenshot({ type: 'png', omitBackground: !!background }))
       options.onFrame?.(i + 1, frames)
       if (i + 1 === frames || Date.now() - reported > 2000) {
         reported = Date.now()

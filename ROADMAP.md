@@ -93,6 +93,7 @@ each section, the order is the suggested order.
 - [x] Agents: their own parameters, skills and plugins; called with @name
 - [x] Prompt chains, with `{{resposta}}` for the previous reply
 - [x] Scheduled tasks with your own web search, skills and plugins' HTTP tools
+- [x] Short videos: narration with word timings, stock clips, captions, music and credits
 
 ## Next
 

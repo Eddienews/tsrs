@@ -92,6 +92,7 @@ cada seção é a ordem sugerida.
 - [x] Agentes: parâmetros, skills e plugins próprios; chamados com @nome
 - [x] Prompts encadeados, com `{{resposta}}` para a resposta anterior
 - [x] Agenda com a busca própria, skills e ferramentas HTTP de plugins
+- [x] Vídeos curtos: narração com tempos por palavra, imagens de banco, legendas, música e créditos
 
 ## Próximos
 
