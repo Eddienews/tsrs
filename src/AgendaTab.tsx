@@ -17,7 +17,9 @@ import {
   type Task,
 } from './agenda'
 import { locale, t } from './i18n'
+import { enabledPlugins, enabledSkills, listPlugins, listSkills, type Plugin } from './extensions'
 import { PROVIDERS } from './providers'
+import { SEARCH_SERVICES, ownSearch } from './webSearch'
 import type { Settings } from './types'
 
 interface Props {
@@ -50,6 +52,12 @@ function TaskForm(p: Props & { task?: Task; hasKey: (providerId: string) => bool
   const [days, setDays] = useState<number[]>(p.task?.schedule.kind === 'daily' ? (p.task.schedule.days ?? []) : [])
   const [hours, setHours] = useState(p.task?.schedule.kind === 'interval' ? String(p.task.schedule.hours) : '6')
   const [keep, setKeep] = useState(false)
+  const service = ownSearch(p.settings)
+  const [useSearch, setUseSearch] = useState(!!p.task?.tools?.search)
+  const [useSkills, setUseSkills] = useState(!!p.task?.tools?.skills.length)
+  const [usePlugins, setUsePlugins] = useState(!!p.task?.tools?.plugins.length)
+  const searchId = service ? `search:${service.provider}` : ''
+  const needsSearchKey = useSearch && !!service && !p.hasKey(searchId)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -57,7 +65,7 @@ function TaskForm(p: Props & { task?: Task; hasKey: (providerId: string) => bool
   const model = rest.join('/')
   const provider = PROVIDERS.find((x) => x.id === providerId)
   const conn = p.settings.providers[providerId]
-  const needsKey = !!provider?.keyRequired && !p.hasKey(providerId)
+  const needsProviderKey = !!provider?.keyRequired && !p.hasKey(providerId)
   const options = PROVIDERS.flatMap((x) => {
     const c = p.settings.providers[x.id]
     const ready = !!c?.baseUrl && (!x.keyRequired || !!c.apiKey || p.hasKey(x.id))
@@ -65,10 +73,13 @@ function TaskForm(p: Props & { task?: Task; hasKey: (providerId: string) => bool
   })
   if (!options.some((o) => o.value === target)) options.unshift({ value: target, label: `${provider?.name ?? providerId} · ${model}` })
 
+  const needsKey = needsProviderKey || needsSearchKey
+
   async function submit() {
     setError('')
     if (needsKey && !keep) return setError(t('Para a tarefa rodar com a aba fechada, permita guardar a chave neste computador.'))
-    if (needsKey && !conn?.apiKey) return setError(p.locked ? t('Desbloqueie as chaves primeiro.') : t('Este provedor não tem chave nas Configurações.'))
+    if (needsProviderKey && !conn?.apiKey) return setError(p.locked ? t('Desbloqueie as chaves primeiro.') : t('Este provedor não tem chave nas Configurações.'))
+    if (useSearch && !service) return setError(t('Configure uma Busca própria em Ferramentas para a tarefa buscar na web.'))
     const schedule: Schedule =
       kind === 'once'
         ? { kind, at: new Date(at).toISOString() }
@@ -77,9 +88,23 @@ function TaskForm(p: Props & { task?: Task; hasKey: (providerId: string) => bool
           : { kind, time, ...(days.length ? { days } : {}) }
     setBusy(true)
     try {
+      // What is turned on in Extensões now is what the task may use.
+      const [skills, plugins] = await Promise.all([
+        useSkills ? listSkills().catch(() => []) : [],
+        usePlugins ? listPlugins().catch(() => [] as Plugin[]) : [],
+      ])
+      const tools = {
+        search: useSearch && service ? { provider: service.provider, ...(service.cx ? { cx: service.cx } : {}) } : null,
+        skills: enabledSkills(skills, p.settings).map((s) => s.id),
+        plugins: enabledPlugins(plugins, p.settings)
+          .filter((x) => x.tools.some((tool) => tool.kind === 'http'))
+          .map((x) => x.name),
+      }
       await saveTask(
-        { id: p.task?.id, name, prompt, providerId, model, baseUrl: conn?.baseUrl, schedule, enabled: p.task?.enabled ?? true },
-        needsKey ? { apiKey: conn!.apiKey } : undefined,
+        { id: p.task?.id, name, prompt, providerId, model, baseUrl: conn?.baseUrl, tools, schedule, enabled: p.task?.enabled ?? true },
+        needsKey
+          ? { ...(needsProviderKey ? { apiKey: conn!.apiKey } : {}), ...(needsSearchKey ? { searchKey: service!.key } : {}) }
+          : undefined,
       )
       p.onSaved()
     } catch (err) {
@@ -143,13 +168,36 @@ function TaskForm(p: Props & { task?: Task; hasKey: (providerId: string) => bool
           <span className={hint}>{t('(nenhum marcado = todos)')}</span>
         </div>
       )}
+      <fieldset className="space-y-1 text-sm">
+        <legend className="text-xs font-medium text-muted-foreground">{t('A tarefa pode usar')}</legend>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" className="size-4 accent-primary" checked={useSearch} disabled={!service && !useSearch} onChange={(e) => setUseSearch(e.target.checked)} />
+          {service
+            ? t('Busca na web e leitura de páginas ({name})', { name: SEARCH_SERVICES.find((x) => x.id === service.provider)?.name ?? service.provider })
+            : t('Busca na web (configure uma Busca própria em Ferramentas)')}
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" className="size-4 accent-primary" checked={useSkills} onChange={(e) => setUseSkills(e.target.checked)} />
+          {t('Skills ligadas em Extensões')}
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" className="size-4 accent-primary" checked={usePlugins} onChange={(e) => setUsePlugins(e.target.checked)} />
+          {t('Ferramentas HTTP dos plugins ligados')}
+        </label>
+        <p className={hint}>{t('Ferramentas JavaScript de plugins e servidores MCP só rodam com o TSRS aberto no navegador.')}</p>
+      </fieldset>
       {needsKey && (
         <label className="flex items-start gap-2 rounded-md border border-warning/50 p-2 text-xs">
           <input type="checkbox" className="mt-0.5" checked={keep} onChange={(e) => setKeep(e.target.checked)} />
           <span>
             {t(
               'Guardar a chave de {name} neste computador, em {file}, para a tarefa rodar com a aba fechada. A chave sai do navegador só para esse arquivo; dá para apagá-la aqui depois.',
-              { name: provider?.name ?? providerId, file: p.keysFile },
+              {
+                name: [needsProviderKey && (provider?.name ?? providerId), needsSearchKey && (SEARCH_SERVICES.find((x) => x.id === service?.provider)?.name ?? service?.provider)]
+                  .filter(Boolean)
+                  .join(t(' e ')),
+                file: p.keysFile,
+              },
             )}
           </span>
         </label>
@@ -273,7 +321,9 @@ export default function AgendaTab(p: Props) {
           <p className="font-medium">{t('Chaves guardadas para a agenda')}</p>
           {state.keys.map((id) => (
             <p key={id} className="flex items-center gap-2">
-              {PROVIDERS.find((x) => x.id === id)?.name ?? id}
+              {PROVIDERS.find((x) => x.id === id)?.name ??
+                SEARCH_SERVICES.find((x) => `search:${x.id}` === id)?.name ??
+                id}
               <button
                 className="text-destructive underline-offset-2 hover:underline"
                 onClick={async () => {

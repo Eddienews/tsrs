@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronRight, FileText, Paperclip, Plus, Sparkles, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -16,9 +16,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { readAttachment } from './files'
 import KnowledgeTab, { type KnowledgeProps } from './KnowledgeTab'
 import { t } from './i18n'
-import { PROVIDERS } from './providers'
+import { listPlugins, listSkills, type Plugin, type Skill } from './extensions'
+import { PROVIDERS, getProvider } from './providers'
 import { missingStarters } from './starters'
-import type { Memory, Persona, PersonaTools, SavedPrompt, Settings } from './types'
+import type { AgentParams, Memory, Persona, PersonaTools, SavedPrompt, Settings } from './types'
 
 // Settings live in localStorage, which holds a few megabytes at most.
 const MAX_AGENT_FILES = 2_000_000
@@ -40,6 +41,134 @@ function Check(props: { label: string; checked: boolean; onChange: (checked: boo
       />
       {props.label}
     </label>
+  )
+}
+
+const number = (value: string) => (value.trim() === '' ? undefined : Number(value))
+
+// Temperature, output limit and reasoning effort of an agent; empty means the
+// default, and a conversation's own values win.
+function AgentParamsFields({
+  persona,
+  settings,
+  onPatch,
+}: {
+  persona: Persona
+  settings: Settings
+  onPatch: (fields: Partial<Persona>) => void
+}) {
+  const params = persona.params ?? {}
+  const provider = getProvider(persona.providerId ?? settings.providerId)
+  const set = (fields: Partial<AgentParams>) => {
+    const next = { ...params, ...fields }
+    const empty = next.temperature === undefined && next.maxTokens === undefined && !next.effort
+    onPatch({ params: empty ? undefined : next })
+  }
+  return (
+    <div className="space-y-1.5">
+      <div className="text-sm font-medium">{t('Parâmetros do agente')}</div>
+      <div className="flex flex-wrap gap-2">
+        <label className="space-y-1 text-xs">
+          <span className="text-muted-foreground">{t('Temperatura')}</span>
+          <Input
+            type="number"
+            min={0}
+            max={2}
+            step={0.1}
+            aria-label={t('Temperatura do agente')}
+            placeholder={t('padrão')}
+            className="h-8 w-24 font-mono text-xs"
+            value={params.temperature ?? ''}
+            onChange={(e) => set({ temperature: number(e.target.value) })}
+          />
+        </label>
+        <label className="space-y-1 text-xs">
+          <span className="text-muted-foreground">{t('Máximo de tokens')}</span>
+          <Input
+            type="number"
+            min={1}
+            step={1}
+            aria-label={t('Máximo de tokens do agente')}
+            placeholder={t('padrão')}
+            className="h-8 w-28 font-mono text-xs"
+            value={params.maxTokens ?? ''}
+            onChange={(e) => set({ maxTokens: number(e.target.value) })}
+          />
+        </label>
+        {provider.efforts.length > 0 && (
+          <label className="space-y-1 text-xs">
+            <span className="text-muted-foreground">{t('Nível de raciocínio')}</span>
+            <select
+              aria-label={t('Nível de raciocínio do agente')}
+              className="select-native block h-8"
+              value={params.effort ?? ''}
+              onChange={(e) => set({ effort: e.target.value || undefined })}
+            >
+              <option value="">{t('padrão')}</option>
+              {provider.efforts.map((effort) => (
+                <option key={effort} value={effort}>
+                  {effort}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
+      <p className={hint}>{t('Valem nas conversas do agente que não definiram os próprios parâmetros.')}</p>
+    </div>
+  )
+}
+
+// The skills and plugins an agent uses: all that are on, or a chosen few.
+function AgentExtensions({ persona, onPatch }: { persona: Persona; onPatch: (fields: Partial<Persona>) => void }) {
+  const [skills, setSkills] = useState<Skill[] | null>(null)
+  const [plugins, setPlugins] = useState<Plugin[]>([])
+  useEffect(() => {
+    Promise.all([listSkills().catch(() => []), listPlugins().catch(() => [] as Plugin[])]).then(([s, p]) => {
+      setSkills(s)
+      setPlugins(p)
+    })
+  }, [])
+  // A TSRS without its server has no extensions to choose from.
+  if (!skills || (!skills.length && !plugins.length)) return null
+  const choosing = !!persona.skills || !!persona.plugins
+  const toggle = <K extends 'skills' | 'plugins'>(key: K, id: string, on: boolean) => {
+    const list = persona[key] ?? []
+    onPatch({ [key]: on ? [...list, id] : list.filter((x) => x !== id) } as Partial<Persona>)
+  }
+  return (
+    <div className="space-y-2">
+      <label className="flex items-center justify-between gap-4 text-sm font-medium">
+        {t('Escolher skills e plugins')}
+        <Switch
+          aria-label={t('Escolher skills e plugins')}
+          checked={choosing}
+          onCheckedChange={(on) => onPatch(on ? { skills: [], plugins: [] } : { skills: undefined, plugins: undefined })}
+        />
+      </label>
+      {choosing ? (
+        <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+          {skills.map((skill) => (
+            <Check
+              key={skill.id}
+              label={`${t('Skill')}: ${skill.name}`}
+              checked={!!persona.skills?.includes(skill.id)}
+              onChange={(on) => toggle('skills', skill.id, on)}
+            />
+          ))}
+          {plugins.map((plugin) => (
+            <Check
+              key={plugin.name}
+              label={`${t('Plugin')}: ${plugin.name}`}
+              checked={!!persona.plugins?.includes(plugin.name)}
+              onChange={(on) => toggle('plugins', plugin.name, on)}
+            />
+          ))}
+        </div>
+      ) : (
+        <p className={hint}>{t('Desligado, o agente usa todas as skills e plugins ligados em Extensões.')}</p>
+      )}
+    </div>
   )
 }
 
@@ -80,6 +209,8 @@ function AgentFields({
 
   return (
     <>
+      <AgentParamsFields persona={persona} settings={settings} onPatch={onPatch} />
+      <AgentExtensions persona={persona} onPatch={onPatch} />
       <div className="space-y-2">
         <label className="flex items-center justify-between gap-4 text-sm font-medium">
           {t('Ferramentas próprias')}
@@ -482,7 +613,8 @@ export default function LibraryDialog(props: Props) {
           <TabsContent value="prompts" className="space-y-3">
             <p className={hint}>
               {t('Textos prontos para inserir na mensagem pelo botão Prompts.')}{' '}
-              {t('Use {{variável}} para campos preenchidos ao inserir o prompt.')}
+              {t('Use {{variável}} para campos preenchidos ao inserir o prompt.')}{' '}
+              {t('Com etapas, o prompt vira um encadeamento: cada etapa é enviada quando a resposta anterior termina, e {{resposta}} traz essa resposta.')}
             </p>
             {settings.prompts.map((prompt) => (
               <Card
@@ -509,6 +641,40 @@ export default function LibraryDialog(props: Props) {
                     onChange={(e) => patchPrompt(prompt.id, { text: e.target.value })}
                   />
                 </div>
+                {(prompt.steps ?? []).map((step, i) => (
+                  <div key={i} className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor={`step-${prompt.id}-${i}`}>{t('Etapa {n}', { n: i + 2 })}</Label>
+                      <button
+                        aria-label={t('Remover a etapa {n}', { n: i + 2 })}
+                        title={t('Remover a etapa {n}', { n: i + 2 })}
+                        className="rounded p-0.5 hover:bg-accent"
+                        onClick={() => patchPrompt(prompt.id, { steps: prompt.steps?.filter((_, j) => j !== i) })}
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
+                    <Textarea
+                      id={`step-${prompt.id}-${i}`}
+                      rows={3}
+                      className="font-mono text-xs"
+                      placeholder={t('Ex.: Revise {{resposta}} e deixe mais curto.')}
+                      value={step}
+                      onChange={(e) =>
+                        patchPrompt(prompt.id, { steps: prompt.steps?.map((s, j) => (j === i ? e.target.value : s)) })
+                      }
+                    />
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                  onClick={() => patchPrompt(prompt.id, { steps: [...(prompt.steps ?? []), ''] })}
+                >
+                  <Plus className="size-3.5" />
+                  {t('Adicionar etapa')}
+                </Button>
                 <Button
                   variant="destructive"
                   size="sm"

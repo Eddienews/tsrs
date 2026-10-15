@@ -930,4 +930,35 @@ export const en: Record<string, string> = {
   'Escreva o id e o segredo da chave separados por dois-pontos.': 'Write the key\'s id and secret separated by a colon.',
   'A API de {name} não aceita chamadas do navegador: ela só funciona com o proxy local rodando (npm run proxy).':
     '{name}\'s API refuses calls from browsers: it only works with the local proxy running (npm run proxy).',
+  // Agents, chains and the schedule's tools
+  'Configure uma Busca própria em Ferramentas para a tarefa buscar na web.': 'Set up an own search in Tools for the task to search the web.',
+  'A tarefa pode usar': 'The task may use',
+  'Busca na web e leitura de páginas ({name})': 'Web search and page reading ({name})',
+  'Busca na web (configure uma Busca própria em Ferramentas)': 'Web search (set up an own search in Tools)',
+  'Skills ligadas em Extensões': 'Skills turned on in Extensions',
+  'Ferramentas HTTP dos plugins ligados': 'HTTP tools of the plugins turned on',
+  'Ferramentas JavaScript de plugins e servidores MCP só rodam com o TSRS aberto no navegador.':
+    'Plugin JavaScript tools and MCP servers only run with TSRS open in the browser.',
+  ' e ': ' and ',
+  'Encadeado: {count} etapas, enviadas uma depois da outra.': 'Chained: {count} steps, sent one after another.',
+  'Executar o encadeamento': 'Run the chain',
+  Agentes: 'Agents',
+  '{count} etapas': '{count} steps',
+  'Parâmetros do agente': 'Agent parameters',
+  'Temperatura do agente': 'Agent temperature',
+  'Máximo de tokens do agente': 'Agent max tokens',
+  'Nível de raciocínio do agente': 'Agent reasoning effort',
+  'Valem nas conversas do agente que não definiram os próprios parâmetros.':
+    "Used in the agent's conversations that set no parameters of their own.",
+  'Escolher skills e plugins': 'Choose skills and plugins',
+  Skill: 'Skill',
+  Plugin: 'Plugin',
+  'Desligado, o agente usa todas as skills e plugins ligados em Extensões.':
+    'Off, the agent uses every skill and plugin turned on in Extensions.',
+  'Com etapas, o prompt vira um encadeamento: cada etapa é enviada quando a resposta anterior termina, e {{resposta}} traz essa resposta.':
+    'With steps, the prompt becomes a chain: each step is sent when the previous reply is done, and {{resposta}} brings in that reply.',
+  'Etapa {n}': 'Step {n}',
+  'Remover a etapa {n}': 'Remove step {n}',
+  'Ex.: Revise {{resposta}} e deixe mais curto.': 'E.g.: Review {{resposta}} and make it shorter.',
+  'Adicionar etapa': 'Add a step',
 }

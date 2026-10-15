@@ -111,6 +111,10 @@ export interface Message {
   // A mark the user set: messages before it are no longer sent to the model.
   // It has no content and is shown as a divider that can be undone.
   contextReset?: boolean
+  // The agent called with @name in this message, which answers it.
+  agentId?: string
+  // The agent that wrote this reply, when it was called with @name.
+  agentName?: string
   // Media generated from this prompt; the file is in `attachments`.
   imagePrompt?: string
   // What was generated, when not an image.
@@ -210,6 +214,19 @@ export interface Persona {
   starters?: string[]
   // Knowledge bases searched in its conversations.
   knowledge?: string[]
+  // Temperature, output limit and reasoning effort, used when the
+  // conversation sets none of its own.
+  params?: AgentParams
+  // Skills (by id) and plugins (by name) it may use; unset means every one
+  // that is turned on, an empty list none.
+  skills?: string[]
+  plugins?: string[]
+}
+
+export interface AgentParams {
+  temperature?: number
+  maxTokens?: number
+  effort?: string
 }
 
 export interface KnowledgeBase {
@@ -243,6 +260,9 @@ export interface SavedPrompt {
   id: string
   title: string
   text: string
+  // Prompts sent after the first one, each once the previous reply is done:
+  // a chain. {{resposta}} stands for the previous reply.
+  steps?: string[]
 }
 
 export interface Folder {

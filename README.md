@@ -122,14 +122,19 @@ manager) and Chrome, Edge or Playwright's Chromium.
   **your own key** (Brave, Tavily, Google, Kagi) for any model, with sources.
 - **Deep research**: rounds of searching and reading that end in a report with
   cited sources, saved in the project folder.
-- Agents: personas with a model, tools, files, knowledge and starter prompts;
-  four come with the app, along with ready-made prompts with `{{fields}}`.
+- Agents: personas with a model, parameters (temperature, max tokens,
+  reasoning), tools, skills and plugins, files, knowledge and starter prompts;
+  call one for a single message with **@name**. Four come with the app, along
+  with ready-made prompts with `{{fields}}`.
+- **Prompt chains**: saved prompts with steps, each sent when the previous
+  reply is done, with `{{resposta}}` for that reply.
 - Memory (optional): facts the model keeps about you, in a list you can edit.
 - **Skills** in Claude's `SKILL.md` format, loaded only when a task needs them.
 - **Plugins** in Claude's layout (skills, commands, agents, MCP servers) plus
   your own tools by HTTP or sandboxed JavaScript.
 - **Schedule**: prompts the local server sends to a model on time, even with
-  the tab closed; the answers land in a conversation.
+  the tab closed, optionally with your own web search, skills and plugins'
+  HTTP tools; the answers land in a conversation.
 
 ### Costs, privacy and sync
 - Tokens and estimated cost per reply, per conversation and per day and model

@@ -88,6 +88,11 @@ each section, the order is the suggested order.
 - [x] Deep research: rounds of searching and reading that end in a report with
       sources, saved in the project folder
 - [x] User-entered prices for models the app does not know
+- [x] Word and PowerPoint: attached and read as text, and written into the project folder
+- [x] Clearing the context from a point, undoable
+- [x] Agents: their own parameters, skills and plugins; called with @name
+- [x] Prompt chains, with `{{resposta}}` for the previous reply
+- [x] Scheduled tasks with your own web search, skills and plugins' HTTP tools
 
 ## Next
 

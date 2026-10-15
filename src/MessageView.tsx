@@ -322,6 +322,9 @@ function MessageView(props: Props) {
           <Telescope className="size-3" /> {t('Pesquisa profunda')}
         </span>
       )}
+      {message.agentName && (
+        <span className="agent-label text-[11px] font-medium text-primary">@{message.agentName}</span>
+      )}
       {message.pinned && (
         <span className="flex items-center gap-1 text-[11px] text-primary">
           <Pin className="size-3" /> {t('Fixada')}

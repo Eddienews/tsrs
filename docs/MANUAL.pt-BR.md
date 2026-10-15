@@ -392,6 +392,19 @@ de contratos, analista de planilhas, professor de inglês…
 
 Escolha o agente da conversa em **Persona desta conversa**, na barra superior.
 
+Cada agente também pode ter:
+
+- **Parâmetros próprios**: temperatura, máximo de tokens e nível de raciocínio.
+  Valem nas conversas dele que não definiram os seus em **Parâmetros**.
+- **Skills e plugins escolhidos**: ligue **Escolher skills e plugins** e marque
+  só os que ele usa. Desligado, ele usa todos os que estão ligados em Extensões.
+
+**Chamar um agente com @.** No meio de qualquer conversa, digite `@` e escolha o
+agente na lista (ou continue digitando o nome). Só aquela mensagem é respondida
+por ele, com o prompt, as ferramentas, os parâmetros e o modelo dele; a resposta
+vem marcada com `@Nome`, e a conversa continua com o agente e o modelo de antes.
+Ex.: "@Revisor confira o texto acima".
+
 ### Prompts salvos
 
 Textos que você usa sempre, com campos `{{assim}}` que o TSRS pergunta na hora:
@@ -401,6 +414,13 @@ Escreva um post para {{rede}} sobre {{assunto}}, em tom {{tom}}, com no máximo 
 ```
 
 Use pelo botão **Prompts salvos** da caixa de mensagem ou pela paleta (Ctrl+K).
+
+**Encadear prompts.** Em **Adicionar etapa**, um prompt ganha etapas seguintes.
+Ao usá-lo, o TSRS manda a primeira, espera a resposta, manda a segunda e assim
+por diante. Escreva `{{resposta}}` numa etapa para incluir a resposta anterior.
+Ex.: etapa 1 "Escreva um post sobre {{tema}}", etapa 2 "Revise {{resposta}} e
+deixe com no máximo 100 palavras", etapa 3 "Agora sugira 3 títulos". Parar a
+resposta interrompe o encadeamento.
 
 ### Memória
 
@@ -463,6 +483,17 @@ aberto. A resposta chega numa conversa "Agenda: <nome da tarefa>".
 Para rodar com a aba fechada, o TSRS pede permissão para guardar a chave daquele
 provedor no computador. Ideias: "resumo das notícias do meu setor toda manhã",
 "lembrete semanal com os itens pendentes da pasta X".
+
+Em **A tarefa pode usar**, marque o que ela pode usar além do modelo:
+
+- **Busca na web e leitura de páginas**, com a sua Busca própria (Brave, Tavily,
+  Google ou Kagi). As fontes vêm listadas no fim da resposta. A chave da busca
+  também precisa ficar guardada no computador.
+- **Skills** ligadas em Extensões.
+- **Ferramentas HTTP** dos plugins ligados.
+
+Ferramentas JavaScript de plugins e servidores MCP só rodam com o TSRS aberto no
+navegador, então ficam de fora da agenda.
 
 ## 13. Custos e uso
 
