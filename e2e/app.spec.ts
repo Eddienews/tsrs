@@ -351,7 +351,7 @@ test('shows a motion composition with a timeline that seeks it', async ({ page }
   await expect(panel.getByTestId('motion-time')).toHaveText('4.00 / 4.00 s', { timeout: 10_000 })
   await expect(frame.locator('#clock')).toHaveText('t=4.00')
   await expect(panel.getByRole('button', { name: 'Reproduzir' })).toBeVisible()
-  await expect(panel).toContainText('npm run render -- motion-1.html')
+  await expect(panel.getByRole('button', { name: 'Gerar MP4' })).toBeVisible()
 
   // The ready message is for the timeline; the console stays clean.
   await panel.getByRole('tab', { name: /Console/ }).click()

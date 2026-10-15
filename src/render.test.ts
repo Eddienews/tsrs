@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import { freeName, insideRoot, parseArgs } from '../render/render.mjs'
 import { audioExtension, safeStem, serveOptions } from '../render/serve.mjs'
+import { sameOrigin } from '../render/vite-plugin.mjs'
 
 test('reads the render options', () => {
   expect(parseArgs(['motion-1.html', '--audio', 'a.wav', '--fps', '240', '-o', 'v.mp4', '--online'])).toEqual({
@@ -46,4 +47,18 @@ test('the local renderer keeps names safe and accepts only audio', () => {
   expect(options.origins).toEqual(['http://localhost:3000'])
   expect(options.folder).toMatch(/renders$/)
   expect(serveOptions([]).origins).toEqual(['http://localhost:5173', 'http://localhost:4173'])
+})
+
+test('inside the TSRS server, only TSRS itself may start a render', () => {
+  const req = (method: string, origin?: string) => ({
+    method,
+    headers: { host: 'localhost:5173', ...(origin ? { origin } : {}) },
+  })
+  expect(sameOrigin(req('POST', 'http://localhost:5173'))).toBe(true)
+  expect(sameOrigin(req('GET'))).toBe(true)
+  // Another site, a sandboxed preview frame, or a POST that hides where it comes from.
+  expect(sameOrigin(req('POST', 'https://evil.example'))).toBe(false)
+  expect(sameOrigin(req('POST', 'null'))).toBe(false)
+  expect(sameOrigin(req('POST'))).toBe(false)
+  expect(sameOrigin(req('GET', 'http://localhost:5174'))).toBe(false)
 })

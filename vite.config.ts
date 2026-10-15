@@ -2,9 +2,11 @@ import { fileURLToPath } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
+import { tsrsRenderer } from './render/vite-plugin.mjs'
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  // tsrsRenderer: the "Gerar MP4" button's renderer, on npm run dev and vite preview.
+  plugins: [react(), tailwindcss(), tsrsRenderer()],
   // Imported only when a chat is exported as HTML; listed so the dev server
   // does not discover it mid-session and reload the page.
   optimizeDeps: { include: ['react-dom/server'] },

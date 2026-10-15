@@ -15,7 +15,7 @@ npm test         # testes unitários (vitest)
 npm run test:e2e # testes de ponta a ponta (Playwright, com um provedor falso)
 npm run proxy    # proxy local opcional para provedores sem CORS (OpenCode)
 npm run render -- motion-1.html  # transforma uma composição motion em MP4 (precisa do ffmpeg)
-npm run render:serve             # renderizador local para o botão Gerar MP4 do preview
+npm run render:serve             # renderizador avulso, para um TSRS servido sem o npm run dev
 ```
 
 Os testes de ponta a ponta usam o Chromium do Playwright, se instalado
@@ -139,13 +139,15 @@ Peça ao modelo uma animação ("faça uma abertura de 6 segundos em 1080x1920 c
 título X"). A resposta vem num bloco `motion`, que abre no preview com uma linha
 do tempo.
 
-O jeito mais simples de fazer o MP4 é pelo próprio preview: deixe
-`npm run render:serve` rodando na pasta do TSRS, escolha a trilha (um áudio da
-conversa, como uma voz ou música gerada, ou um arquivo do computador) e clique em
-**Gerar MP4**. O vídeo aparece para baixar e fica salvo em `renders/`, sem
-sobrescrever os anteriores. O renderizador escuta só em `127.0.0.1:8788` e só
-atende o endereço do TSRS (`--origin` para outros); o áudio vai do navegador para
-ele, no mesmo computador, e não sai daí.
+O MP4 sai do próprio preview: escolha a trilha (um áudio da conversa, como uma
+voz ou música gerada, ou um arquivo do computador) e clique em **Gerar MP4**. O
+vídeo aparece para baixar e fica salvo em `renders/`, sem sobrescrever os
+anteriores. O renderizador já vem dentro do `npm run dev` (e do `vite preview`),
+em `/__tsrs/render`, e só aceita pedidos do próprio TSRS; o áudio vai do
+navegador para o servidor no mesmo computador e não sai daí. Um TSRS servido de
+outro jeito (um build estático) usa o renderizador avulso: `npm run render:serve`,
+que escuta só em `127.0.0.1:8788` e atende só o endereço do TSRS (`--origin`
+para outros).
 
 Pelo terminal, com um arquivo baixado do preview:
 
@@ -249,7 +251,8 @@ cabeçalhos (com `{apiKey}` como placeholder) e o formato da API (`openai` ou
 | `src/MotionStage.tsx`    | Composição motion no preview, com a linha do tempo          |
 | `render/motion.mjs`      | Contrato motion, comum ao preview e ao render               |
 | `render/render.mjs`      | `npm run render`: composição motion para MP4                |
-| `render/serve.mjs`       | `npm run render:serve`: renderizador do botão Gerar MP4     |
+| `render/serve.mjs`       | Renderizador do botão Gerar MP4 (e `npm run render:serve`)  |
+| `render/vite-plugin.mjs` | Renderizador dentro do `npm run dev`, em `/__tsrs/render`   |
 | `src/RenderBar.tsx`      | Trilha e botão Gerar MP4 do preview                         |
 | `src/videoRender.ts`     | Conversa com o renderizador local                           |
 | `public/motion/`         | Runtime motion, anime.js 4.5.0 e lottie-web 5.13.0 (MIT)    |

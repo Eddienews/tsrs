@@ -1,7 +1,9 @@
 import type { Message } from './types'
 
-// The local renderer started with `npm run render:serve` (render/serve.mjs).
-export const RENDERER = 'http://127.0.0.1:8788'
+// Where the video renderer may be, in order: inside the server TSRS runs on
+// (npm run dev or vite preview, render/vite-plugin.mjs), or the standalone one
+// started with npm run render:serve (render/serve.mjs).
+export const RENDERERS = ['/__tsrs/render', 'http://127.0.0.1:8788']
 
 // Audio to put under a video: base64 data, as attachments keep it.
 export interface Track {
@@ -58,13 +60,19 @@ export function trackFileName(track: Pick<Track, 'name' | 'mime'>): string {
   return `${track.name || 'audio'}.${extension}`
 }
 
-export async function rendererReady(base = RENDERER): Promise<boolean> {
+export async function rendererReady(base: string): Promise<boolean> {
   try {
     const response = await fetch(`${base}/health`, { signal: AbortSignal.timeout(2000) })
     return response.ok && (await response.json()).ok === true
   } catch {
     return false
   }
+}
+
+// The first renderer that answers, or null when none is running.
+export async function findRenderer(bases = RENDERERS): Promise<string | null> {
+  for (const base of bases) if (await rendererReady(base)) return base
+  return null
 }
 
 // Splits a stream of NDJSON into objects as the lines arrive.
@@ -87,7 +95,7 @@ export async function* jsonLines(stream: ReadableStream<Uint8Array>): AsyncGener
 export async function renderVideo(
   job: { html: string; name: string; track?: Track | null },
   onProgress: (progress: RenderProgress) => void,
-  base = RENDERER,
+  base: string,
 ): Promise<RenderedVideo> {
   const response = await fetch(`${base}/render`, {
     method: 'POST',

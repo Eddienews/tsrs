@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { base64 } from './files'
 import { t } from './i18n'
-import { rendererReady, renderVideo, type RenderProgress, type Track } from './videoRender'
+import { findRenderer, renderVideo, type RenderProgress, type Track } from './videoRender'
 
 // Audio files picked here are read into memory and only go to the local renderer.
 const MAX_TRACK_BYTES = 50 * 1024 * 1024
@@ -56,11 +56,14 @@ export default function RenderBar(p: Props) {
 
   async function start() {
     setState({ step: 'checking' })
-    if (!(await rendererReady())) return setState({ step: 'offline' })
+    const renderer = await findRenderer()
+    if (!renderer) return setState({ step: 'offline' })
     setState({ step: 'rendering', progress: null })
     try {
-      const video = await renderVideo({ html: p.code, name: p.name, track }, (progress) =>
-        setState({ step: 'rendering', progress }),
+      const video = await renderVideo(
+        { html: p.code, name: p.name, track },
+        (progress) => setState({ step: 'rendering', progress }),
+        renderer,
       )
       setState({ step: 'done', name: video.name, path: video.path, url: URL.createObjectURL(video.blob) })
     } catch (error) {
@@ -128,9 +131,10 @@ export default function RenderBar(p: Props) {
       )}
       {state.step === 'offline' && (
         <p className="text-warning" role="status">
-          {t('O renderizador local não está rodando. Na pasta do TSRS, rode {command} e tente de novo.', {
-            command: 'npm run render:serve',
-          })}
+          {t(
+            'Para gerar o vídeo, o TSRS precisa estar aberto pelo {dev} na pasta do projeto (ou com o renderizador {serve} rodando).',
+            { dev: 'npm run dev', serve: 'npm run render:serve' },
+          )}
         </p>
       )}
       {state.step === 'error' && (
@@ -155,9 +159,7 @@ export default function RenderBar(p: Props) {
       )}
       {state.step === 'idle' && (
         <p className="text-muted-foreground">
-          {t('O MP4 é feito no seu computador, quadro a quadro, pelo renderizador local ({command}).', {
-            command: 'npm run render:serve',
-          })}
+          {t('O MP4 é feito no seu computador, quadro a quadro, e fica salvo na pasta renders do TSRS.')}
         </p>
       )}
     </div>

@@ -358,12 +358,12 @@ export const en: Record<string, string> = {
   'Gerar MP4': 'Make MP4',
   'Quadro {frame} de {frames}': 'Frame {frame} of {frames}',
   'Preparando…': 'Getting ready…',
-  'O renderizador local não está rodando. Na pasta do TSRS, rode {command} e tente de novo.':
-    'The local renderer is not running. In the TSRS folder, run {command} and try again.',
+  'Para gerar o vídeo, o TSRS precisa estar aberto pelo {dev} na pasta do projeto (ou com o renderizador {serve} rodando).':
+    'To make the video, TSRS must be open through {dev} in the project folder (or with the {serve} renderer running).',
   'Baixar {name}': 'Download {name}',
   'Salvo em {path}': 'Saved to {path}',
-  'O MP4 é feito no seu computador, quadro a quadro, pelo renderizador local ({command}).':
-    'The MP4 is made on your computer, frame by frame, by the local renderer ({command}).',
+  'O MP4 é feito no seu computador, quadro a quadro, e fica salvo na pasta renders do TSRS.':
+    'The MP4 is made on your computer, frame by frame, and saved in the renders folder of TSRS.',
   'Se a página ficar em branco, o site não permite ser exibido dentro de outros aplicativos.':
     'If the page stays blank, the site does not allow being shown inside other apps.',
   Código: 'Code',

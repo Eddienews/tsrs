@@ -68,8 +68,8 @@ cada seção é a ordem sugerida.
       MiniMax (vídeo e voz), Cartesia e o Grok Imagine da xAI (imagem e vídeo)
 - [x] Vídeos com motion: bloco `motion` com linha do tempo no preview e
       `npm run render` para MP4, quadro a quadro, como no NWLab ForgeOS
-- [x] Botão Gerar MP4 no preview, com trilha da conversa ou do computador, pelo
-      renderizador local (`npm run render:serve`)
+- [x] Botão Gerar MP4 no preview, com trilha da conversa ou do computador; o
+      renderizador vem dentro do `npm run dev`
 - [ ] Ainda de fora: Luma (a API está mudando para a "Agents API"), Runway (só
       documenta vídeo a partir de imagem), Ideogram, Recraft, Kling oficial e
       Hume (não aceitam o navegador; precisariam do proxy), Deepgram (sem vozes em

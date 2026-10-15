@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import type { Message } from './types'
-import { chatTracks, jsonLines, renderVideo, trackFileName } from './videoRender'
+import { chatTracks, findRenderer, jsonLines, renderVideo, trackFileName } from './videoRender'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -83,4 +83,19 @@ test('passes on what the renderer says went wrong', async () => {
   await expect(renderVideo({ html: 'x', name: 'm' }, () => {}, 'http://r')).rejects.toThrow('ffmpeg was not found')
   vi.stubGlobal('fetch', async () => new Response('{"error":"A video is already being rendered."}', { status: 409 }))
   await expect(renderVideo({ html: 'x', name: 'm' }, () => {}, 'http://r')).rejects.toThrow('already being rendered')
+})
+
+test('uses the renderer inside the TSRS server first, then the standalone one', async () => {
+  const asked: string[] = []
+  vi.stubGlobal('fetch', async (url: string) => {
+    asked.push(url)
+    if (url.startsWith('/__tsrs')) return new Response('<!doctype html>', { status: 404 })
+    return Response.json({ ok: true })
+  })
+  expect(await findRenderer()).toBe('http://127.0.0.1:8788')
+  expect(asked).toEqual(['/__tsrs/render/health', 'http://127.0.0.1:8788/health'])
+  vi.stubGlobal('fetch', async () => {
+    throw new TypeError('Failed to fetch')
+  })
+  expect(await findRenderer()).toBeNull()
 })

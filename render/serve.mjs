@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Local video renderer for the preview's "Gerar MP4" button. The browser
-// cannot photograph a page frame by frame or run ffmpeg, so this small server
-// does it on the same machine with render.mjs, and hands the MP4 back.
+// cannot photograph a page frame by frame or run ffmpeg, so a process on the
+// same machine does it with render.mjs and hands the MP4 back. npm run dev
+// already includes it (render/vite-plugin.mjs); this standalone server is for
+// a TSRS served some other way.
 //
 //   npm run render:serve [-- --port 8788 --origin http://localhost:5173 --out renders]
 //
@@ -29,8 +31,13 @@ const DEFAULT_ORIGINS = ['http://localhost:5173', 'http://localhost:4173']
 const MAX_BODY = 120 * 1024 * 1024
 const AUDIO_TYPES = new Set(['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.oga', '.opus', '.flac', '.webm'])
 
+// renders/ in the TSRS folder, or TSRS_RENDERS when set (the tests use it).
+export function defaultFolder() {
+  return process.env.TSRS_RENDERS ? resolve(process.env.TSRS_RENDERS) : resolve(HERE, '..', 'renders')
+}
+
 export function serveOptions(argv) {
-  const out = { port: 8788, origins: [], folder: resolve(HERE, '..', 'renders') }
+  const out = { port: 8788, origins: [], folder: defaultFolder() }
   for (let i = 0; i < argv.length; i++) {
     const value = argv[i + 1]
     if (argv[i] === '--port') out.port = Number(value)
@@ -79,39 +86,40 @@ async function body(req) {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'))
 }
 
-export function startRenderServer(config, log = console.log) {
+// Answers /health, /render and /video/<id>, with paths relative to where it
+// is mounted: by the standalone server below, and inside the TSRS dev server
+// at /__tsrs/render (render/vite-plugin.mjs), so the preview's button works
+// with just npm run dev. `headers` go on every answer. Returns false for a
+// path it does not know.
+export function renderHandler(config, log = console.log) {
   const videos = new Map()
   let busy = false
 
-  const server = createServer(async (req, res) => {
-    const origin = req.headers.origin
-    if (!origin || !config.origins.includes(origin)) {
-      res.writeHead(403, { 'Content-Type': 'application/json' })
-      return res.end(
-        JSON.stringify({ error: `Origin ${origin ?? '(none)'} is not allowed; start with --origin.` }),
-      )
-    }
-    const headers = cors(origin)
-    if (req.method === 'OPTIONS') return res.writeHead(204, headers).end()
-    const url = req.url ?? '/'
+  return async (req, res, headers = {}) => {
+    const url = (req.url ?? '/').split('?')[0]
 
     if (req.method === 'GET' && url === '/health') {
-      res.writeHead(200, { ...headers, 'Content-Type': 'application/json' })
-      return res.end(JSON.stringify({ ok: true, renders: config.folder, busy }))
+      res.writeHead(200, { ...headers, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+      res.end(JSON.stringify({ ok: true, renders: config.folder, busy }))
+      return true
     }
 
     const video = /^\/video\/([\w-]+)$/.exec(url)
     if (req.method === 'GET' && video) {
       const path = videos.get(video[1])
-      if (!path) return res.writeHead(404, headers).end()
-      res.writeHead(200, { ...headers, 'Content-Type': 'video/mp4' })
-      return res.end(await readFile(path))
+      if (!path) res.writeHead(404, headers).end()
+      else {
+        res.writeHead(200, { ...headers, 'Content-Type': 'video/mp4' })
+        res.end(await readFile(path))
+      }
+      return true
     }
 
-    if (req.method !== 'POST' || url !== '/render') return res.writeHead(404, headers).end()
+    if (req.method !== 'POST' || url !== '/render') return false
     if (busy) {
       res.writeHead(409, { ...headers, 'Content-Type': 'application/json' })
-      return res.end(JSON.stringify({ error: 'A video is already being rendered.' }))
+      res.end(JSON.stringify({ error: 'A video is already being rendered.' }))
+      return true
     }
     busy = true
     res.writeHead(200, { ...headers, 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-store' })
@@ -164,8 +172,26 @@ export function startRenderServer(config, log = console.log) {
       res.end()
       if (work) await rm(work, { recursive: true, force: true }).catch(() => {})
     }
-  })
+    return true
+  }
+}
 
+// The standalone renderer, for a TSRS that is not served by npm run dev
+// (a build opened with vite preview elsewhere, or another port).
+export function startRenderServer(config, log = console.log) {
+  const handle = renderHandler(config, log)
+  const server = createServer(async (req, res) => {
+    const origin = req.headers.origin
+    if (!origin || !config.origins.includes(origin)) {
+      res.writeHead(403, { 'Content-Type': 'application/json' })
+      return res.end(
+        JSON.stringify({ error: `Origin ${origin ?? '(none)'} is not allowed; start with --origin.` }),
+      )
+    }
+    const headers = cors(origin)
+    if (req.method === 'OPTIONS') return res.writeHead(204, headers).end()
+    if (!(await handle(req, res, headers))) res.writeHead(404, headers).end()
+  })
   return new Promise((ok) => server.listen(config.port, '127.0.0.1', () => ok(server)))
 }
 

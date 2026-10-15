@@ -265,7 +265,7 @@ export function urlSandbox(url: string, origin: string): string {
 const MOTION_HINT =
   '\n\nFor an animation or video (an intro, a teaser, an animated title, a social clip), write ' +
   'one complete HTML document in a block tagged motion. The panel shows it with a timeline and ' +
-  'the user turns it into an MP4 with `npm run render`, frame by frame, so the page must never ' +
+  'its "Gerar MP4" button renders it to a video frame by frame, so the page must never ' +
   'move by itself: everything it shows at a time t must come from t alone. Declare in <head> ' +
   '<meta name="nwlab:duration" content="SECONDS">, <meta name="nwlab:size" content="1080x1920"> ' +
   '(or 1920x1080, 1080x1080) and optionally <meta name="nwlab:fps" content="30">; html and body ' +

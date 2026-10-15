@@ -1,4 +1,6 @@
 import { existsSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { chromium, defineConfig } from '@playwright/test'
 
 const PORT = 5174
@@ -32,5 +34,7 @@ export default defineConfig({
     command: `npm run dev -- --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
+    // Videos made by the tests' Gerar MP4 go to a temporary folder, not renders/.
+    env: { TSRS_RENDERS: join(tmpdir(), 'tsrs-e2e-renders') },
   },
 })

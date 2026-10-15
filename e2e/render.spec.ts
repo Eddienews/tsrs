@@ -137,22 +137,13 @@ test('explains what is wrong instead of rendering', async () => {
   expect(usage.stdout).toContain('Usage: npm run render -- <composition.html>')
 })
 
-test('the preview makes the MP4 with a soundtrack through the local renderer', async ({ page }) => {
+test('the preview makes the MP4 with a soundtrack, inside TSRS', async ({ page }) => {
   test.skip(missing, 'ffmpeg and ffprobe are not installed')
   test.setTimeout(180_000)
-  const folder = await mkdtemp(join(tmpdir(), 'tsrs-renders-'))
+  const folder = await mkdtemp(join(tmpdir(), 'tsrs-track-'))
   const tone = join(folder, 'trilha.wav')
   spawnSync(ffmpeg, ['-v', 'error', '-f', 'lavfi', '-i', 'sine=frequency=330:duration=8', tone])
   const provider = await startMockProvider()
-  // The app talks to 127.0.0.1:8788; the test's renderer listens on a free port.
-  const renderer = await startRenderServer({ port: 0, origins: ['http://localhost:5174'], folder }, () => {})
-  const port = (renderer.address() as { port: number }).port
-  let running = false
-  await page.route('http://127.0.0.1:8788/**', async (route) => {
-    if (!running) return route.abort('connectionrefused')
-    const url = route.request().url().replace('127.0.0.1:8788', `127.0.0.1:${port}`)
-    await route.fulfill({ response: await route.fetch({ url, timeout: 120_000 }) })
-  })
   try {
     await page.goto('/')
     await page.getByRole('button', { name: 'Configurações', exact: true }).click()
@@ -169,19 +160,22 @@ test('the preview makes the MP4 with a soundtrack through the local renderer', a
 
     const panel = page.locator('.preview')
     await expect(panel.getByTestId('motion-time')).toHaveText('0.00 / 4.00 s')
-    // Without the renderer, the panel says how to start it.
+    // A TSRS served without the renderer (a static build) says what it needs.
+    await page.route(/__tsrs\/render|127\.0\.0\.1:8788/, (route) => route.abort('connectionrefused'))
     await panel.getByRole('button', { name: 'Gerar MP4' }).click()
-    await expect(panel.getByRole('status')).toContainText('npm run render:serve')
+    await expect(panel.getByRole('status')).toContainText('npm run dev')
+    await page.unroute(/__tsrs\/render|127\.0\.0\.1:8788/)
 
-    running = true
+    // npm run dev has the renderer built in: pick a track and make the video.
     await panel.getByLabel('Arquivo de áudio').setInputFiles(tone)
     await expect(panel.getByRole('combobox', { name: 'Trilha' })).toHaveText(/trilha\.wav/)
     await panel.getByRole('button', { name: 'Gerar MP4' }).click()
-    const link = panel.getByRole('link', { name: 'Baixar motion-1.mp4' })
+    await expect(panel.getByText(/Quadro \d+ de 120/)).toBeVisible()
+    const link = panel.getByRole('link', { name: /^Baixar motion-1(-\d+)?\.mp4$/ })
     await expect(link).toBeVisible({ timeout: 120_000 })
-    await expect(panel).toContainText(join(folder, 'motion-1.mp4'))
+    const saved = (await panel.getByText(/^Salvo em /).textContent())!.replace(/^Salvo em /, '')
+    expect(saved).toContain('tsrs-e2e-renders')
 
-    const saved = join(folder, 'motion-1.mp4')
     const probe = spawnSync(ffprobe, ['-v', 'error', '-show_entries', 'stream=codec_type,width,height', '-of', 'json', saved], {
       encoding: 'utf8',
     })
@@ -191,9 +185,28 @@ test('the preview makes the MP4 with a soundtrack through the local renderer', a
     ])
     const download = page.waitForEvent('download')
     await link.click()
-    expect((await download).suggestedFilename()).toBe('motion-1.mp4')
+    expect((await download).suggestedFilename()).toMatch(/^motion-1(-\d+)?\.mp4$/)
   } finally {
-    renderer.close()
     await provider.close()
+  }
+})
+
+test('the standalone renderer answers only the allowed origins', async () => {
+  const folder = await mkdtemp(join(tmpdir(), 'tsrs-renders-'))
+  const server = await startRenderServer({ port: 0, origins: ['http://localhost:5174'], folder }, () => {})
+  const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`
+  try {
+    const ok = await fetch(`${base}/health`, { headers: { Origin: 'http://localhost:5174' } })
+    expect(ok.status).toBe(200)
+    expect(ok.headers.get('access-control-allow-origin')).toBe('http://localhost:5174')
+    expect((await ok.json()).renders).toBe(folder)
+    const other = await fetch(`${base}/render`, {
+      method: 'POST',
+      headers: { Origin: 'https://evil.example', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ html: '<p>x</p>', name: 'x' }),
+    })
+    expect(other.status).toBe(403)
+  } finally {
+    server.close()
   }
 })
