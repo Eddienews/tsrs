@@ -965,4 +965,38 @@ export const en: Record<string, string> = {
   'Vídeos de banco': 'Stock video',
   'Trechos de vídeo gratuitos para os vídeos curtos e para a pasta do projeto. As chaves são grátis; os vídeos podem ser usados sem pagar, e o TSRS anota o autor de cada um em CREDITOS.md.':
     'Free video clips for short videos and the project folder. The keys are free; the clips can be used without paying, and TSRS notes who made each one in CREDITOS.md.',
+
+  // Automatic backup
+  'Digite a sua senha para trazer as chaves de volta.':
+    'Type your password to bring the keys back.',
+  'As chaves não estavam no backup; cole-as de novo nas configurações.':
+    "The keys weren't in the backup; paste them again in the settings.",
+  'Backup encontrado': 'Backup found',
+  'Este navegador está sem conversas, mas há um backup no disco de {when} com {count} conversas.':
+    'This browser has no conversations, but there is a backup on disk from {when} with {count} conversations.',
+  'As chaves de API voltam com a sua senha.': 'The API keys come back with your password.',
+  'As chaves de API não estão no backup; você cola de novo depois.':
+    "The API keys aren't in the backup; you paste them again afterwards.",
+  'Restaurando…': 'Restoring…',
+  'Restaurar': 'Restore',
+  'O backup automático no disco não é apagado.': "The automatic backup on disk isn't deleted.",
+  'Trazer de volta as conversas do backup automático? As que já estão aqui ficam; em conflito vale a mais recente.':
+    'Bring back the conversations from the automatic backup? The ones already here stay; on conflict the most recent wins.',
+  'Indisponível: o backup automático precisa do TSRS aberto pelo npm run dev.':
+    'Unavailable: the automatic backup needs TSRS opened through npm run dev.',
+  'Desligado.': 'Off.',
+  'Salvando…': 'Saving…',
+  'Último backup: {when}, {count} conversas.': 'Last backup: {when}, {count} conversations.',
+  'Ainda não salvo; salva alguns segundos depois da próxima mudança.':
+    'Not saved yet; it saves a few seconds after the next change.',
+  'Backup automático no disco': 'Automatic backup on disk',
+  'Uma cópia das conversas, da biblioteca e das configurações fica numa pasta deste computador, salva alguns segundos depois de cada mudança, com uma cópia por dia dos últimos 14 dias. Se o navegador apagar os dados, o TSRS oferece trazer tudo de volta.':
+    'A copy of the conversations, the library and the settings is kept in a folder on this computer, saved a few seconds after every change, with one copy per day for the last 14 days. If the browser deletes its data, TSRS offers to bring everything back.',
+  'As chaves de API entram no backup cifradas com a sua senha.':
+    'The API keys go into the backup encrypted with your password.',
+  'As chaves de API não entram no backup. Defina uma senha em Segurança para incluí-las, cifradas.':
+    "The API keys don't go into the backup. Set a password in Security to include them, encrypted.",
+  'O navegador não garante guardar os dados deste site; ele pode apagá-los numa limpeza.':
+    "The browser doesn't promise to keep this site's data; it may delete it in a cleanup.",
+  'Restaurar do backup automático': 'Restore from the automatic backup',
 }

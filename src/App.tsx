@@ -18,7 +18,20 @@ import {
   fileName,
   parseBackup,
   readAttachment,
+  type Backup,
 } from './files'
+import {
+  BACKUP_DELAY,
+  BACKUP_MAX_WAIT,
+  backupStatus,
+  backupToOffer,
+  readLatestBackup,
+  saveBackupToDisk,
+  settingsForBackup,
+  type AutoBackupState,
+  type BackupMeta,
+} from './autoBackup'
+import BackupOffer from './BackupOffer'
 import { setLanguage, t } from './i18n'
 import { PreviewContext } from './Markdown'
 import MessageView, { ContextReset } from './MessageView'
@@ -91,6 +104,7 @@ import {
   loadMetas,
   loadSettings,
   loadThread,
+  mergeSettings,
   saveChats,
   saveDoc,
   saveHandle,
@@ -123,6 +137,7 @@ import { canPickFolder, folderStore, mayUse, pickFolder } from './syncFolder'
 import { bucketUrl, s3Store, webdavStore } from './syncRemote'
 import type { RemoteTarget, SyncKind } from './SyncSection'
 import { gatherTools, localTools, mergeTools, type ToolSet } from './tools'
+import { keysOf, withKeys, withoutKeys } from './secrets'
 import type {
   Attachment,
   Canvas,
@@ -341,70 +356,6 @@ function withText(message: Message, text: string): Message {
       ? [...message.parts.slice(0, -1), { ...last, text: last.text + text }]
       : [...message.parts, { type: 'text' as const, text }]
   return { ...message, content, parts }
-}
-
-// Secrets kept in the vault: provider keys by provider id; MCP tokens and
-// media service keys by id under a prefix; the sync passwords.
-const MCP_SECRET = 'mcp:'
-const SYNC_SECRET = 'sync:password'
-const WEBDAV_SECRET = 'sync:webdav'
-const S3_SECRET = 'sync:s3'
-const MEDIA_SECRET = 'media:'
-
-function withoutKeys(settings: Settings): Settings {
-  return {
-    ...settings,
-    providers: Object.fromEntries(
-      Object.entries(settings.providers).map(([id, p]) => [id, { ...p, apiKey: '' }]),
-    ),
-    mcpServers: settings.mcpServers.map((server) => ({ ...server, token: '' })),
-    mediaKeys: {},
-    sync: {
-      ...settings.sync,
-      password: '',
-      webdav: settings.sync.webdav && { ...settings.sync.webdav, password: '' },
-      s3: settings.sync.s3 && { ...settings.sync.s3, secretKey: '' },
-    },
-  }
-}
-
-function keysOf(settings: Settings): Record<string, string> {
-  return Object.fromEntries([
-    ...Object.entries(settings.providers)
-      .filter(([, p]) => p.apiKey)
-      .map(([id, p]) => [id, p.apiKey]),
-    ...settings.mcpServers.filter((s) => s.token).map((s) => [MCP_SECRET + s.id, s.token]),
-    ...(settings.sync.password ? [[SYNC_SECRET, settings.sync.password]] : []),
-    ...(settings.sync.webdav?.password ? [[WEBDAV_SECRET, settings.sync.webdav.password]] : []),
-    ...(settings.sync.s3?.secretKey ? [[S3_SECRET, settings.sync.s3.secretKey]] : []),
-    ...Object.entries(settings.mediaKeys)
-      .filter(([, key]) => key)
-      .map(([id, key]) => [MEDIA_SECRET + id, key]),
-  ])
-}
-
-function withKeys(settings: Settings, keys: Record<string, string>): Settings {
-  return {
-    ...settings,
-    providers: Object.fromEntries(
-      Object.entries(settings.providers).map(([id, p]) => [id, { ...p, apiKey: keys[id] ?? '' }]),
-    ),
-    mcpServers: settings.mcpServers.map((server) => ({
-      ...server,
-      token: keys[MCP_SECRET + server.id] ?? '',
-    })),
-    mediaKeys: Object.fromEntries(
-      Object.entries(keys)
-        .filter(([name]) => name.startsWith(MEDIA_SECRET))
-        .map(([name, key]) => [name.slice(MEDIA_SECRET.length), key]),
-    ),
-    sync: {
-      ...settings.sync,
-      password: keys[SYNC_SECRET] ?? '',
-      webdav: settings.sync.webdav && { ...settings.sync.webdav, password: keys[WEBDAV_SECRET] ?? '' },
-      s3: settings.sync.s3 && { ...settings.sync.s3, secretKey: keys[S3_SECRET] ?? '' },
-    },
-  }
 }
 
 // The WebDAV server or bucket the app syncs with, if it syncs with one.
@@ -825,6 +776,7 @@ export default function App() {
       commitMetas(loaded)
       metasLoaded.current = true
       void importAgenda()
+      void checkBackup(loaded.length)
     })
     loadDocs().then(commitDocs)
     loadHandle<FileSystemDirectoryHandle>('sync').then((folder) => folder && setSyncFolder(folder))
@@ -834,6 +786,109 @@ export default function App() {
     )
     return () => clearTimeout(timer)
   }, [])
+
+  // The automatic backup on disk. It starts once this browser's conversations
+  // are loaded and, when they are gone but the disk has some, only after the
+  // user chose whether to bring them back.
+  const [backup, setBackup] = useState<AutoBackupState>({ state: 'idle' })
+  const [backupOffer, setBackupOffer] = useState<BackupMeta | null>(null)
+  const [backupOn, setBackupOn] = useState(false)
+  const backupTimer = useRef<{ timer?: number; first?: number }>({})
+  const backupBusy = useRef(false)
+  const lastBackup = useRef('')
+
+  async function checkBackup(localChats: number) {
+    navigator.storage
+      ?.persist?.()
+      .then((persisted) => setBackup((b) => ({ ...b, persisted })))
+      .catch(() => {})
+    const status = await backupStatus()
+    if (!status || status.off) return setBackup((b) => ({ ...b, state: 'unavailable' }))
+    setBackup((b) => ({ ...b, dir: status.dir, latest: status.latest }))
+    const offer = backupToOffer(localChats, status)
+    setBackupOffer(offer)
+    if (!offer) setBackupOn(true)
+  }
+
+  async function backupNow() {
+    if (backupBusy.current) {
+      backupTimer.current.timer = window.setTimeout(() => void backupNow(), BACKUP_DELAY)
+      return
+    }
+    backupBusy.current = true
+    try {
+      const data: Backup = {
+        chats: await loadChats(),
+        ...library(settingsRef.current),
+        docs: docsRef.current,
+        settings: settingsForBackup(localStorage.getItem(SETTINGS_KEY)),
+      }
+      const body = JSON.stringify(data)
+      if (body === lastBackup.current) return
+      setBackup((b) => ({ ...b, state: 'saving' }))
+      const latest = await saveBackupToDisk(buildBackup(data))
+      lastBackup.current = body
+      setBackup((b) => ({ ...b, state: 'saved', latest, error: undefined }))
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err)
+      setBackup((b) => ({ ...b, state: 'error', error }))
+    } finally {
+      backupBusy.current = false
+    }
+  }
+
+  // A few seconds after the last change, and at least once a minute while
+  // changes keep coming.
+  useEffect(() => {
+    if (!backupOn || settings.autoBackup === false) return
+    const pending = backupTimer.current
+    pending.first ??= Date.now()
+    clearTimeout(pending.timer)
+    const wait = Math.max(0, Math.min(BACKUP_DELAY, pending.first + BACKUP_MAX_WAIT - Date.now()))
+    pending.timer = window.setTimeout(() => {
+      pending.first = undefined
+      pending.timer = undefined
+      void backupNow()
+    }, wait)
+  }, [metas, settings, docs, backupOn])
+
+  // Leaving the tab saves what is waiting.
+  useEffect(() => {
+    function hidden() {
+      const pending = backupTimer.current
+      if (document.visibilityState !== 'hidden' || pending.timer === undefined) return
+      clearTimeout(pending.timer)
+      pending.timer = pending.first = undefined
+      void backupNow()
+    }
+    document.addEventListener('visibilitychange', hidden)
+    return () => document.removeEventListener('visibilitychange', hidden)
+  }, [])
+
+  // Brings the backup on disk back: its conversations and library are merged
+  // in; its settings replace these only when this browser has no keys yet, and
+  // its keys come back once the user types the password they were sealed with.
+  async function restoreAutoBackup(): Promise<string> {
+    const saved = parseBackup(await readLatestBackup())
+    const current = settingsRef.current
+    const fresh = !current.vault && Object.keys(keysOf(current)).length === 0
+    let note = ''
+    if (saved.settings && fresh) {
+      const restored = mergeSettings(saved.settings)
+      setVaultKey(null)
+      setSettings(restored)
+      if (restored.vault) {
+        setShowUnlock(true)
+        note = t('Digite a sua senha para trazer as chaves de volta.')
+      } else {
+        note = t('As chaves não estavam no backup; cole-as de novo nas configurações.')
+      }
+    }
+    const summary = await importBackupData(saved)
+    setBackupOffer(null)
+    setBackupOn(true)
+    return note ? `${summary} ${note}` : summary
+  }
 
   // With a vault, the keys are written only in encrypted form. While locked
   // the in-memory keys are empty and the stored vault is left as it is.
@@ -2182,7 +2237,11 @@ export default function App() {
   }
 
   async function importBackup(file: File): Promise<string> {
-    const { chats: incoming, docs: incomingDocs, ...library } = parseBackup(await file.text())
+    return importBackupData(parseBackup(await file.text()))
+  }
+
+  async function importBackupData(backup: Backup): Promise<string> {
+    const { chats: incoming, docs: incomingDocs, settings: _settings, ...library } = backup
     const newDocs = incomingDocs.filter((d) => !docsRef.current.some((x) => x.id === d.id))
     await Promise.all(newDocs.map(saveDoc))
     commitDocs([...docsRef.current, ...newDocs])
@@ -2633,6 +2692,7 @@ export default function App() {
           onResetVault={resetVault}
           onExport={exportBackup}
           onImport={importBackup}
+          autoBackup={{ ...backup, onRestore: restoreAutoBackup }}
           onDeleteEverything={eraseEverything}
           sync={{
             supported: canPickFolder(),
@@ -2727,6 +2787,16 @@ export default function App() {
           onSend={askAside}
           onStop={() => asideAbort.current?.abort()}
           onClose={closeAside}
+        />
+      )}
+      {backupOffer && (
+        <BackupOffer
+          meta={backupOffer}
+          onRestore={restoreAutoBackup}
+          onDismiss={() => {
+            setBackupOffer(null)
+            setBackupOn(true)
+          }}
         />
       )}
       {showUnlock && locked && (

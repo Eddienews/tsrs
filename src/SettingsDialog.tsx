@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Download, Lock, RefreshCw, Trash2, Upload } from 'lucide-react'
+import { Download, HardDriveDownload, Lock, RefreshCw, Trash2, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -14,7 +14,8 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
-import { LANGUAGES, t, type Language } from './i18n'
+import type { AutoBackupState } from './autoBackup'
+import { LANGUAGES, locale, t, type Language } from './i18n'
 import { EyeButton } from './EyeButton'
 import { connection, PROVIDERS, usesProxy } from './providers'
 import { listModels } from './stream'
@@ -39,6 +40,8 @@ interface Props {
   onExport: () => void
   // Resolves to a summary line to show the user; rejects with a readable error.
   onImport: (file: File) => Promise<string>
+  // The automatic backup on disk; onRestore resolves to a summary line.
+  autoBackup: AutoBackupState & { onRestore: () => Promise<string> }
   // Asks for confirmation, then removes everything stored by the app.
   onDeleteEverything: () => void
   sync: SyncProps
@@ -591,6 +594,12 @@ export default function SettingsDialog(props: Props) {
 
             {section === 'data' && (
               <div className="space-y-3">
+                <AutoBackupBox
+                  backup={props.autoBackup}
+                  on={settings.autoBackup !== false}
+                  hasPassword={!!settings.vault}
+                  onToggle={(autoBackup) => onChange((s) => ({ ...s, autoBackup }))}
+                />
                 <Button variant="outline" className="w-full justify-start gap-2" onClick={onExport}>
                   <Download className="size-4" />
                   {t('Exportar backup')}
@@ -624,7 +633,8 @@ export default function SettingsDialog(props: Props) {
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {t(
                       'Remove deste navegador todas as conversas, chaves de API e configurações. Não pode ser desfeito; exporte um backup antes se quiser guardar as conversas.',
-                    )}
+                    )}{' '}
+                    {t('O backup automático no disco não é apagado.')}
                   </p>
                   <Button
                     variant="destructive"
@@ -683,6 +693,79 @@ function ProjectsSetting(p: { on: boolean; onToggle: (on: boolean) => void }) {
           {t('Este TSRS não está rodando pelo npm run dev, então não consegue gravar pastas.')}
         </p>
       )}
+    </div>
+  )
+}
+
+// The automatic backup on disk: whether it runs, when it last saved, whether
+// the keys are in it, and a way to bring it back by hand.
+function AutoBackupBox(props: {
+  backup: AutoBackupState & { onRestore: () => Promise<string> }
+  on: boolean
+  hasPassword: boolean
+  onToggle: (on: boolean) => void
+}) {
+  const { backup, on } = props
+  const [status, setStatus] = useState('')
+  const [busy, setBusy] = useState(false)
+  const unavailable = backup.state === 'unavailable'
+  const when = (time: number) =>
+    new Date(time).toLocaleString(locale(), { dateStyle: 'short', timeStyle: 'short' })
+
+  async function restore() {
+    if (!confirm(t('Trazer de volta as conversas do backup automático? As que já estão aqui ficam; em conflito vale a mais recente.'))) return
+    setBusy(true)
+    try {
+      setStatus(await backup.onRestore())
+    } catch (err) {
+      setStatus(t('Falhou: {message}', { message: err instanceof Error ? err.message : String(err) }))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  let line: string
+  if (unavailable) line = t('Indisponível: o backup automático precisa do TSRS aberto pelo npm run dev.')
+  else if (!on) line = t('Desligado.')
+  else if (backup.state === 'error') line = t('Falhou: {message}', { message: backup.error ?? '' })
+  else if (backup.state === 'saving') line = t('Salvando…')
+  else if (backup.latest)
+    line = t('Último backup: {when}, {count} conversas.', { when: when(backup.latest.savedAt), count: backup.latest.chats })
+  else line = t('Ainda não salvo; salva alguns segundos depois da próxima mudança.')
+
+  return (
+    <div className="space-y-2 rounded-md border p-3">
+      <label className="flex items-center justify-between gap-4 text-sm font-medium">
+        {t('Backup automático no disco')}
+        <Switch
+          aria-label={t('Backup automático no disco')}
+          checked={on && !unavailable}
+          disabled={unavailable}
+          onCheckedChange={props.onToggle}
+        />
+      </label>
+      <p className="text-xs text-muted-foreground">
+        {t('Uma cópia das conversas, da biblioteca e das configurações fica numa pasta deste computador, salva alguns segundos depois de cada mudança, com uma cópia por dia dos últimos 14 dias. Se o navegador apagar os dados, o TSRS oferece trazer tudo de volta.')}
+      </p>
+      {backup.dir && !unavailable && <p className="break-all font-mono text-xs text-muted-foreground">{backup.dir}</p>}
+      <p className="text-xs" data-testid="auto-backup-status">{line}</p>
+      <p className="text-xs text-muted-foreground">
+        {props.hasPassword
+          ? t('As chaves de API entram no backup cifradas com a sua senha.')
+          : t('As chaves de API não entram no backup. Defina uma senha em Segurança para incluí-las, cifradas.')}
+      </p>
+      {backup.persisted === false && (
+        <p className="text-xs text-muted-foreground">
+          {t('O navegador não garante guardar os dados deste site; ele pode apagá-los numa limpeza.')}
+        </p>
+      )}
+      {!unavailable && backup.latest && (
+        <Button variant="outline" size="sm" className="gap-2" onClick={restore} disabled={busy}>
+          <HardDriveDownload className="size-4" />
+          {t('Restaurar do backup automático')}
+        </Button>
+      )}
+      {status && <p className="text-xs text-muted-foreground">{status}</p>}
     </div>
   )
 }

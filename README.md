@@ -150,6 +150,10 @@ manager) and Chrome, Edge or Playwright's Chromium.
   never synced.
 - Backup and restore everything as JSON; export a conversation as Markdown or a
   single HTML page; installable as an app (PWA).
+- Automatic backup on disk: a few seconds after every change, conversations,
+  library and settings are copied to `backups/` in the TSRS folder (one copy per
+  day for 14 days). If the browser wipes its data, TSRS offers to bring it all
+  back; API keys go in only encrypted with your password.
 - The running version and git commit are shown under the name, so a screenshot
   says which code was running.
 

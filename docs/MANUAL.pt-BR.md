@@ -565,9 +565,34 @@ navegador, então ficam de fora da agenda.
 - **Arquivos:** `projetos/`, `extensoes/` e `renders/`, dentro da pasta do TSRS
   (ou nas pastas que você escolheu).
 - **Chaves:** no navegador, criptografadas se você definiu senha. Nunca vão para
-  backups, sincronização ou exportações.
+  sincronização ou exportações; no backup automático só entram cifradas com a
+  sua senha.
+- **Backup automático:** `backups/`, dentro da pasta do TSRS (ou a pasta em
+  `TSRS_BACKUPS`).
 
-### Backup
+### Backup automático
+
+Com o TSRS aberto pelo `npm run dev`, uma cópia das conversas, da biblioteca e
+das configurações vai para `backups/` alguns segundos depois de cada mudança:
+
+- `atual.json` é a cópia mais recente;
+- `tsrs-AAAA-MM-DD.json` guarda como tudo estava no fim de cada dia, pelos
+  últimos 14 dias;
+- `tsrs-…-antes.json` guarda a cópia anterior quando a nova tem menos conversas,
+  para um navegador esvaziado não apagar um backup cheio sem deixar rastro.
+
+Se o TSRS abrir sem conversas e houver backup, ele pergunta se você quer
+restaurar. As chaves de API só entram no backup **cifradas com a sua senha**
+(defina uma em **Configurações → Segurança**); sem senha, ficam de fora e você
+cola de novo. O estado, a pasta e o botão **Restaurar do backup automático**
+ficam em **Configurações → Dados**.
+
+O navegador pode apagar os dados do site sozinho. No Chrome, a opção "Excluir
+dados que os sites salvaram quando você fechar todas as janelas" faz isso a cada
+vez que o Chrome fecha (inclusive num reinício do Windows). Desligue a opção ou
+adicione `http://localhost:5173` em "Sempre permitir que sites salvem dados".
+
+### Backup manual
 
 Em **Configurações → Dados**: **Exportar backup** grava tudo num arquivo JSON;
 **Importar backup** restaura. Faça backups de vez em quando, principalmente
@@ -654,8 +679,10 @@ chaves seguras. Em **Configurações → Dados**, **Apagar tudo** e cole as chav
 novo (faça um backup das conversas antes; ele não inclui chaves).
 
 **As conversas sumiram.** Elas ficam no navegador: confira se está no mesmo
-navegador, perfil e endereço (`localhost:5173`). Limpar os dados do site apaga
-as conversas — por isso os backups.
+navegador, perfil e endereço (`localhost:5173`; `127.0.0.1:5173` é outro site
+para o navegador). Limpar os dados do site apaga as conversas. Com o backup
+automático, o TSRS oferece restaurar ao abrir vazio; veja também a opção do
+Chrome de apagar dados ao fechar, na seção 14.
 
 **`npm ci` falha.** Confira `node --version` (precisa ser 22 ou mais). No Windows,
 rode o terminal como usuário comum, não como administrador.

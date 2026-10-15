@@ -10,6 +10,7 @@ import type {
   Memory,
   Persona,
   SavedPrompt,
+  Settings,
 } from './types'
 
 export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
@@ -124,6 +125,9 @@ export interface Library {
 export interface Backup extends Library {
   chats: Chat[]
   docs: KnowledgeDoc[]
+  // Only in automatic backups: the settings as stored, with the API keys
+  // sealed by the user's password or left out.
+  settings?: Partial<Settings>
 }
 
 // Backups hold conversations, the library and knowledge base documents; API
@@ -166,5 +170,8 @@ export function parseBackup(text: string): Backup {
     memories: list<Memory>(data.memories, 'text'),
     knowledgeBases: list<KnowledgeBase>(data.knowledgeBases, 'name'),
     docs: list<KnowledgeDoc>(data.docs, 'baseId').filter((d) => Array.isArray(d.chunks)),
+    ...(data.settings && typeof data.settings === 'object' && !Array.isArray(data.settings)
+      ? { settings: data.settings }
+      : {}),
   }
 }
