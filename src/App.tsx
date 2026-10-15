@@ -1184,6 +1184,14 @@ export default function App() {
           data: made.data,
           ...(made.url && !made.data ? { url: made.url } : {}),
         }
+        // The file is kept in the conversation's folder too, in midia/.
+        if (made.data && settings.projects !== false && !meta.temporary) {
+          void saveToProject(
+            meta.id,
+            [{ name: `midia/${attachment.name}`, content: made.data, encoding: 'base64' }],
+            sourceName(job.target.source),
+          )
+        }
         patchReply((m) => ({
           ...m,
           content: made.revised ?? '',
@@ -2262,6 +2270,7 @@ export default function App() {
           onOpenUrl={(url) => showArtifact('url', url, new URL(url).host)}
           onClose={() => setShowPreview(false)}
           tracks={tracks}
+          project={settings.projects !== false ? active?.project?.path : undefined}
         />
       )}
     </Suspense>

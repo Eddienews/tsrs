@@ -157,6 +157,8 @@ abra a pasta no Claude Code, no Codex ou num editor. Ao voltar à conversa, o
 modelo lê a versão atual dos arquivos (ferramentas `project_list_files`,
 `project_read_file` e `project_write_file`, só dentro da pasta).
 
+- Imagens, áudios e vídeos gerados vão também para `midia/`, e os MP4 do
+  Gerar MP4 para `videos/`, na pasta da conversa (sem pasta, em `renders/`).
 - O botão da pasta no topo da conversa mostra o caminho, os arquivos (páginas
   abrem no preview) e permite usar outra pasta, para onde os arquivos atuais
   são copiados.

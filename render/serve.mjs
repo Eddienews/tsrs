@@ -23,6 +23,7 @@ import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { basename, dirname, extname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { allowed, projectsRoot } from '../server/projects.mjs'
 import { freeName, render } from './render.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -139,14 +140,19 @@ export function renderHandler(config, log = console.log) {
         audio = join(work, `track${extension}`)
         await writeFile(audio, Buffer.from(job.audio.data, 'base64'))
       }
-      await mkdir(config.folder, { recursive: true })
+      // A conversation with a project folder keeps its videos there, in videos/.
+      const into =
+        typeof job.project === 'string' && (await allowed(projectsRoot(), job.project))
+          ? join(job.project, 'videos')
+          : config.folder
+      await mkdir(into, { recursive: true })
       const lufs = Number.isFinite(job.lufs) ? Math.min(-5, Math.max(-40, job.lufs)) : -14
       log(`rendering ${stem}${audio ? ` with ${job.audio.name}` : ''}`)
       let last = 0
       const path = await render(
         {
           input,
-          out: freeName(join(config.folder, `${stem}.mp4`)),
+          out: freeName(join(into, `${stem}.mp4`)),
           audio,
           fps: null,
           crf: 18,

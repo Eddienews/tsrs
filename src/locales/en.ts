@@ -350,6 +350,8 @@ export const en: Record<string, string> = {
   Reproduzir: 'Play',
   Tempo: 'Time',
   Trilha: 'Soundtrack',
+  'O MP4 é feito no seu computador, quadro a quadro, e fica salvo na pasta do projeto, em videos.':
+    "The MP4 is made on your computer, frame by frame, and saved in the project folder, under videos.",
   Projeto: 'Project',
   'Os arquivos desta conversa não foram salvos numa pasta: abra o TSRS pelo npm run dev na pasta do projeto para isso.':
     "This conversation's files were not saved to a folder: open TSRS through npm run dev in the project folder for that.",

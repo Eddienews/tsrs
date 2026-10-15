@@ -51,6 +51,8 @@ interface Props {
   onClose: () => void
   // Audio in the conversation, for the soundtrack of a motion video.
   tracks?: Track[]
+  // The conversation's folder, where videos are saved.
+  project?: string
 }
 
 // A fence longer than any run of backticks in the code, so it cannot end early.
@@ -343,6 +345,7 @@ export default function PreviewPanel(p: Props) {
                   frameKey={frameKey}
                   frameRef={frameRef}
                   tracks={p.tracks ?? []}
+                  project={p.project}
                 />
               </div>
             ) : (

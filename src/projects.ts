@@ -8,6 +8,8 @@ export const PROJECTS = '/__tsrs/projects'
 export interface SavedFile {
   name: string
   content: string
+  // Generated images, audio and video travel as base64.
+  encoding?: 'base64'
 }
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
@@ -41,7 +43,7 @@ export function openProject(job: { name?: string; path?: string; notes?: string 
 
 export async function saveFiles(
   project: string,
-  files: { name: string; content: string; append?: boolean }[],
+  files: (SavedFile & { append?: boolean })[],
 ): Promise<string[]> {
   return (await post<{ written: string[] }>('/write', { path: project, files })).written
 }

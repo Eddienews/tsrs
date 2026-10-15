@@ -189,7 +189,9 @@ test('the preview makes the MP4 with a soundtrack, inside TSRS', async ({ page }
     const link = panel.getByRole('link', { name: /^Baixar motion-1(-\d+)?\.mp4$/ })
     await expect(link).toBeVisible({ timeout: 120_000 })
     const saved = (await panel.getByText(/^Salvo em /).textContent())!.replace(/^Salvo em /, '')
-    expect(saved).toContain('tsrs-e2e-renders')
+    // The conversation made a project folder for the motion block: the video goes there.
+    expect(saved).toContain('tsrs-e2e-projects')
+    expect(saved).toMatch(/[\\/]videos[\\/]motion-1(-\d+)?\.mp4$/)
 
     const probe = spawnSync(ffprobe, ['-v', 'error', '-show_entries', 'stream=codec_type,width,height', '-of', 'json', saved], {
       encoding: 'utf8',

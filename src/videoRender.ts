@@ -109,7 +109,8 @@ export async function* jsonLines(stream: ReadableStream<Uint8Array>): AsyncGener
 }
 
 export async function renderVideo(
-  job: { html: string; name: string; track?: Track | null },
+  // `project`: the conversation's folder, where the video is saved.
+  job: { html: string; name: string; track?: Track | null; project?: string },
   onProgress: (progress: RenderProgress) => void,
   base: string,
 ): Promise<RenderedVideo> {
@@ -119,6 +120,7 @@ export async function renderVideo(
     body: JSON.stringify({
       html: job.html,
       name: job.name,
+      ...(job.project ? { project: job.project } : {}),
       ...(job.track ? { audio: { name: trackFileName(job.track), data: job.track.data } } : {}),
     }),
   })

@@ -17,6 +17,8 @@ interface Props {
   frameRef: RefObject<HTMLIFrameElement | null>
   // Audio in the conversation, offered as the video's soundtrack.
   tracks: Track[]
+  // The conversation's folder, where the video is saved.
+  project?: string
 }
 
 export function formatTime(seconds: number): string {
@@ -233,6 +235,7 @@ export default function MotionStage(p: Props) {
         code={p.code}
         name={p.name}
         tracks={tracks}
+        project={p.project}
         trackId={trackId}
         onTrack={(id) => {
           setPlaying(false)

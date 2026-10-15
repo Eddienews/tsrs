@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
@@ -948,6 +948,11 @@ test('generates video and audio with media services and keeps the files', async 
   await expect(reply(page).locator('video')).toHaveAttribute('src', 'data:video/mp4;base64,AQID', {
     timeout: 15_000,
   })
+  // The video is kept in the conversation's folder too.
+  const folder = (await page.locator('.toolbar .project').getAttribute('title'))!.replace(/^Pasta do projeto: /, '')
+  await expect
+    .poll(async () => (await readdir(join(folder, 'midia')).catch(() => [])).filter((f) => f.endsWith('.mp4')).length)
+    .toBe(1)
   const submit = sent[0]
   expect(submit.url).toBe('https://queue.fal.run/fal-ai/kling-video/v3/standard/text-to-video')
   expect(submit.headers.authorization).toBe('Key fal-key')

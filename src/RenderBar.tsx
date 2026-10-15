@@ -19,6 +19,8 @@ interface Props {
   onTrack: (id: string) => void
   // A file picked from the computer, to add to the tracks and choose.
   onPick: (track: Track) => void
+  // The conversation's folder, where the video is saved; renders/ without one.
+  project?: string
 }
 
 type State =
@@ -64,7 +66,7 @@ export default function RenderBar(p: Props) {
     setState({ step: 'rendering', progress: null })
     try {
       const video = await renderVideo(
-        { html: p.code, name: p.name, track },
+        { html: p.code, name: p.name, track, project: p.project },
         (progress) => setState({ step: 'rendering', progress }),
         renderer,
       )
@@ -162,7 +164,9 @@ export default function RenderBar(p: Props) {
       )}
       {state.step === 'idle' && (
         <p className="text-muted-foreground">
-          {t('O MP4 é feito no seu computador, quadro a quadro, e fica salvo na pasta renders do TSRS.')}
+          {p.project
+            ? t('O MP4 é feito no seu computador, quadro a quadro, e fica salvo na pasta do projeto, em videos.')
+            : t('O MP4 é feito no seu computador, quadro a quadro, e fica salvo na pasta renders do TSRS.')}
         </p>
       )}
     </div>
