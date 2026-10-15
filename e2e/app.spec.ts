@@ -1951,3 +1951,42 @@ test('offers an emptied browser its conversations back from the disk', async ({ 
   await openSettings(page, 'Geral')
   await expect(page.getByLabel('Prompt de sistema global')).toHaveValue('Instrução restaurada')
 })
+
+test('offers Piper voices and local Whisper, which need no key', async ({ page }) => {
+  // The real model files are downloaded by the TSRS server; here the catalog
+  // and the downloaded sizes are stood in for.
+  const voice = (name: string, locale: string) => ({
+    name,
+    quality: 'medium',
+    language: { code: locale },
+    files: { [`${locale.slice(0, 2)}/${locale}/${name}/medium/${locale}-${name}-medium.onnx`]: { size_bytes: 63_000_000 } },
+  })
+  await page.route('**/__tsrs/models/hf/rhasspy/piper-voices/resolve/main/voices.json', (route) =>
+    route.fulfill({
+      json: {
+        'pt_BR-faber-medium': voice('faber', 'pt_BR'),
+        'pt_BR-cadu-medium': voice('cadu', 'pt_BR'),
+        'en_US-lessac-medium': voice('lessac', 'en_US'),
+      },
+    }),
+  )
+  await page.route('**/__tsrs/models/size**', (route) => route.fulfill({ json: { bytes: 0, files: 0 } }))
+  await page.goto('/')
+  await openSettings(page, 'Mídia')
+  await page.locator('#read-aloud').selectOption('piper')
+  const voices = page.getByLabel('Voz do Piper')
+  await expect(voices.locator('option')).toHaveText(['cadu · pt_BR · medium · 63 MB', 'faber · pt_BR · medium · 63 MB'])
+  await expect(voices).toHaveValue('pt_BR-faber-medium')
+  await voices.selectOption('pt_BR-cadu-medium')
+  await expect(page.getByText('O Piper fala neste computador')).toBeVisible()
+  await settingsSection(page, 'Geral')
+  await page.locator('#dictation').selectOption('local')
+  await expect(page.getByLabel('Tamanho do Whisper local')).toHaveValue('base')
+  await expect(page.getByTestId('whisper-downloaded')).toHaveText('Ainda não baixado.')
+  await closeSettings(page)
+  // Dictation is there without any key.
+  await expect(page.getByRole('button', { name: 'Ditar' })).toBeVisible()
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('tsrs:settings')!))
+  expect(saved.readAloud).toMatchObject({ source: 'piper', model: 'pt_BR-cadu-medium' })
+  expect(saved.dictation).toBe('local')
+})

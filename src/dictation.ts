@@ -10,8 +10,13 @@ export interface Dictation {
   available: boolean
   state: DictationState
   error: string
+  // While local Whisper downloads its files the first time, how far it is.
+  progress: string
   toggle: () => void
 }
+
+// Whisper on this computer (localVoice.ts), chosen in the settings.
+export const LOCAL = 'local'
 
 // The Web Speech API's recognizer, where the browser has one.
 function recognizer(): (new () => any) | undefined {
@@ -31,6 +36,7 @@ function transcribes(settings: Settings, id: string): boolean {
 // dictation, or the first with a transcription model and a key. The browser's
 // recognizer only hears the microphone, so it cannot.
 export function fileTranscriber(settings: Settings, locked: boolean): string | null {
+  if (settings.dictation === LOCAL) return LOCAL
   if (locked) return null
   if (settings.dictation !== 'auto' && settings.dictation !== 'browser' && transcribes(settings, settings.dictation))
     return settings.dictation
@@ -38,6 +44,7 @@ export function fileTranscriber(settings: Settings, locked: boolean): string | n
 }
 
 export function dictationSource(settings: Settings, locked: boolean): string | null {
+  if (settings.dictation === LOCAL) return LOCAL
   const usable = (id: string) => transcribes(settings, id)
   const browser = recognizer() ? 'browser' : null
   if (settings.dictation === 'browser') return browser
@@ -64,6 +71,7 @@ export function useDictation(
 ): Dictation {
   const [state, setState] = useState<DictationState>('idle')
   const [error, setError] = useState('')
+  const [progress, setProgress] = useState('')
   const stopRef = useRef<(() => void) | null>(null)
   const source = dictationSource(settings, locked)
   const latest = useRef({ settings, onText })
@@ -92,15 +100,14 @@ export function useDictation(
       stream.getTracks().forEach((track) => track.stop())
       setState('transcribing')
       const { settings } = latest.current
-      const provider = PROVIDERS.find((p) => p.id === providerId)!
-      const { baseUrl, apiKey } = settings.providers[providerId]
       try {
         const audio = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' })
-        const text = await transcribe({ provider, baseUrl, apiKey }, audio, settings.language)
+        const text = await transcribeWith(settings, providerId, audio, setProgress)
         if (text) latest.current.onText(text)
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err))
       } finally {
+        setProgress('')
         setState('idle')
       }
     }
@@ -146,5 +153,33 @@ export function useDictation(
     else startApi(source)
   }
 
-  return { available: !!source, state, error, toggle }
+  return { available: !!source, state, error, progress, toggle }
+}
+
+// The first use of local Whisper downloads it; this says how far along.
+export function downloadLine(loaded: number, total: number): string {
+  const mb = (n: number) => Math.round(n / 1e6)
+  return t('Baixando o Whisper local: {loaded} de {total} MB', { loaded: mb(loaded), total: mb(total) })
+}
+
+// Speech to text with a provider's transcription model or with Whisper here.
+export async function transcribeWith(
+  settings: Settings,
+  source: string,
+  audio: Blob,
+  onProgress: (line: string) => void = () => {},
+  name?: string,
+  language: string = settings.language,
+): Promise<string> {
+  if (source === LOCAL) {
+    const { transcribeLocally } = await import('./localVoice')
+    return transcribeLocally(audio, {
+      size: settings.localWhisper,
+      language,
+      onProgress: ({ loaded, total }) => onProgress(loaded < total ? downloadLine(loaded, total) : ''),
+    })
+  }
+  const provider = PROVIDERS.find((p) => p.id === source)!
+  const { baseUrl, apiKey } = settings.providers[source]
+  return transcribe({ provider, baseUrl, apiKey }, audio, language, name)
 }

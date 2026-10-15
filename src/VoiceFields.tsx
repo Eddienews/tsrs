@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { t } from './i18n'
+import { piperVoices, voicesFor, type PiperVoice } from './localVoiceInfo'
 import { listElevenModels, listVoices, type ElevenModel, type ElevenVoice } from './mediaJobs'
 import { elevenSpeechPrice } from './mediaPrice'
 import { bestVoice, browserVoiceList, trySpeaking, voiceQuality } from './speech'
@@ -314,6 +315,95 @@ export function BrowserVoiceField(p: { value: string; onChange: (name: string) =
           )}
         </span>
       )}
+    </div>
+  )
+}
+
+// Piper's voices for the interface language, from its catalog, with a sample
+// made here. The first sample downloads the voice (tens of MB), once.
+export function PiperVoiceField(p: { value: string; onChange: (key: string) => void; lang: string; fallback: string }) {
+  const [voices, setVoices] = useState<PiperVoice[]>([])
+  const [error, setError] = useState('')
+  const [sample, setSample] = useState<'idle' | 'making' | 'playing'>('idle')
+  const [status, setStatus] = useState('')
+  const audio = useRef<HTMLAudioElement | null>(null)
+  useEffect(() => () => audio.current?.pause(), [])
+  useEffect(() => {
+    let stale = false
+    piperVoices()
+      .then((all) => !stale && setVoices(voicesFor(all, p.lang)))
+      .catch((err) => !stale && setError(err instanceof Error ? err.message : String(err)))
+    return () => {
+      stale = true
+    }
+  }, [p.lang])
+  const chosen = p.value || p.fallback
+  const voice = voices.find((v) => v.key === chosen)
+
+  async function listen() {
+    if (sample === 'playing') {
+      audio.current?.pause()
+      return setSample('idle')
+    }
+    setSample('making')
+    setStatus('')
+    try {
+      const { speakLocally } = await import('./localVoice')
+      const made = await speakLocally(t('Olá! Esta é a voz que vai ler as respostas.'), chosen, ({ loaded, total }) =>
+        setStatus(total ? t('Baixando a voz: {loaded} de {total} MB', { loaded: Math.round(loaded / 1e6), total: Math.round(total / 1e6) }) : ''),
+      )
+      setStatus('')
+      const player = new Audio(`data:${made.mime};base64,${made.data}`)
+      audio.current = player
+      player.onended = player.onerror = () => setSample('idle')
+      setSample('playing')
+      await player.play()
+    } catch (err) {
+      setStatus(t('Falhou: {message}', { message: err instanceof Error ? err.message : String(err) }))
+      setSample('idle')
+    }
+  }
+
+  return (
+    <div className="flex min-w-48 flex-1 flex-col gap-1">
+      <div className="flex gap-1">
+        <select
+          aria-label={t('Voz do Piper')}
+          className="select-native min-w-0 flex-1"
+          value={chosen}
+          onChange={(e) => p.onChange(e.target.value === p.fallback ? '' : e.target.value)}
+        >
+          {!voice && <option value={chosen}>{chosen}</option>}
+          {voices.map((v) => (
+            <option key={v.key} value={v.key}>
+              {`${v.name} · ${v.locale} · ${v.quality}${v.bytes ? ` · ${Math.round(v.bytes / 1e6)} MB` : ''}`}
+            </option>
+          ))}
+        </select>
+        <Button
+          variant="outline"
+          size="icon"
+          className="size-9 shrink-0"
+          aria-label={sample === 'playing' ? t('Parar a amostra') : t('Ouvir uma amostra')}
+          title={sample === 'playing' ? t('Parar a amostra') : t('Ouvir uma amostra')}
+          disabled={sample === 'making'}
+          onClick={listen}
+        >
+          {sample === 'making' ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : sample === 'playing' ? (
+            <Square className="size-3.5" />
+          ) : (
+            <Play className="size-3.5" />
+          )}
+        </Button>
+      </div>
+      {error && (
+        <p className="text-xs text-destructive">
+          {t('A lista de vozes do Piper não carregou ({error}). Ela vem pelo servidor do TSRS (npm run dev).', { error })}
+        </p>
+      )}
+      {status && <p className="text-xs text-muted-foreground">{status}</p>}
     </div>
   )
 }

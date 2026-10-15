@@ -480,6 +480,8 @@ export interface Settings {
   // A copy on disk a few seconds after every change (on unless false; needs
   // TSRS served by npm run dev).
   autoBackup?: boolean
+  // Whisper's size when dictation runs on this computer ('tiny', 'base', 'small').
+  localWhisper?: 'tiny' | 'base' | 'small'
   // Present when the API keys are password-protected; the keys are then
   // stored only inside it.
   vault?: Vault

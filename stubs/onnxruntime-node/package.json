@@ -1,0 +1,7 @@
+{
+  "name": "onnxruntime-node",
+  "version": "0.0.0-tsrs-stub",
+  "description": "Empty stand-in: TSRS runs models in the browser with onnxruntime-web.",
+  "main": "index.js",
+  "license": "MIT"
+}

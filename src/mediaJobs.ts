@@ -1,5 +1,5 @@
 import { locale, t } from './i18n'
-import { mediaService, type MediaService, type MediaTarget } from './media'
+import { mediaService, PIPER, type MediaService, type MediaTarget } from './media'
 import { ELEVEN_PRICES, elevenSpeechPrice } from './mediaPrice'
 import { connection } from './providers'
 import { generateImage } from './stream'
@@ -687,6 +687,11 @@ async function geminiSpeech(
 }
 
 export async function generateMedia(job: Job): Promise<GeneratedMedia> {
+  if (job.target.source === PIPER) {
+    if (job.kind !== 'audio') throw new Error(t('O Piper só faz voz.'))
+    const { speakLocally } = await import('./localVoice')
+    return { ...(await speakLocally(job.prompt, job.target.model)), cost: 0 }
+  }
   const options = parseOptions(job.target.options)
   const service = mediaService(job.target.source)
   if (!service) {

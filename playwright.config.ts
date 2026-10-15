@@ -49,6 +49,9 @@ export default defineConfig({
       TSRS_PROJECTS: join(tmpdir(), 'tsrs-e2e-projects'),
       // Every test starts with an empty browser; backups would offer each one the others' chats.
       TSRS_BACKUPS: 'off',
+      // Local model files: never downloaded in the tests (they stand in for the catalog).
+      TSRS_MODELS: join(tmpdir(), 'tsrs-e2e-models'),
+      TSRS_HF_BASE: 'http://127.0.0.1:9',
       TSRS_EXTENSIONS: join(tmpdir(), port === PORT ? 'tsrs-e2e-no-extensions' : `tsrs-e2e-extensions-${process.pid}`),
       // Stock video comes from a stand-in the short video test starts.
       TSRS_PEXELS_API: `http://127.0.0.1:${STOCK_PORT}`,

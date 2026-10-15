@@ -118,7 +118,12 @@ manager) and Chrome, Edge or Playwright's Chromium.
 - Read replies aloud with the browser's most natural voice (Microsoft Edge's
   free neural voices) or an ElevenLabs, OpenAI or Gemini voice; pick your own
   ElevenLabs voices with samples and prices.
-- Dictation through OpenAI, Groq or the browser's speech recognition.
+- Free local voices with no key and no internet after the first download:
+  Piper reads replies aloud (and narrates short videos), and Whisper transcribes
+  dictation and attached audio, both running in the browser. The TSRS server
+  downloads each model once into `modelos/` and serves it from there.
+- Dictation through OpenAI, Groq, local Whisper or the browser's speech
+  recognition.
 
 ### Tools, agents and extensions
 - Remote MCP servers, with permission before each call.
@@ -273,3 +278,7 @@ What is done and what comes next: [ROADMAP.md](ROADMAP.md).
 ## License
 
 [MIT](LICENSE). anime.js and lottie-web, bundled in `public/motion/`, are MIT too.
+The local voices use Transformers.js and ONNX Runtime Web (Apache-2.0/MIT) and
+piper_phonemize, built on espeak-ng (GPL-3.0), loaded only when a Piper voice is
+used; Piper's voices and the Whisper models have licenses of their own, listed
+on their Hugging Face pages.

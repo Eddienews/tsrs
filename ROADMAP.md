@@ -95,6 +95,7 @@ each section, the order is the suggested order.
 - [x] Scheduled tasks with your own web search, skills and plugins' HTTP tools
 - [x] Short videos: narration with word timings, stock clips, captions, music and credits
 - [x] Automatic backup on disk, with the keys sealed by the password, and a restore offer when the browser was wiped
+- [x] Local voices with no key: Piper reads aloud and Whisper transcribes, in the browser, with the models kept on disk
 
 ## Next
 
