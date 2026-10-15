@@ -55,8 +55,13 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
 - Resumo do contexto: quando a conversa se aproxima do limite do modelo, um
   botão a resume; dali em diante só o resumo e as mensagens seguintes são
   enviados.
-- Geração de imagens pela OpenAI (GPT Image) ou pelo Gemini (Imagen), com o
-  botão Imagem do campo de envio.
+- Geração de imagem, vídeo e áudio pelos botões Imagem, Vídeo e Áudio do campo
+  de envio: imagens pela OpenAI (GPT Image) ou pelo Gemini (Imagen), e tudo
+  isso por serviços de mídia com a chave do próprio usuário (ElevenLabs,
+  Runware, fal.ai, Replicate, WaveSpeedAI e Higgsfield), escolhidos em
+  Configurações → Mídia, com o modelo e opções em JSON. Vídeos esperam na fila
+  do serviço mostrando o progresso; parar a resposta cancela o pedido na fal.ai,
+  no Replicate e na Higgsfield. O arquivo gerado é baixado e fica na conversa.
 - Conversa temporária: fica só na memória da aba, sem histórico, sincronização
   nem memória, e some quando você sai dela.
 - Pergunta à parte: selecione um trecho da resposta e pergunte sobre ele num
@@ -146,7 +151,8 @@ cabeçalhos (com `{apiKey}` como placeholder) e o formato da API (`openai` ou
 | `src/tools.ts`           | Ferramentas oferecidas ao modelo em cada requisição         |
 | `src/memory.ts`          | Ferramentas e prompt da memória                             |
 | `src/summary.ts`         | Resumo do contexto                                          |
-| `src/images.ts`          | Escolha do provedor e do modelo de imagem                   |
+| `src/media.ts`           | Serviços de mídia: pedido, fila, progresso e download       |
+| `src/MediaSection.tsx`   | Seção Mídia das Configurações                               |
 | `src/knowledge.ts`       | Trechos e busca (palavras e sentido) da base de conhecimento |
 | `src/embeddings.ts`      | Vetores dos trechos e das perguntas, pelo provedor          |
 | `src/extract.ts`         | Texto de PDFs (pdf.js), HTML e arquivos de texto            |
@@ -243,7 +249,13 @@ estilo do código e como mandar um pull request.
   (`npm run proxy`), que não roda no app instalado sem a pasta do projeto.
 - Os arquivos de um agente ficam junto das configurações, no `localStorage`, e
   somam no máximo cerca de 1,5 MB.
-- O custo das imagens geradas não entra na conta da conversa.
+- O custo do que é gerado só entra na conta da conversa quando o serviço o
+  informa (o Runware informa; os outros não).
+- Replicate e Higgsfield não aceitam chamadas do navegador e precisam do proxy
+  local. Quando o armazenamento de um serviço não deixa o navegador baixar o
+  arquivo, ele fica só no link do serviço, que expira (em geral em 7 dias).
+- Vídeos e áudios gerados ficam guardados na conversa e entram no backup e na
+  sincronização, o que pode deixá-los grandes.
 - A memória e os agentes com ferramentas precisam de um modelo que use
   ferramentas.
 

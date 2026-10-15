@@ -12,7 +12,9 @@
 import { createServer } from 'node:http'
 import { Readable } from 'node:stream'
 
-const DEFAULT_HOSTS = ['opencode.ai']
+// OpenCode's gateways and the Higgsfield and Replicate APIs refuse browsers;
+// they are reached through here.
+const DEFAULT_HOSTS = ['opencode.ai', 'api.higgsfield.ai', 'api.replicate.com']
 const DEFAULT_ORIGINS = ['http://localhost:5173', 'http://localhost:4173']
 // Hop-by-hop and browser-only headers that must not be forwarded.
 const DROPPED = new Set([

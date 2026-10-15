@@ -1,6 +1,8 @@
 import {
   ArrowUp,
+  AudioLines,
   BookMarked,
+  Clapperboard,
   FileText,
   FileType2,
   ImageIcon,
@@ -19,7 +21,7 @@ import { cn } from '@/lib/utils'
 import type { Dictation } from './dictation'
 import { t } from './i18n'
 import { fillPrompt, promptFields } from './prompts'
-import type { Attachment, SavedPrompt } from './types'
+import type { Attachment, MediaKind, SavedPrompt } from './types'
 
 const MAX_HEIGHT = 240
 
@@ -40,11 +42,20 @@ interface Props {
   onInsertPrompt: (text: string) => void
   onManagePrompts: () => void
   dictation: Dictation
-  // The next message asks for an image; the toggle is hidden without a handler.
-  imageMode: boolean
-  onImageMode?: (on: boolean) => void
+  // The next message asks for this kind of media instead of a reply.
+  mediaMode: MediaKind | null
+  // Kinds someone can make now, each with its toggle.
+  mediaKinds: MediaKind[]
+  onMediaMode: (kind: MediaKind | null) => void
   // Warnings shown above the field.
   children?: ReactNode
+}
+
+// Looked up when shown, so the names follow the interface language.
+const MEDIA_BUTTONS: Record<MediaKind, [typeof ImageIcon, () => string, () => string]> = {
+  image: [ImageIcon, () => t('Imagem'), () => t('Gerar uma imagem com a próxima mensagem')],
+  video: [Clapperboard, () => t('Vídeo'), () => t('Gerar um vídeo com a próxima mensagem')],
+  audio: [AudioLines, () => t('Áudio'), () => t('Gerar áudio com a próxima mensagem')],
 }
 
 // Asks for the values of a prompt's {{fields}} before inserting it.
@@ -149,9 +160,13 @@ export default function Composer(p: Props) {
           rows={1}
           value={p.value}
           placeholder={
-            p.imageMode
+            p.mediaMode === 'image'
               ? t('Descreva a imagem que você quer gerar…')
-              : t('Escreva sua mensagem… (Enter envia, Shift+Enter quebra a linha)')
+              : p.mediaMode === 'video'
+                ? t('Descreva o vídeo que você quer gerar…')
+                : p.mediaMode === 'audio'
+                  ? t('Escreva o texto a narrar, ou descreva o som ou a música…')
+                  : t('Escreva sua mensagem… (Enter envia, Shift+Enter quebra a linha)')
           }
           className="block w-full resize-none bg-transparent px-3.5 py-3 text-[0.95rem] outline-none placeholder:text-muted-foreground"
           onChange={(e) => p.onChange(e.target.value)}
@@ -244,22 +259,28 @@ export default function Composer(p: Props) {
               )}
             </PopoverContent>
           </Popover>
-          {p.onImageMode && (
-            <Button
-              variant={p.imageMode ? 'secondary' : 'ghost'}
-              size="sm"
-              className={cn('h-8 gap-1.5 text-xs', p.imageMode && 'text-primary')}
-              aria-pressed={p.imageMode}
-              title={t('Gerar uma imagem com a próxima mensagem')}
-              onClick={() => {
-                p.onImageMode?.(!p.imageMode)
-                fieldRef.current?.focus()
-              }}
-            >
-              <ImageIcon className="size-4" />
-              {t('Imagem')}
-            </Button>
-          )}
+          {p.mediaKinds.map((kind) => {
+            const [Icon, label, title] = MEDIA_BUTTONS[kind]
+            const on = p.mediaMode === kind
+            return (
+              <Button
+                key={kind}
+                variant={on ? 'secondary' : 'ghost'}
+                size="sm"
+                className={cn('h-8 gap-1.5 text-xs', on && 'text-primary')}
+                aria-pressed={on}
+                aria-label={label()}
+                title={title()}
+                onClick={() => {
+                  p.onMediaMode(on ? null : kind)
+                  fieldRef.current?.focus()
+                }}
+              >
+                <Icon className="size-4" />
+                <span className="hidden sm:inline">{label()}</span>
+              </Button>
+            )
+          })}
           {p.dictation.available && (
             <Button
               variant="ghost"

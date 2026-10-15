@@ -2,15 +2,32 @@ import type { ShortcutAction } from './shortcuts'
 
 export type Role = 'user' | 'assistant'
 
-export type AttachmentKind = 'image' | 'pdf' | 'text'
+export type AttachmentKind = 'image' | 'pdf' | 'text' | 'video' | 'audio'
 
 export interface Attachment {
   id: string
   name: string
   mime: string
   kind: AttachmentKind
-  // Base64 for images and PDFs, the decoded text for text files.
+  // Base64 for images, PDFs, video and audio; the decoded text for text files.
+  // Empty when only `url` is known.
   data: string
+  // Where generated media can be fetched, when it could not be kept here.
+  url?: string
+}
+
+// What a media generation produces.
+export type MediaKind = 'image' | 'video' | 'audio'
+
+// Who generates one kind of media: a chat provider that draws images, or a
+// media service, with the model and options to send.
+export interface MediaChoice {
+  // 'auto', a provider id or a media service id.
+  source: string
+  // Empty for the source's default.
+  model: string
+  // JSON merged into the request, for parameters only some models take.
+  options: string
 }
 
 export interface Usage {
@@ -86,8 +103,12 @@ export interface Message {
   // A summary of everything before it, which replaces those messages in later
   // requests.
   summary?: boolean
-  // An image generated from this prompt; the image is in `attachments`.
+  // Media generated from this prompt; the file is in `attachments`.
   imagePrompt?: string
+  // What was generated, when not an image.
+  mediaKind?: 'video' | 'audio'
+  // How far a slow generation has got, while it runs.
+  mediaProgress?: string
   // Other versions of the conversation from this message on, left behind by
   // an edit or a regeneration. Each is the rest of a conversation, starting
   // with a message that stands in this one's place.
@@ -376,10 +397,11 @@ export interface Settings {
   // Let the model save facts about the user and read them in every chat.
   memory: boolean
   memories: Memory[]
-  // Who draws images: a provider with an image model or 'auto' (the first
-  // such provider with a key). An empty model uses the provider's default.
-  imageProvider: string
-  imageModel: string
+  // Who generates images, video and audio from a message: 'auto' takes the
+  // first provider or media service with a key that has a default model.
+  media: Record<MediaKind, MediaChoice>
+  // API keys of the media services, by service id.
+  mediaKeys: Record<string, string>
   // Who turns passages into vectors to search knowledge bases by meaning:
   // 'off', 'auto' (the first provider with an embedding model and a key) or a
   // provider. An empty model uses the provider's default.
