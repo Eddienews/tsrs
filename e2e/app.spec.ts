@@ -736,6 +736,75 @@ test('generates an image and regenerates it', async ({ page }) => {
   })
 })
 
+test('generates video and audio with media services and keeps the files', async ({ page }) => {
+  // The services, simulated: a fal.ai queue that answers on the second check,
+  // its file storage, and ElevenLabs.
+  const sent: { url: string; method: string; headers: Record<string, string>; body: string | null }[] = []
+  const cors = { 'access-control-allow-origin': '*' }
+  let checks = 0
+  await page.route('https://queue.fal.run/**', async (route) => {
+    const request = route.request()
+    sent.push({ url: request.url(), method: request.method(), headers: request.headers(), body: request.postData() })
+    const url = request.url()
+    const base = 'https://queue.fal.run/fal-ai/kling-video/v3/standard/text-to-video/requests/r1'
+    const body = url.endsWith('/status')
+      ? ++checks === 1
+        ? { status: 'IN_QUEUE', queue_position: 3 }
+        : { status: 'COMPLETED' }
+      : url === base
+        ? { video: { url: 'https://v3.fal.media/files/v.mp4', content_type: 'video/mp4' } }
+        : { request_id: 'r1', status_url: `${base}/status`, response_url: base, cancel_url: `${base}/cancel` }
+    await route.fulfill({ json: body, headers: cors })
+  })
+  await page.route('https://v3.fal.media/**', (route) =>
+    route.fulfill({ body: Buffer.from([1, 2, 3]), contentType: 'video/mp4', headers: cors }),
+  )
+  await page.route('https://api.elevenlabs.io/**', (route) => {
+    const request = route.request()
+    sent.push({ url: request.url(), method: request.method(), headers: request.headers(), body: request.postData() })
+    return route.fulfill({ body: Buffer.from([4, 5, 6]), contentType: 'audio/mpeg', headers: cors })
+  })
+
+  await connect(page)
+  await expect(page.getByRole('button', { name: 'Vídeo' })).toBeHidden()
+  await openSettings(page, 'Mídia')
+  await page.getByLabel('Chave de fal.ai').fill('fal-key')
+  await page.getByLabel('Chave de ElevenLabs').fill('xi-key')
+  await closeSettings(page)
+
+  await page.getByRole('button', { name: 'Vídeo' }).click()
+  await page.getByPlaceholder(/Descreva o vídeo/).fill('ondas na praia')
+  await page.getByPlaceholder(/Descreva o vídeo/).press('Enter')
+  await expect(reply(page)).toContainText(/Gerando vídeo…\s*\(na fila: 3\)/)
+  // The queue is checked again after a few seconds, as with the real service.
+  await expect(reply(page).locator('video')).toHaveAttribute('src', 'data:video/mp4;base64,AQID', {
+    timeout: 15_000,
+  })
+  const submit = sent[0]
+  expect(submit.url).toBe('https://queue.fal.run/fal-ai/kling-video/v3/standard/text-to-video')
+  expect(submit.headers.authorization).toBe('Key fal-key')
+  expect(JSON.parse(submit.body!)).toEqual({ prompt: 'ondas na praia' })
+
+  await page.getByRole('button', { name: 'Áudio' }).click()
+  await page.getByPlaceholder(/texto a narrar/).fill('Olá, mundo')
+  await page.getByPlaceholder(/texto a narrar/).press('Enter')
+  await expect(reply(page).last().locator('audio')).toHaveAttribute('src', 'data:audio/mpeg;base64,BAUG')
+  const speech = sent.at(-1)!
+  expect(speech.url).toMatch(/^https:\/\/api\.elevenlabs\.io\/v1\/text-to-speech\/JBFqnCBsd6RMkjVDRZzb/)
+  expect(speech.headers['xi-api-key']).toBe('xi-key')
+
+  // Later messages describe the files instead of sending them.
+  await send(page, 'gostei')
+  const { messages } = provider.chats.at(-1)!.body
+  expect(messages.map((m: any) => m.content)).toContain('[Generated a video for the prompt: ondas na praia]')
+  expect(messages.map((m: any) => m.content)).toContain('[Generated audio for the prompt: Olá, mundo]')
+
+  // The files stay in the chat after a reload.
+  await page.reload()
+  await chatRow(page, 'ondas na praia').click()
+  await expect(reply(page).first().locator('video')).toHaveAttribute('src', 'data:video/mp4;base64,AQID')
+})
+
 test('asks a side question about part of a reply', async ({ page }) => {
   await connect(page)
   await send(page, 'primeira')

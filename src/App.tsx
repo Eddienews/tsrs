@@ -27,7 +27,7 @@ import { forget } from './mcp'
 import { artifactName, lastPreviewable, withPreviewHint, type Artifact } from './preview'
 import { CANVAS_NOTE, CANVAS_TOOLS, newCanvas, runCanvasTool, undo, withCanvas } from './canvas'
 import { extractText } from './extract'
-import { imageSource } from './images'
+import { MEDIA_KINDS, mediaProblem, mediaSource, type MediaTarget } from './media'
 import { embedSource, indexDoc, meaningOf } from './embeddings'
 import {
   chunk,
@@ -64,7 +64,6 @@ import {
 } from './storage'
 import {
   completeText,
-  generateImage,
   streamChat,
   type Connection,
   type RequestMessage,
@@ -91,6 +90,7 @@ import type {
   Folder,
   KnowledgeBase,
   KnowledgeDoc,
+  MediaKind,
   Message,
   Persona,
   Reference,
@@ -141,6 +141,12 @@ const TITLE_PROMPT =
   'Responda apenas com o título, sem aspas nem pontuação final.'
 
 // A provider and model other than the ones selected in the toolbar.
+// Media to make from the last message, and who makes it.
+interface MediaJob {
+  kind: MediaKind
+  target: MediaTarget
+}
+
 interface Target {
   providerId: string
   model: string
@@ -172,16 +178,22 @@ function blocker(settings: Settings, locked: boolean): Blocker | null {
   return null
 }
 
+// How a generated file is named in the text sent to the model.
+const MADE: Record<MediaKind, string> = { image: 'an image', video: 'a video', audio: 'audio' }
+
 // Empty replies (aborted or failed) are dropped: providers reject empty turns.
-// Replies carry no attachments: a generated image travels as its prompt.
+// Replies carry no attachments: generated media travels as its prompt.
 function toRequest(messages: Message[]): RequestMessage[] {
   return messages
-    .map(({ role, content, attachments, parts, imagePrompt }) =>
+    .map(({ role, content, attachments, parts, imagePrompt, mediaKind }) =>
       role === 'user'
         ? { role, content, attachments, parts }
         : {
             role,
-            content: imagePrompt ? `[Generated an image for the prompt: ${imagePrompt}]` : content,
+            content:
+              imagePrompt === undefined
+                ? content
+                : `[Generated ${MADE[mediaKind ?? 'image']} for the prompt: ${imagePrompt}]`,
             parts,
           },
     )
@@ -286,12 +298,13 @@ function withText(message: Message, text: string): Message {
   return { ...message, content, parts }
 }
 
-// Secrets kept in the vault: provider keys by provider id, MCP tokens by
-// server id under a prefix, and the sync password.
+// Secrets kept in the vault: provider keys by provider id; MCP tokens and
+// media service keys by id under a prefix; the sync passwords.
 const MCP_SECRET = 'mcp:'
 const SYNC_SECRET = 'sync:password'
 const WEBDAV_SECRET = 'sync:webdav'
 const S3_SECRET = 'sync:s3'
+const MEDIA_SECRET = 'media:'
 
 function withoutKeys(settings: Settings): Settings {
   return {
@@ -300,6 +313,7 @@ function withoutKeys(settings: Settings): Settings {
       Object.entries(settings.providers).map(([id, p]) => [id, { ...p, apiKey: '' }]),
     ),
     mcpServers: settings.mcpServers.map((server) => ({ ...server, token: '' })),
+    mediaKeys: {},
     sync: {
       ...settings.sync,
       password: '',
@@ -318,6 +332,9 @@ function keysOf(settings: Settings): Record<string, string> {
     ...(settings.sync.password ? [[SYNC_SECRET, settings.sync.password]] : []),
     ...(settings.sync.webdav?.password ? [[WEBDAV_SECRET, settings.sync.webdav.password]] : []),
     ...(settings.sync.s3?.secretKey ? [[S3_SECRET, settings.sync.s3.secretKey]] : []),
+    ...Object.entries(settings.mediaKeys)
+      .filter(([, key]) => key)
+      .map(([id, key]) => [MEDIA_SECRET + id, key]),
   ])
 }
 
@@ -331,6 +348,11 @@ function withKeys(settings: Settings, keys: Record<string, string>): Settings {
       ...server,
       token: keys[MCP_SECRET + server.id] ?? '',
     })),
+    mediaKeys: Object.fromEntries(
+      Object.entries(keys)
+        .filter(([name]) => name.startsWith(MEDIA_SECRET))
+        .map(([name, key]) => [name.slice(MEDIA_SECRET.length), key]),
+    ),
     sync: {
       ...settings.sync,
       password: keys[SYNC_SECRET] ?? '',
@@ -427,8 +449,8 @@ export default function App() {
   const [compareId, setCompareId] = useState<string | null>(null)
   const [streaming, setStreaming] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
-  // The next message asks for an image instead of a reply.
-  const [imageMode, setImageMode] = useState(false)
+  // The next message asks for an image, a video or audio instead of a reply.
+  const [mediaMode, setMediaMode] = useState<MediaKind | null>(null)
   const [aside, setAside] = useState<Aside | null>(null)
   // Knowledge base documents, all kept in memory to search them.
   const [docs, setDocs] = useState<KnowledgeDoc[]>([])
@@ -453,14 +475,16 @@ export default function App() {
   // Temporary conversations are left out of every list.
   const listed = useMemo(() => metas.filter((c) => !c.temporary), [metas])
   const persona = settings.personas.find((p) => p.id === params.personaId)
-  const painter = imageSource(settings, locked)
-  const blocked = imageMode
-    ? painter
+  const mediaTargets = {
+    image: mediaSource(settings, 'image', locked),
+    video: mediaSource(settings, 'video', locked),
+    audio: mediaSource(settings, 'audio', locked),
+  }
+  const maker = mediaMode ? mediaTargets[mediaMode] : null
+  const blocked = mediaMode
+    ? maker
       ? null
-      : {
-          text: t('Configure uma chave da OpenAI ou do Gemini para gerar imagens.'),
-          fix: 'settings' as const,
-        }
+      : { text: mediaProblem(settings, mediaMode), fix: 'settings' as const }
     : blocker(settings, locked)
   const info = modelInfo(settings, provider.id, settings.model)
   const spent = totals(messages ?? [])
@@ -1011,24 +1035,25 @@ export default function App() {
   // `branch` links the reply to the versions it replaces. `targets` writes it
   // with other models, all at once, without changing the one the conversation
   // uses: the first becomes the current version and the rest sit beside it.
-  // `image` draws an image from the last message instead of replying to it.
+  // `media` makes an image, video or audio from the last message instead of
+  // replying to it.
   async function generate(
     base: ChatMeta,
     history: Message[],
-    { branch, targets, image }: { branch?: Branch; targets?: Target[]; image?: Target } = {},
+    { branch, targets, media }: { branch?: Branch; targets?: Target[]; media?: MediaJob } = {},
   ) {
-    const usings: Target[] = image
-      ? [image]
+    const usings: Target[] = media
+      ? [{ providerId: media.target.source, model: media.target.model }]
       : targets?.length
         ? targets
         : [{ providerId: settings.providerId, model: settings.model }]
-    const problems = image ? [] : usings.map((using) => blocker({ ...settings, ...using }, locked))
+    const problems = media ? [] : usings.map((using) => blocker({ ...settings, ...using }, locked))
     const problem = problems.find(Boolean)
     if (problem && targets) alert(problem.text)
     if (streaming || problem) return
     const now = Date.now()
     const agentOf = settings.personas.find((p) => p.id === base.params?.personaId)
-    const bases = image ? [] : basesFor(settings, base.params, agentOf)
+    const bases = media ? [] : basesFor(settings, base.params, agentOf)
     let references: Reference[] = []
     const replies: Message[] = usings.map((using) => ({
       id: crypto.randomUUID(),
@@ -1036,7 +1061,12 @@ export default function App() {
       content: '',
       createdAt: now,
       ...using,
-      ...(image ? { imagePrompt: history.at(-1)?.content ?? '' } : {}),
+      ...(media
+        ? {
+            imagePrompt: history.at(-1)?.content ?? '',
+            ...(media.kind === 'image' ? {} : { mediaKind: media.kind }),
+          }
+        : {}),
     }))
     const [first, ...others] = replies
     const alts = [...(branch?.alts ?? []), ...others.map((reply) => [reply])]
@@ -1047,7 +1077,7 @@ export default function App() {
       ...base,
       updatedAt: now,
       changedAt: now,
-      ...(targets || image ? {} : usings[0]),
+      ...(targets || media ? {} : usings[0]),
     }
     commitMetas([meta, ...metasRef.current.filter((c) => c.id !== meta.id)])
     commitThreads({ ...threadsRef.current, [meta.id]: [...history, current] })
@@ -1072,32 +1102,45 @@ export default function App() {
     if (remember) system = withMemories(system, settings.memories)
     system = withSummary(system, recent.summary)
     // Comparing models would let each of them change the same canvas.
-    const sharedCanvas = !image && !targets ? meta.canvas : undefined
+    const sharedCanvas = !media && !targets ? meta.canvas : undefined
     if (sharedCanvas) system = `${system ? `${system}\n\n` : ''}${CANVAS_NOTE}`
     let toolset: ToolSet | null = null
 
-    async function paint(reply: Message, using: Target): Promise<boolean> {
+    async function paint(reply: Message, job: MediaJob): Promise<boolean> {
       const patchReply = patcher(reply.id)
       try {
-        const drawn = await generateImage(
-          connection(settings, using.providerId),
-          using.model,
-          reply.imagePrompt ?? '',
-          abort.signal,
-        )
+        const { generateMedia } = await import('./mediaJobs')
+        const made = await generateMedia({
+          settings,
+          target: job.target,
+          kind: job.kind,
+          prompt: reply.imagePrompt ?? '',
+          signal: abort.signal,
+          onProgress: (mediaProgress) => patchReply((m) => ({ ...m, mediaProgress })),
+        })
+        const extension = made.mime.split('/')[1]?.replace('mpeg', 'mp3').replace(/[^a-z0-9]/g, '')
         const attachment: Attachment = {
           id: crypto.randomUUID(),
-          name: fileName(reply.imagePrompt ?? '', drawn.mime.split('/')[1]),
-          mime: drawn.mime,
-          kind: 'image',
-          data: drawn.data,
+          name: fileName(reply.imagePrompt ?? '', extension || 'bin'),
+          mime: made.mime,
+          kind: job.kind,
+          data: made.data,
+          ...(made.url && !made.data ? { url: made.url } : {}),
         }
-        patchReply((m) => ({ ...m, content: drawn.revised ?? '', attachments: [attachment] }))
+        patchReply((m) => ({
+          ...m,
+          content: made.revised ?? '',
+          attachments: [attachment],
+          mediaProgress: undefined,
+          ...(made.cost === undefined ? {} : { usage: { input: 0, output: 0, cost: made.cost } }),
+        }))
         return true
       } catch (err) {
         if (!abort.signal.aborted) {
           const error = err instanceof Error ? err.message : String(err)
-          patchReply((m) => ({ ...m, error }))
+          patchReply((m) => ({ ...m, error, mediaProgress: undefined }))
+        } else {
+          patchReply((m) => ({ ...m, mediaProgress: undefined }))
         }
         return false
       }
@@ -1208,7 +1251,7 @@ export default function App() {
           replies.forEach((reply) => patcher(reply.id)((m) => ({ ...m, references })))
         }
       }
-      if (!image) {
+      if (!media) {
         const servers = settings.mcpServers.filter(
           (s) => s.url && tools.mcpServers.includes(s.id),
         )
@@ -1222,7 +1265,7 @@ export default function App() {
       }
       if (problems.length) setToolProblems(problems)
       const results = await Promise.all(
-        replies.map((reply, i) => (image ? paint(reply, usings[i]) : write(reply, usings[i]))),
+        replies.map((reply, i) => (media ? paint(reply, media) : write(reply, usings[i]))),
       )
       completed = results[0]
       if (completed && settings.doneSound) chime()
@@ -1236,7 +1279,7 @@ export default function App() {
       persistThread(meta.id)
     }
 
-    if (completed && !targets && !image && settings.autoPreview) {
+    if (completed && !targets && !media && settings.autoPreview) {
       const reply = threadsRef.current[meta.id]?.find((m) => m.id === first.id)
       const block = reply && lastPreviewable(reply.content, AUTO_PREVIEW)
       if (block) latest.current.showArtifact(block.lang, block.code)
@@ -1244,7 +1287,7 @@ export default function App() {
 
     // A temporary conversation is listed nowhere, so its title is not worth a request.
     const titled = settings.autoTitle && !meta.temporary
-    if (completed && !targets && !image && titled && history.length === 1) {
+    if (completed && !targets && !media && titled && history.length === 1) {
       titleChat(meta.id, connection(settings, usings[0].providerId))
     }
   }
@@ -1448,7 +1491,7 @@ export default function App() {
     const text = (request ?? draft).trim()
     const files = typed ? attachments : []
     if ((!text && !files.length) || streaming || blocked) return
-    if (imageMode && typed && !text) return
+    if (mediaMode && typed && !text) return
     const existing = findMeta(activeId)
     const history = existing ? threadsRef.current[existing.id] : []
     if (!history) return // still loading
@@ -1480,9 +1523,9 @@ export default function App() {
       setDraftParams({})
       setDraftCanvas(undefined)
     }
-    if (imageMode && typed && painter) {
-      setImageMode(false)
-      generate(base, [...history, user], { image: painter })
+    if (mediaMode && typed && maker) {
+      setMediaMode(null)
+      generate(base, [...history, user], { media: { kind: mediaMode, target: maker } })
     } else {
       generate(base, [...history, user])
     }
@@ -1508,8 +1551,10 @@ export default function App() {
     const branch = branchAt(thread, index, !!replaced.content || !!replaced.attachments?.length)
     setVersionsAt(targets ? index : null)
     if (replaced.imagePrompt !== undefined) {
-      if (!painter) return alert(t('Configure uma chave da OpenAI ou do Gemini para gerar imagens.'))
-      return generate(meta, thread.slice(0, index), { branch, image: painter })
+      const kind = replaced.mediaKind ?? 'image'
+      const target = mediaTargets[kind]
+      if (!target) return alert(mediaProblem(settings, kind))
+      return generate(meta, thread.slice(0, index), { branch, media: { kind, target } })
     }
     generate(meta, thread.slice(0, index), { branch, targets })
   }
@@ -1958,8 +2003,9 @@ export default function App() {
         onInsertPrompt={(text) => setDraft((d) => (d.trim() ? `${d}\n${text}` : text))}
         onManagePrompts={() => setShowLibrary(true)}
         dictation={dictation}
-        imageMode={imageMode}
-        onImageMode={painter || imageMode ? setImageMode : undefined}
+        mediaMode={mediaMode}
+        mediaKinds={MEDIA_KINDS.filter((kind) => mediaTargets[kind] || mediaMode === kind)}
+        onMediaMode={setMediaMode}
       >
         {blocked && (
           <p className="notice rounded-md border border-warning/50 px-3 py-2 text-xs text-warning">

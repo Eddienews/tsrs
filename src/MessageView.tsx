@@ -31,7 +31,7 @@ import { formatWhen, locale, t } from './i18n'
 import { canSpeak, speak, speakable, stopSpeaking, useSpeaking } from './speech'
 import Markdown, { useCopy } from './Markdown'
 import ToolCallBlock from './ToolCallBlock'
-import type { Message, Reference, Usage } from './types'
+import type { Attachment, Message, Reference, Usage } from './types'
 import { formatCost, formatTokens } from './usage'
 
 interface Props {
@@ -169,9 +169,16 @@ function Thinking({ text, live }: { text: string; live: boolean }) {
   )
 }
 
+// Where a generated file plays from: kept in the app, or the service's link.
+function sourceOf(a: Attachment): string {
+  return a.data ? `data:${a.mime};base64,${a.data}` : (a.url ?? '')
+}
+
 function usageLine(model: string | undefined, usage: Usage | undefined): string {
+  // Generated media is billed per file, with no tokens.
   const tokens =
     usage &&
+    (usage.input || usage.output) &&
     (usage.cacheRead
       ? t('{input} entrada ({cached} do cache) · {output} saída', {
           input: formatTokens(usage.input),
@@ -280,21 +287,44 @@ function MessageView(props: Props) {
       ) : image ? (
         <figure className="generated w-full">
           {message.attachments?.map((a) => (
-            <div key={a.id} className="group/image relative w-fit">
-              <img
-                src={`data:${a.mime};base64,${a.data}`}
-                alt={message.imagePrompt}
-                className="max-h-[32rem] max-w-full rounded-md border"
-              />
+            <div key={a.id} className={cn('group/image relative', a.kind === 'audio' ? 'w-full max-w-md' : 'w-fit')}>
+              {a.kind === 'video' ? (
+                <video
+                  controls
+                  src={sourceOf(a)}
+                  aria-label={message.imagePrompt}
+                  className="max-h-[32rem] max-w-full rounded-md border bg-black"
+                />
+              ) : a.kind === 'audio' ? (
+                <audio controls src={sourceOf(a)} aria-label={message.imagePrompt} className="w-full" />
+              ) : (
+                <img
+                  src={sourceOf(a)}
+                  alt={message.imagePrompt}
+                  className="max-h-[32rem] max-w-full rounded-md border"
+                />
+              )}
               <a
-                href={`data:${a.mime};base64,${a.data}`}
+                href={sourceOf(a)}
                 download={a.name}
+                target={a.data ? undefined : '_blank'}
+                rel="noreferrer"
                 aria-label={t('Baixar imagem')}
                 title={t('Baixar imagem')}
-                className="absolute right-2 top-2 rounded-md border bg-background/90 p-1.5 opacity-0 transition-opacity group-hover/image:opacity-100 focus:opacity-100"
+                className={cn(
+                  'rounded-md border bg-background/90 p-1.5 transition-opacity focus:opacity-100',
+                  a.kind === 'audio'
+                    ? 'absolute -right-9 top-1.5'
+                    : 'absolute right-2 top-2 opacity-0 group-hover/image:opacity-100',
+                )}
               >
                 <Download className="size-4" />
               </a>
+              {!a.data && a.url && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {t('O arquivo não pôde ser baixado para o app; fica no link do serviço, que pode expirar.')}
+                </p>
+              )}
             </div>
           ))}
           {message.content && (
@@ -403,7 +433,14 @@ function MessageView(props: Props) {
       {pending && !message.thinking && !message.summary && (
         <p className="flex items-center gap-2 text-xs text-muted-foreground">
           {image ? <ImageIcon className="size-3.5 animate-pulse" /> : <span className="live-dot" aria-hidden />}
-          {image ? t('Gerando imagem…') : t('Pensando…')}
+          {!image
+            ? t('Pensando…')
+            : message.mediaKind === 'video'
+              ? t('Gerando vídeo…')
+              : message.mediaKind === 'audio'
+                ? t('Gerando áudio…')
+                : t('Gerando imagem…')}
+          {message.mediaProgress && <span className="font-mono">({message.mediaProgress})</span>}
         </p>
       )}
       {message.truncated && (

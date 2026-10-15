@@ -165,8 +165,9 @@ function textOf(message: RequestMessage): string {
   return [message.content, ...files].filter(Boolean).join('\n\n')
 }
 
+// Images and PDFs; chat APIs take no video or audio files.
 function binaries(message: RequestMessage): Attachment[] {
-  return (message.attachments ?? []).filter((a) => a.kind !== 'text')
+  return (message.attachments ?? []).filter((a) => a.kind === 'image' || a.kind === 'pdf')
 }
 
 function replayable(part: Part): part is ToolPart {
@@ -725,6 +726,8 @@ export async function generateImage(
   model: string,
   prompt: string,
   signal?: AbortSignal,
+  // Parameters only some models take, such as size or quality.
+  options: Record<string, unknown> = {},
 ): Promise<GeneratedImage> {
   const payload = {
     model,
@@ -732,6 +735,7 @@ export async function generateImage(
     n: 1,
     // GPT Image always answers in base64 and rejects the field; Gemini requires it.
     ...(conn.provider.id === 'openai' ? {} : { response_format: 'b64_json' }),
+    ...options,
   }
   const init: RequestInit = {
     method: 'POST',

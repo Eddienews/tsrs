@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Download, Eye, EyeOff, Lock, RefreshCw, Trash2, Upload } from 'lucide-react'
+import { Download, Lock, RefreshCw, Trash2, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -15,8 +15,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
 import { LANGUAGES, t, type Language } from './i18n'
+import { EyeButton } from './EyeButton'
 import { connection, PROVIDERS, usesProxy } from './providers'
 import { listModels } from './stream'
+import MediaSection from './MediaSection'
 import ShortcutsSection from './ShortcutsSection'
 import { chime } from './sound'
 import SyncSection, { type SyncProps } from './SyncSection'
@@ -41,10 +43,19 @@ interface Props {
   onClose: () => void
 }
 
-type Section = 'providers' | 'general' | 'appearance' | 'security' | 'sync' | 'data' | 'shortcuts'
+type Section =
+  | 'providers'
+  | 'media'
+  | 'general'
+  | 'appearance'
+  | 'security'
+  | 'sync'
+  | 'data'
+  | 'shortcuts'
 
 const SECTIONS: Section[] = [
   'providers',
+  'media',
   'general',
   'appearance',
   'security',
@@ -58,6 +69,8 @@ function sectionName(section: Section): string {
   switch (section) {
     case 'providers':
       return t('Provedores')
+    case 'media':
+      return t('Mídia')
     case 'general':
       return t('Geral')
     case 'appearance':
@@ -101,29 +114,6 @@ function Choice<T extends string>(props: {
         ))}
       </ToggleGroup>
     </div>
-  )
-}
-
-function EyeButton(props: {
-  visible: boolean
-  show: string
-  hide: string
-  disabled?: boolean
-  className?: string
-  onToggle: () => void
-}) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      className={cn('size-8', props.className)}
-      disabled={props.disabled}
-      aria-label={props.visible ? props.hide : props.show}
-      onClick={props.onToggle}
-    >
-      {props.visible ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-    </Button>
   )
 }
 
@@ -306,6 +296,8 @@ export default function SettingsDialog(props: Props) {
                 )
               })}
 
+            {section === 'media' && <MediaSection settings={settings} onChange={onChange} locked={locked} />}
+
             {section === 'sync' && (
               <SyncSection settings={settings} onChange={onChange} locked={locked} sync={props.sync} />
             )}
@@ -378,42 +370,6 @@ export default function SettingsDialog(props: Props) {
                   <p className="text-xs text-muted-foreground">
                     {t(
                       'O áudio vai para o provedor escolhido, que cobra pela transcrição. No automático, usa a OpenAI ou o Groq se houver chave e, senão, o navegador (no Chrome, o áudio vai para o Google).',
-                    )}
-                  </p>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="image-provider">{t('Geração de imagens')}</Label>
-                  <div className="flex flex-wrap gap-2">
-                    <select
-                      id="image-provider"
-                      className="select-native"
-                      value={settings.imageProvider}
-                      onChange={(e) =>
-                        onChange((s) => ({ ...s, imageProvider: e.target.value, imageModel: '' }))
-                      }
-                    >
-                      <option value="auto">{t('Automático')}</option>
-                      {PROVIDERS.filter((p) => p.image).map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
-                    {settings.imageProvider !== 'auto' && (
-                      <Input
-                        aria-label={t('Modelo de imagem')}
-                        className="h-9 min-w-40 flex-1 font-mono text-xs"
-                        placeholder={PROVIDERS.find((p) => p.id === settings.imageProvider)?.image}
-                        value={settings.imageModel}
-                        onChange={(e) =>
-                          onChange((s) => ({ ...s, imageModel: e.target.value.trim() }))
-                        }
-                      />
-                    )}
-                  </div>
-                  <p className={hint}>
-                    {t(
-                      'O botão Imagem, ao lado de Prompts, transforma a próxima mensagem num pedido de imagem. No automático, usa a OpenAI ou o Gemini, o que tiver chave. O custo da imagem não entra na conta da conversa.',
                     )}
                   </p>
                 </div>

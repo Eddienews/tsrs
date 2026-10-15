@@ -387,8 +387,6 @@ export const en: Record<string, string> = {
   'Valem apenas para esta conversa.': 'Applied to this conversation only.',
 
   // Memory, agents, summaries, images, side questions, proxy
-  'Configure uma chave da OpenAI ou do Gemini para gerar imagens.':
-    'Set up an OpenAI or Gemini key to generate images.',
   'Memória': 'Memory',
   'Esta conversa já ocupa {percent}% do contexto do modelo. Resuma a conversa para continuar com menos tokens, ou comece uma nova.':
     'This chat already fills {percent}% of the model context. Summarize it to go on with fewer tokens, or start a new chat.',
@@ -427,10 +425,6 @@ export const en: Record<string, string> = {
   'Alguns provedores (como o OpenCode) não aceitam chamadas do navegador. Rode npm run proxy na pasta do TSRS e ligue o proxy no provedor; para outros endereços, inicie com --allow host.':
     'Some providers (such as OpenCode) do not accept calls from a browser. Run npm run proxy in the TSRS folder and switch the proxy on for the provider; for other addresses, start it with --allow host.',
   'Usar o proxy local': 'Use the local proxy',
-  'Geração de imagens': 'Image generation',
-  'Modelo de imagem': 'Image model',
-  'O botão Imagem, ao lado de Prompts, transforma a próxima mensagem num pedido de imagem. No automático, usa a OpenAI ou o Gemini, o que tiver chave. O custo da imagem não entra na conta da conversa.':
-    'The Image button, next to Prompts, turns the next message into an image request. Automatic uses OpenAI or Gemini, whichever has a key. The image cost is not added to the chat total.',
   'Pergunta à parte': 'Side question',
   'As perguntas e respostas daqui não entram na conversa.':
     'Questions and answers here are not added to the chat.',
@@ -615,4 +609,63 @@ export const en: Record<string, string> = {
   // Starter library
   'Adicionar as personas prontas ({count})': 'Add the starter personas ({count})',
   'Adicionar os prompts prontos ({count})': 'Add the starter prompts ({count})',
+  // Media services
+  'Vídeo': 'Video',
+  'Gerar um vídeo com a próxima mensagem': 'Generate a video from the next message',
+  'Áudio': 'Audio',
+  'Gerar áudio com a próxima mensagem': 'Generate audio from the next message',
+  'Descreva o vídeo que você quer gerar…': 'Describe the video you want…',
+  'Escreva o texto a narrar, ou descreva o som ou a música…':
+    'Write the text to narrate, or describe the sound or the music…',
+  '{count} vozes carregadas.': '{count} voices loaded.',
+  'Criar chave': 'Create a key',
+  'Chave de {name}': '{name} key',
+  'id:segredo': 'id:secret',
+  'Escreva o id e o segredo da chave separados por dois-pontos. A API da Higgsfield não aceita chamadas do navegador: ela só funciona com o proxy local rodando (npm run proxy).':
+    'Write the key\'s id and secret separated by a colon. Higgsfield\'s API refuses calls from browsers: it only works with the local proxy running (npm run proxy).',
+  'Carregar vozes': 'Load voices',
+  'Modelo de {kind}': '{kind} model',
+  'ex.: {example}': 'e.g. {example}',
+  'Efeitos sonoros': 'Sound effects',
+  'Música': 'Music',
+  'Este serviço não tem modelo padrão para isso: informe um.':
+    'This service has no default model for this: enter one.',
+  'Ver vozes': 'See voices',
+  'Ver modelos de {name}': 'See {name} models',
+  'Opções do modelo (JSON)': 'Model options (JSON)',
+  'Opções do modelo de {kind}': '{kind} model options',
+  'Não é um objeto JSON válido.': 'Not a valid JSON object.',
+  'Vão junto com o pedido, para parâmetros que só alguns modelos aceitam (duração, proporção, resolução…). Cada modelo lista os seus na página dele.':
+    'Sent with the request, for parameters only some models take (duration, aspect ratio, resolution…). Each model lists its own on its page.',
+  'Serviços que geram imagem, vídeo e áudio. Os botões Imagem, Vídeo e Áudio, ao lado de Prompts, transformam a próxima mensagem num pedido; o arquivo gerado fica na conversa. As chaves ficam neste navegador, como as dos provedores, e cada serviço cobra pelo que gerar.':
+    'Services that generate images, video and audio. The Image, Video and Audio buttons, next to Prompts, turn the next message into a request; the generated file stays in the chat. Keys stay in this browser, like the providers\' keys, and each service charges for what it generates.',
+  'Chaves': 'Keys',
+  'Quem gera cada tipo': 'Who generates each kind',
+  'No automático, usa o primeiro serviço com chave que tenha modelo padrão: para imagem, a OpenAI ou o Gemini antes dos serviços de mídia. Na ElevenLabs, o modelo é o id de uma voz, sound-effects ou music.':
+    'On automatic, the first service with a key and a default model is used: for images, OpenAI or Gemini before the media services. On ElevenLabs, the model is a voice id, sound-effects or music.',
+  'O arquivo não pôde ser baixado para o app; fica no link do serviço, que pode expirar.':
+    'The file could not be downloaded into the app; it stays at the service\'s link, which may expire.',
+  'Gerando vídeo…': 'Generating video…',
+  'Gerando áudio…': 'Generating audio…',
+  'Mídia': 'Media',
+  'Informe a chave de {name} em Configurações → Mídia.':
+    'Enter the {name} key in Settings → Media.',
+  'Informe o modelo em Configurações → Mídia.': 'Enter the model in Settings → Media.',
+  'Configure uma chave da OpenAI, do Gemini ou de um serviço de mídia para gerar imagens.':
+    'Set up an OpenAI, Gemini or media service key to generate images.',
+  'Configure a chave do fal.ai, do Replicate ou da WaveSpeedAI, ou escolha o serviço e o modelo de vídeo em Configurações → Mídia.':
+    'Set up a fal.ai, Replicate or WaveSpeedAI key, or choose the video service and model in Settings → Media.',
+  'Configure a chave da ElevenLabs, do fal.ai ou do Replicate, ou escolha o serviço de áudio em Configurações → Mídia.':
+    'Set up an ElevenLabs, fal.ai or Replicate key, or choose the audio service in Settings → Media.',
+  'As opções do modelo não são um objeto JSON válido.':
+    'The model options are not a valid JSON object.',
+  'Não foi possível conectar a {name}.': 'Could not connect to {name}.',
+  '{name} recusou a chave ({status}).': '{name} refused the key ({status}).',
+  '{name} demorou demais para responder.': '{name} took too long to answer.',
+  '{name} só funciona pelo proxy local. Informe o endereço dele em Configurações → Provedores.':
+    '{name} only works through the local proxy. Enter its address in Settings → Providers.',
+  '{name} não devolveu nenhum arquivo.': '{name} returned no file.',
+  'o conteúdo foi barrado pela moderação': 'the content was blocked by moderation',
+  'na fila: {position}': 'in queue: {position}',
+  'gerando': 'generating',
 }

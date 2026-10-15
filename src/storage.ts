@@ -57,8 +57,12 @@ export function defaultSettings(): Settings {
     titleModel: '',
     memory: false,
     memories: [],
-    imageProvider: 'auto',
-    imageModel: '',
+    media: {
+      image: { source: 'auto', model: '', options: '' },
+      video: { source: 'auto', model: '', options: '' },
+      audio: { source: 'auto', model: '', options: '' },
+    },
+    mediaKeys: {},
     embedProvider: 'off',
     embedModel: '',
     proxyUrl: 'http://localhost:8787',
@@ -67,13 +71,24 @@ export function defaultSettings(): Settings {
   }
 }
 
+// Before video and audio, images had a source and a model of their own.
+function mediaFromImage(saved: { imageProvider?: string; imageModel?: string }) {
+  if (!saved.imageProvider) return {}
+  return { image: { source: saved.imageProvider, model: saved.imageModel ?? '', options: '' } }
+}
+
 export function loadSettings(): Settings {
   const defaults = defaultSettings()
   try {
     const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? 'null')
     if (!saved) return defaults
     // Merge so fields and providers added in later versions get their defaults.
-    return { ...defaults, ...saved, providers: { ...defaults.providers, ...saved.providers } }
+    return {
+      ...defaults,
+      ...saved,
+      providers: { ...defaults.providers, ...saved.providers },
+      media: { ...defaults.media, ...mediaFromImage(saved), ...saved.media },
+    }
   } catch {
     return defaults
   }

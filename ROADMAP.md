@@ -37,6 +37,8 @@ cada seção é a ordem sugerida.
 - [x] Agentes: personas com modelo, ferramentas, arquivos e sugestões iniciais
 - [x] Resumo do contexto quando a conversa se aproxima do limite do modelo
 - [x] Geração de imagens (OpenAI GPT Image e Gemini Imagen)
+- [x] Imagem, vídeo e áudio por serviços de mídia (ElevenLabs, Runware, fal.ai,
+      Replicate, WaveSpeedAI, Higgsfield)
 - [x] Pergunta à parte: perguntar sobre um trecho da resposta sem poluir a conversa
 - [x] Pacote dividido: o app abre com ~550 kB de JavaScript (eram ~930 kB); o
       Markdown, o realce de sintaxe e as telas chegam logo depois
@@ -55,6 +57,13 @@ cada seção é a ordem sugerida.
 - [x] Sincronização da biblioteca item a item, em vez de inteira
 - [x] Sincronização sem pasta (WebDAV ou armazenamento S3 do próprio usuário),
       para navegadores sem acesso a pastas, como Firefox e Safari
+- [ ] Mídia com as chaves que o usuário já tem: vídeo pelo Veo (chave do Gemini)
+      e pelo Sora (chave da OpenAI); voz pelo TTS da OpenAI e do Gemini
+- [ ] Leitura em voz alta das respostas com uma voz da ElevenLabs
+- [ ] Mostrar o custo estimado de um vídeo antes de gerar
+- [ ] Mais serviços com API oficial, cada um testado quanto a CORS: Black Forest
+      Labs, Stability, Ideogram, Recraft, Luma, Runway, Kling, MiniMax, Cartesia,
+      Hume, Deepgram (sem Midjourney, Suno e Udio, que não têm API oficial)
 
 ## A confirmar com provedor real
 
@@ -69,6 +78,10 @@ cada seção é a ordem sugerida.
 - [ ] OpenCode Zen e Go pelo proxy local, com uma chave paga
 - [ ] Geração de imagens na OpenAI (`gpt-image-2`) e no Gemini
       (`imagen-4.0-generate-001`); os nomes dos modelos podem mudar
+- [ ] Serviços de mídia com chaves reais (testados só com respostas simuladas):
+      ElevenLabs, Runware, fal.ai, Replicate e Higgsfield pelo proxy, WaveSpeedAI;
+      conferir os modelos padrão, se o armazenamento do Runware deixa baixar os
+      arquivos e o formato exato das respostas
 - [ ] Memória com um modelo real: se ele salva fatos úteis sem exagerar
 - [ ] Resumo do contexto numa conversa longa de verdade
 - [ ] Sincronização entre dois dispositivos reais, por Dropbox, Drive ou Syncthing
