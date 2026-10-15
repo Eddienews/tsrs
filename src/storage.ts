@@ -78,20 +78,24 @@ function mediaFromImage(saved: { imageProvider?: string; imageModel?: string }) 
   return { image: { source: saved.imageProvider, model: saved.imageModel ?? '', options: '' } }
 }
 
-export function loadSettings(): Settings {
+// Saved settings over the defaults, so fields and providers added in later
+// versions get their defaults.
+export function mergeSettings(saved: Partial<Settings> & { imageProvider?: string; imageModel?: string }): Settings {
   const defaults = defaultSettings()
+  return {
+    ...defaults,
+    ...saved,
+    providers: { ...defaults.providers, ...saved.providers },
+    media: { ...defaults.media, ...mediaFromImage(saved), ...saved.media },
+  }
+}
+
+export function loadSettings(): Settings {
   try {
     const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? 'null')
-    if (!saved) return defaults
-    // Merge so fields and providers added in later versions get their defaults.
-    return {
-      ...defaults,
-      ...saved,
-      providers: { ...defaults.providers, ...saved.providers },
-      media: { ...defaults.media, ...mediaFromImage(saved), ...saved.media },
-    }
+    return saved ? mergeSettings(saved) : defaultSettings()
   } catch {
-    return defaults
+    return defaultSettings()
   }
 }
 

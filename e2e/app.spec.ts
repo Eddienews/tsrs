@@ -1874,3 +1874,80 @@ test.describe('English interface', () => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'pt-BR')
   })
 })
+
+// The automatic backup is off on the test servers (every test starts with an
+// empty browser); these tests stand in for the server's part.
+async function fakeBackups(page: Page, latest: object | null, file?: string) {
+  const saved: string[] = []
+  await page.route('**/__tsrs/backups/**', async (route) => {
+    const path = new URL(route.request().url()).pathname
+    if (path.endsWith('/status')) return route.fulfill({ json: { dir: '/tsrs/backups', latest } })
+    if (path.endsWith('/latest')) return route.fulfill({ contentType: 'application/json', body: file ?? '' })
+    if (path.endsWith('/save')) {
+      const body = route.request().postData() ?? ''
+      saved.push(body)
+      const chats = JSON.parse(body).chats.length
+      return route.fulfill({ json: { savedAt: Date.now(), day: '2026-10-15', chats, keys: 'none', size: body.length } })
+    }
+    return route.continue()
+  })
+  return saved
+}
+
+test('backs conversations up to disk after a change, without the API keys', async ({ page }) => {
+  const saved = await fakeBackups(page, null)
+  await connect(page, 'sk-segredo-do-teste')
+  await send(page, 'Olá, quem é você?')
+  await expect(reply(page)).toContainText('Resposta 1')
+  await expect.poll(() => saved.some((b) => JSON.parse(b).chats.length === 1), { timeout: 20_000 }).toBe(true)
+  const last = saved.at(-1)!
+  expect(last).not.toContain('sk-segredo-do-teste')
+  expect(JSON.parse(last)).toMatchObject({ app: 'tsrs', settings: { language: 'pt' } })
+  await openSettings(page, 'Dados')
+  await expect(page.getByTestId('auto-backup-status')).toContainText('1 conversas')
+  await expect(page.getByText('As chaves de API não entram no backup.')).toBeVisible()
+})
+
+test('offers an emptied browser its conversations back from the disk', async ({ page }) => {
+  const now = Date.now()
+  const file = JSON.stringify({
+    app: 'tsrs',
+    version: 1,
+    chats: [
+      {
+        id: 'from-disk',
+        title: 'Conversa do backup',
+        createdAt: now,
+        updatedAt: now,
+        providerId: 'custom',
+        model: 'mock-a',
+        messages: [
+          { id: 'm1', role: 'user', content: 'Pergunta guardada' },
+          { id: 'm2', role: 'assistant', content: 'Resposta guardada no disco' },
+        ],
+      },
+    ],
+    folders: [],
+    personas: [],
+    prompts: [],
+    memories: [],
+    knowledgeBases: [],
+    docs: [],
+    settings: { language: 'pt', systemPrompt: 'Instrução restaurada' },
+  })
+  const saved = await fakeBackups(page, { savedAt: now, day: '2026-10-15', chats: 1, keys: 'none', size: file.length }, file)
+  await page.goto('/')
+  const offer = page.getByRole('dialog', { name: 'Backup encontrado' })
+  await expect(offer).toContainText('com 1 conversas')
+  await expect(offer).toContainText('não estão no backup')
+  // Nothing is saved over the disk's backup while the offer is open.
+  await page.waitForTimeout(500)
+  expect(saved).toHaveLength(0)
+  await offer.getByRole('button', { name: 'Restaurar' }).click()
+  await expect(offer).toBeHidden()
+  await chatRow(page, 'Conversa do backup').click()
+  await expect(reply(page)).toContainText('Resposta guardada no disco')
+  // The settings came back too, since this browser had none of its own.
+  await openSettings(page, 'Geral')
+  await expect(page.getByLabel('Prompt de sistema global')).toHaveValue('Instrução restaurada')
+})

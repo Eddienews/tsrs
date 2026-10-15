@@ -93,6 +93,7 @@ cada seção é a ordem sugerida.
 - [x] Prompts encadeados, com `{{resposta}}` para a resposta anterior
 - [x] Agenda com a busca própria, skills e ferramentas HTTP de plugins
 - [x] Vídeos curtos: narração com tempos por palavra, imagens de banco, legendas, música e créditos
+- [x] Backup automático no disco, com as chaves cifradas pela senha, e oferta de restaurar quando o navegador foi apagado
 
 ## Próximos
 

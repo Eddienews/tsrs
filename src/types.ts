@@ -477,6 +477,9 @@ export interface Settings {
   ownSearch?: { provider: string; googleCx?: string }
   knowledgeBases: KnowledgeBase[]
   sync: SyncSettings
+  // A copy on disk a few seconds after every change (on unless false; needs
+  // TSRS served by npm run dev).
+  autoBackup?: boolean
   // Present when the API keys are password-protected; the keys are then
   // stored only inside it.
   vault?: Vault
