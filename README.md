@@ -44,7 +44,10 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
   (Anthropic; busca também no OpenRouter).
 - Biblioteca de personas (prompts de sistema com nome, opcionalmente ligados a
   um modelo) e de prompts salvos para inserir na mensagem, com campos
-  `{{nome}}` preenchidos na hora de inserir.
+  `{{nome}}` preenchidos na hora de inserir. O app já vem com quatro personas
+  (revisor, tradutor, programador e professor) e seis prompts prontos, em
+  português ou inglês, editáveis; os que forem apagados podem ser trazidos de
+  volta pela Biblioteca.
 - Agentes: uma persona pode ter ferramentas próprias, arquivos enviados como
   contexto em todo pedido e sugestões iniciais na tela da conversa vazia.
 - Memória (opcional): o modelo guarda fatos sobre você com uma ferramenta, e a
@@ -176,6 +179,7 @@ cabeçalhos (com `{apiKey}` como placeholder) e o formato da API (`openai` ou
 | `src/PreviewPanel.tsx`   | Painel de preview                                           |
 | `src/preview.ts`         | Documento do preview, console e endereços                   |
 | `src/prompts.ts`         | Campos `{{nome}}` dos prompts salvos                        |
+| `src/starters.ts`        | Personas e prompts que já vêm no app                        |
 | `src/CommandPalette.tsx` | Paleta de comandos                                          |
 | `src/shortcuts.ts`       | Atalhos de teclado configuráveis                            |
 | `src/sound.ts`           | Som ao terminar a resposta                                  |

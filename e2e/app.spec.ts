@@ -774,7 +774,7 @@ test('an agent brings its own tools, files and starters', async ({ page }) => {
   await page.getByTitle('Fechar').click()
 
   await page.getByTitle('Persona desta conversa').click()
-  await page.getByRole('menuitemradio', { name: 'Revisor' }).click()
+  await page.getByRole('menuitemradio', { name: 'Revisor', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Revisor' })).toBeVisible()
   await page.getByRole('button', { name: 'Revise meu e-mail' }).click()
   await composer(page).press('Enter')
@@ -942,6 +942,27 @@ test('tags, archives and acts on several chats at once', async ({ page }) => {
   // Tags and archiving are kept across a reload.
   await page.reload()
   await expect(chatRow(page, 'alfa').locator('.chat-tag')).toHaveText(['#trabalho', '#Ideias'])
+})
+
+test('comes with starter personas and prompts that can be brought back', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTitle('Persona desta conversa').click()
+  await page.getByRole('menuitemradio', { name: 'Revisor de texto' }).click()
+  await expect(page.getByRole('heading', { name: 'Revisor de texto' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Revise este e-mail antes de eu enviar:' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Prompts', exact: true }).click()
+  await expect(page.locator('.menu')).toContainText('Ata de reunião')
+  await page.keyboard.press('Escape')
+
+  await page.getByRole('button', { name: 'Biblioteca' }).click()
+  await page.getByRole('tab', { name: 'Prompts salvos' }).click()
+  await expect(page.getByRole('button', { name: /Adicionar os prompts prontos/ })).toBeHidden()
+  await page.getByRole('button', { name: 'Resumir' }).click()
+  await page.getByRole('button', { name: 'Excluir' }).click()
+  await page.getByRole('button', { name: 'Adicionar os prompts prontos (1)' }).click()
+  await expect(page.getByRole('button', { name: 'Resumir' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Adicionar os prompts prontos/ })).toBeHidden()
 })
 
 test('keeps a temporary chat out of the history and drops it on leaving', async ({ page }) => {
@@ -1119,11 +1140,13 @@ test('syncs through a folder and restores everything after a wipe', async ({ pag
     for await (const entry of (dir as any).values()) names.push(entry.name)
     return names.sort()
   })
-  expect(files).toEqual([
+  // The starter personas and prompts go too, each as a file of its own.
+  expect(files.filter((name) => !name.includes('~starter-'))).toEqual([
     expect.stringMatching(/^chat~[\w-]+~\d+\.json$/),
     expect.stringMatching(/^item~prompt~[\w-]+~\d+\.json$/),
     'tsrs-sync.json',
   ])
+  expect(files.filter((name) => name.includes('~starter-'))).toHaveLength(10)
   await closeSettings(page)
 
   page.on('dialog', (dialog) => dialog.accept())
@@ -1166,8 +1189,10 @@ test('syncs two devices through a WebDAV server', async ({ page, browser }) => {
     await page.getByLabel('Senha ou senha de app').fill('certa')
     await page.getByRole('button', { name: 'Conectar', exact: true }).click()
     await expect(page.getByText(`WebDAV: ${dav.url}/tsrs`)).toBeVisible()
-    await expect(page.locator('.sync-status')).toHaveText('1 enviados, 0 recebidos, 0 apagados.')
-    expect([...dav.files.keys()].sort()).toEqual([
+    // The chat and the ten starter personas and prompts.
+    await expect(page.locator('.sync-status')).toHaveText('11 enviados, 0 recebidos, 0 apagados.')
+    const names = [...dav.files.keys()].sort()
+    expect(names.filter((name) => !name.includes('~starter-'))).toEqual([
       expect.stringMatching(/^\/tsrs\/chat~[\w-]+~\d+\.json$/),
       '/tsrs/tsrs-sync.json',
     ])
@@ -1194,6 +1219,12 @@ test('syncs two devices through a WebDAV server', async ({ page, browser }) => {
 
 test.describe('English interface', () => {
   test.use({ locale: 'en-US' })
+
+  test('starts with the starter library in English', async ({ page }) => {
+    await page.goto('/')
+    await page.getByTitle('Persona for this chat').click()
+    await expect(page.getByRole('menuitemradio', { name: 'Copy editor' })).toBeVisible()
+  })
 
   test('follows the browser language and switches in the settings', async ({ page }) => {
     await page.goto('/')

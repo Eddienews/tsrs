@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react'
-import { ChevronDown, ChevronRight, FileText, Paperclip, Plus, Trash2, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, FileText, Paperclip, Plus, Sparkles, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -17,6 +17,7 @@ import { readAttachment } from './files'
 import KnowledgeTab, { type KnowledgeProps } from './KnowledgeTab'
 import { t } from './i18n'
 import { PROVIDERS } from './providers'
+import { missingStarters } from './starters'
 import type { Memory, Persona, PersonaTools, SavedPrompt, Settings } from './types'
 
 // Settings live in localStorage, which holds a few megabytes at most.
@@ -341,6 +342,8 @@ export default function LibraryDialog(props: Props) {
     }))
   }
 
+  const missing = missingStarters(settings, settings.language)
+
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="dialog max-h-[85vh] overflow-y-auto sm:max-w-2xl">
@@ -463,6 +466,17 @@ export default function LibraryDialog(props: Props) {
               <Plus className="size-3.5" />
               {t('Nova persona')}
             </Button>
+            {missing.personas.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-2 gap-1"
+                onClick={() => onChange((s) => ({ ...s, personas: [...s.personas, ...missing.personas] }))}
+              >
+                <Sparkles className="size-3.5" />
+                {t('Adicionar as personas prontas ({count})', { count: missing.personas.length })}
+              </Button>
+            )}
           </TabsContent>
 
           <TabsContent value="prompts" className="space-y-3">
@@ -521,6 +535,17 @@ export default function LibraryDialog(props: Props) {
               <Plus className="size-3.5" />
               {t('Novo prompt')}
             </Button>
+            {missing.prompts.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-2 gap-1"
+                onClick={() => onChange((s) => ({ ...s, prompts: [...s.prompts, ...missing.prompts] }))}
+              >
+                <Sparkles className="size-3.5" />
+                {t('Adicionar os prompts prontos ({count})', { count: missing.prompts.length })}
+              </Button>
+            )}
           </TabsContent>
         </Tabs>
       </DialogContent>
