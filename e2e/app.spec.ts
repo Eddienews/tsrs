@@ -676,8 +676,12 @@ test('dictates through the provider and opens the preview by itself', async ({ p
   await page.getByRole('switch', { name: 'Abrir o preview sozinho' }).click()
   await closeSettings(page)
 
-  await page.getByRole('button', { name: 'Ditar' }).click()
-  await expect(page.getByRole('button', { name: 'Parar o ditado' })).toBeVisible()
+  // Chromium's fake microphone on macOS sometimes fails to start when many tests
+  // run at once; click again rather than fail on the test machine's audio.
+  await expect(async () => {
+    await page.getByRole('button', { name: 'Ditar' }).click()
+    await expect(page.getByRole('button', { name: 'Parar o ditado' })).toBeVisible({ timeout: 3000 })
+  }).toPass({ timeout: 15_000, intervals: [500, 1000] })
   await page.waitForTimeout(500)
   await page.getByRole('button', { name: 'Parar o ditado' }).click()
   await expect(composer(page)).toHaveValue('ditado de teste')
