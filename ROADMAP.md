@@ -98,6 +98,7 @@ each section, the order is the suggested order.
 - [x] Local voices with no key: Piper reads aloud and Whisper transcribes, in the browser, with the models kept on disk
 - [x] Make ElevenLabs voices from the app: designed from a description or cloned from recordings
 - [x] Talk about videos: frames and the transcription of their sound, for any model with vision
+- [x] Model lists that update once a day and mark new models, fine-tuned ones included
 
 ## Next
 

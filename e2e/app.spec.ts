@@ -2095,3 +2095,32 @@ test('sends an attached video as frames and the transcription of its sound', asy
   await expect(card).toContainText('2 quadros · 0:04')
   await expect(card.locator('img')).toHaveCount(2)
 })
+
+test('refreshes model lists once a day and points out the new ones', async ({ page }) => {
+  // OpenAI was set up a while ago, when its list had only mock-a.
+  await page.addInitScript((url) => {
+    if (localStorage.getItem('tsrs:settings')) return
+    localStorage.setItem(
+      'tsrs:settings',
+      JSON.stringify({
+        providerId: 'openai',
+        model: 'mock-a',
+        providers: { openai: { apiKey: 'sk-test', baseUrl: url, models: ['mock-a', 'old-model'], listed: ['mock-a', 'old-model'], modelsCheckedAt: 1 } },
+      }),
+    )
+  }, provider.url)
+  await page.goto('/')
+  const badge = modelPicker(page).locator('.new-models')
+  await expect(badge).toHaveText('1 novo', { timeout: 15_000 })
+  await modelPicker(page).click()
+  const fresh = page.getByRole('option', { name: /mock-b/ })
+  await expect(fresh).toContainText('novo')
+  // The model the provider no longer lists is gone.
+  await expect(page.getByRole('option', { name: /old-model/ })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(badge).toHaveCount(0)
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('tsrs:settings')!).providers.openai)
+  expect(saved.newModels).toEqual([])
+  expect(saved.listed).toEqual(['mock-a', 'mock-b'])
+  expect(Date.now() - saved.modelsCheckedAt).toBeLessThan(60_000)
+})

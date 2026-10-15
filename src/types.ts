@@ -363,6 +363,11 @@ export interface ProviderSettings {
   baseUrl: string
   models: string[]
   modelInfo?: Record<string, ModelInfo>
+  // The provider's own list the last time it was asked, when it was asked,
+  // and the models that appeared since and the user has not seen yet.
+  listed?: string[]
+  modelsCheckedAt?: number
+  newModels?: string[]
   // Send requests through the local proxy; unset follows `needsProxy`.
   proxy?: boolean
 }

@@ -52,7 +52,8 @@ npm run dev        # http://localhost:5173
 
 Abra **Configurações**, cole a chave de API de um provedor, clique em **Carregar
 modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
-Com o [Ollama](https://ollama.com) instalado, modelos locais funcionam sem chave
+Depois disso a lista se atualiza sozinha uma vez por dia, e os modelos novos
+(inclusive os seus, de fine-tuning) aparecem marcados como novos. Com o [Ollama](https://ollama.com) instalado, modelos locais funcionam sem chave
 nenhuma.
 
 Extras opcionais:

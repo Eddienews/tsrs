@@ -151,7 +151,7 @@ export default function SettingsDialog(props: Props) {
     setStatus((s) => ({ ...s, [provider.id]: t('Carregando…') }))
     try {
       const list = await listModels(connection(settings, provider.id))
-      patch(provider.id, { models: list.ids, modelInfo: list.info })
+      patch(provider.id, { models: list.ids, modelInfo: list.info, listed: list.ids, modelsCheckedAt: Date.now() })
       setStatus((s) => ({
         ...s,
         [provider.id]: t('{count} modelos carregados.', { count: list.ids.length }),
