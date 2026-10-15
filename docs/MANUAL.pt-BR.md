@@ -241,9 +241,17 @@ Clique em **Anexar** (ou arraste para a caixa de mensagem):
   listas e tabelas; nas apresentações, slide a slide, com as notas do
   apresentador. Formatos antigos (.doc, .ppt) precisam ser salvos como .docx ou
   .pptx antes.
-- **Áudio** (MP3, WAV, M4A…): toca na conversa e é **transcrito** pela OpenAI ou
-  pelo Groq, para qualquer modelo entender; também serve de trilha para os vídeos
-  motion.
+- **Áudio** (MP3, WAV, M4A…): toca na conversa e é **transcrito** pela OpenAI,
+  pelo Groq ou pelo Whisper local, para qualquer modelo entender; também serve de
+  trilha para os vídeos motion.
+- **Vídeo** (MP4, WebM, MOV…): o TSRS tira até **16 quadros** espalhados pelo
+  vídeo (um a cada 2 segundos, nos curtos) e **transcreve o que se fala** nele.
+  O modelo recebe os quadros como imagens, com os tempos, e a transcrição; então
+  qualquer modelo com visão pode responder sobre o vídeo ("o que acontece aos
+  30 segundos?", "resuma este vídeo", "escreva a legenda"). O vídeo em si não é
+  guardado, só os quadros, e não há limite de tamanho; a transcrição usa até
+  300 MB. Formatos que o navegador não abre (alguns MOV e MKV) precisam ser
+  convertidos para MP4 antes.
 
 ### Pasta do projeto
 

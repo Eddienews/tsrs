@@ -92,7 +92,10 @@ de pacotes) e do Chrome, do Edge ou do Chromium do Playwright.
 ### Arquivos e conhecimento
 - Anexe imagens, PDFs, textos, arquivos do Word e do PowerPoint (lidos como
   Markdown, slide a slide com as notas), planilhas do Excel (lidas como CSV, uma
-  por aba) e áudio (transcrito pela OpenAI ou pelo Groq, para qualquer modelo usar).
+  por aba), áudio (transcrito pela OpenAI, pelo Groq ou pelo Whisper local, para
+  qualquer modelo usar) e vídeo: até 16 quadros espalhados por ele vão como
+  imagens, com a transcrição do que se fala, para qualquer modelo com visão
+  conversar sobre ele.
 - Bases de conhecimento locais: PDFs, textos, Markdown e HTML divididos em
   trechos e buscados por palavras (BM25, sem API) e, se quiser, por sentido
   (embeddings), por conversa ou por agente; o modelo pode buscar de novo com
