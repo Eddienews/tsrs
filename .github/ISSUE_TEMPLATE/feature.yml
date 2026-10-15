@@ -1,23 +1,36 @@
-name: Ideia de recurso
-description: Proponha algo novo para o TSRS
+name: Feature idea · Ideia de recurso
+description: Propose something new for TSRS · Proponha algo novo para o TSRS
 labels: [enhancement]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Write in English or Portuguese. For an open-ended idea, [Discussions](https://github.com/Eddienews/tsrs/discussions) may be a better start.
+        Escreva em inglês ou português. Para uma ideia ainda em aberto, as [Discussions](https://github.com/Eddienews/tsrs/discussions) podem ser um começo melhor.
   - type: textarea
     id: what
     attributes:
-      label: O que você quer fazer
-      description: O problema ou a tarefa, mais do que a solução.
+      label: What you want to do · O que você quer fazer
+      description: The problem or task, more than the solution. · O problema ou a tarefa, mais do que a solução.
     validations:
       required: true
   - type: textarea
     id: how
     attributes:
-      label: Como poderia funcionar
+      label: How it could work · Como poderia funcionar
   - type: checkboxes
     id: principles
     attributes:
-      label: Princípios
-      description: Veja o CONTRIBUTING.md.
+      label: Principles · Princípios
+      description: See CONTRIBUTING.md. · Veja o CONTRIBUTING.pt-BR.md.
       options:
-        - label: Funciona sem um servidor do TSRS, sem conta e sem telemetria
+        - label: Works without a TSRS server, accounts or telemetry · Funciona sem um servidor do TSRS, sem conta e sem telemetria
           required: true
+  - type: dropdown
+    id: help
+    attributes:
+      label: Would you like to build it? · Você gostaria de implementar?
+      options:
+        - Yes · Sim
+        - With some help · Com alguma ajuda
+        - No · Não

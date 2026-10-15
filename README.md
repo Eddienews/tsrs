@@ -1,434 +1,259 @@
 # TSRS — The Signal Room Studio
 
-Interface de chat local-first para modelos de IA. Protótipo.
+**English** · [Português](README.pt-BR.md)
 
-Tudo roda no navegador: as conversas e as chaves de API ficam na sua máquina e
-as mensagens vão direto para o provedor escolhido. Não há backend.
+A local-first studio for working with AI models. Bring your own API keys, use
+every major model from one screen, and keep your conversations, keys and files on
+your own computer.
 
-## Rodando
+TSRS is open source (MIT) and made by [NorthWind Lab](https://northwindlab.com).
+There is no TSRS account, no subscription, no telemetry and no TSRS cloud: the
+app runs in your browser and talks straight to the provider you chose. The
+optional local server (`npm run dev`) runs on your own machine and adds the
+things a browser cannot do alone, such as saving files to folders, rendering
+video and running scheduled tasks.
 
-```bash
-npm install
-npm run dev      # http://localhost:5173
-npm run build    # checagem de tipos + build de produção em dist/
-npm test         # testes unitários (vitest)
-npm run test:e2e # testes de ponta a ponta (Playwright, com um provedor falso)
-npm run proxy    # proxy local opcional para provedores sem CORS (OpenCode)
-npm run render -- motion-1.html  # transforma uma composição motion em MP4 (precisa do ffmpeg)
-npm run render:serve             # renderizador avulso, para um TSRS servido sem o npm run dev
-```
+> **New here?** The user manual, in Portuguese for now, walks through every
+> feature with tips: [docs/MANUAL.pt-BR.md](docs/MANUAL.pt-BR.md).
 
-Os testes de ponta a ponta usam o Chromium do Playwright, se instalado
-(`npx playwright install chromium`), ou senão o Google Chrome do sistema, no
-Linux, no Windows e no macOS. Para outro navegador, aponte `CHROMIUM_PATH` para
-ele (por exemplo `/usr/bin/chromium` ou
-`/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`).
+## Why TSRS
 
-Abra **Configurações**, informe a chave do provedor, clique em **Carregar
-modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
+- **Every model, one place.** Anthropic, OpenAI, Gemini, OpenRouter, DeepSeek,
+  Mistral, xAI, Groq, Perplexity, local models through Ollama or LM Studio, and
+  any OpenAI-compatible endpoint. Compare up to four answers side by side.
+- **Pay only for what you use.** Your keys, the providers' prices, no markup.
+  TSRS shows the tokens and the estimated cost of every reply and of each day.
+- **Your data stays yours.** Conversations live in your browser; keys can be
+  encrypted with a password; nothing is sent anywhere else. Sync between devices
+  goes through a folder, WebDAV server or S3 bucket of your own.
+- **Real files, not just chat.** Pages, code, documents, generated media and
+  rendered videos are saved in a project folder per conversation, so Claude Code,
+  Codex or any editor can carry on from the same files.
+- **Extensible in the formats you already know.** Skills and plugins use the same
+  layout as Claude's, plus MCP servers and your own tools by HTTP or JavaScript.
+- **More than text.** Images, video, voice, music, motion graphics rendered to
+  MP4, deep research reports, a canvas, a live preview for pages and apps.
 
-## Recursos
+## Quick start
 
-- Respostas em streaming, com Markdown, realce de sintaxe e botão de copiar.
-- Editar e reenviar uma mensagem, regenerar a resposta e tentar de novo após um erro.
-- Ramificar a conversa a partir de qualquer mensagem e fixar mensagens, que
-  ficam como atalhos no topo da conversa.
-- Ler a resposta em voz alta com as vozes do sistema e ditar a mensagem pela
-  OpenAI, pelo Groq ou pelo reconhecimento de voz do navegador.
-- Fontes citadas pelo Perplexity e pela busca do OpenRouter, listadas abaixo da
-  resposta.
-- Versões: editar ou regenerar guarda a versão anterior da conversa, e as
-  setas ‹ › em cada mensagem alternam entre elas.
-- Comparar modelos: até três outros modelos respondem à mesma pergunta ao mesmo
-  tempo, e as respostas aparecem em colunas lado a lado.
-- Ferramentas: servidores MCP remotos (HTTP), com pedido de permissão a cada
-  chamada, e busca na web e leitura de páginas executadas pelo provedor
-  (Anthropic; busca também no OpenRouter).
-- Biblioteca de personas (prompts de sistema com nome, opcionalmente ligados a
-  um modelo) e de prompts salvos para inserir na mensagem, com campos
-  `{{nome}}` preenchidos na hora de inserir. O app já vem com quatro personas
-  (revisor, tradutor, programador e professor) e seis prompts prontos, em
-  português ou inglês, editáveis; os que forem apagados podem ser trazidos de
-  volta pela Biblioteca.
-- Agentes: uma persona pode ter ferramentas próprias, arquivos enviados como
-  contexto em todo pedido e sugestões iniciais na tela da conversa vazia.
-- Memória (opcional): o modelo guarda fatos sobre você com uma ferramenta, e a
-  lista, que você vê e edita na Biblioteca, vai em toda conversa.
-- Resumo do contexto: quando a conversa se aproxima do limite do modelo, um
-  botão a resume; dali em diante só o resumo e as mensagens seguintes são
-  enviados.
-- Geração de imagem, vídeo e áudio pelos botões Imagem, Vídeo e Áudio do campo
-  de envio. Com as chaves dos provedores: imagens pela OpenAI (GPT Image), pelo
-  Gemini (Imagen) e pela xAI (Grok Imagine), vídeo pelo Veo e pelo Grok Imagine,
-  e voz pela OpenAI e pelo Gemini. E por serviços de mídia com a chave do próprio
-  usuário: ElevenLabs, Runware, fal.ai, Replicate, WaveSpeedAI, Higgsfield,
-  Stability AI, Black Forest Labs (FLUX), MiniMax e Cartesia, escolhidos em
-  Configurações → Mídia, com o modelo e opções em JSON. Vídeos esperam na fila
-  do serviço mostrando o progresso; parar a resposta cancela o pedido na fal.ai,
-  no Replicate e na Higgsfield. O arquivo gerado é baixado e fica na conversa.
-  Antes de enviar, aparece o custo estimado quando há como saber: pela tabela
-  de preços do Veo, pela API de preços da fal.ai e pelas fichas dos modelos do
-  Runware.
-- Leitura das respostas em voz alta com a voz do navegador ou com uma voz da
-  ElevenLabs, da OpenAI ou do Gemini (Configurações → Mídia); respostas longas
-  são lidas em trechos, e cada trecho é gerado uma vez por sessão. Das vozes do
-  navegador, a escolhida automaticamente é a mais natural do idioma: no
-  Microsoft Edge, as neurais "Online (Natural)", grátis. Na ElevenLabs, a lista
-  traz as vozes da sua conta (as suas primeiro, com amostra para ouvir) e o
-  modelo (Multilingual, v3, Flash), com o preço por mil caracteres.
-- Custo: o preço de cada modelo vem do provedor (OpenRouter), da tabela do app
-  (Anthropic e OpenAI, outubro de 2026) ou do que você informar em "definir
-  preço", ao lado dos tokens da conversa. Áudio da ElevenLabs mostra o custo
-  antes (por caractere) e depois de gerar.
-- Conversa temporária: fica só na memória da aba, sem histórico, sincronização
-  nem memória, e some quando você sai dela.
-- Pergunta à parte: selecione um trecho da resposta e pergunte sobre ele num
-  painel lateral, sem acrescentar nada à conversa.
-- Base de conhecimento local: PDFs, textos, Markdown e HTML viram trechos
-  buscados por palavras (BM25), sem API, e opcionalmente também por sentido,
-  com o modelo de embeddings de um provedor; os trechos que mais combinam com
-  cada pergunta vão junto com ela e aparecem abaixo da resposta, e o modelo pode
-  buscar de novo com outras palavras pela ferramenta `knowledge_search`.
-  Liga-se por conversa (Parâmetros) ou por persona.
-- Canvas: um documento ou código ao lado da conversa, que o modelo escreve e
-  edita com ferramentas e você edita à mão; desfazer, ver formatado, abrir no
-  preview, baixar e pedir mudanças num trecho selecionado.
-- Sincronização entre dispositivos por uma pasta que o Dropbox, o Drive, o
-  OneDrive ou o Syncthing mantêm igual, por um servidor WebDAV ou por um bucket
-  S3 (AWS, Cloudflare R2, Backblaze B2, MinIO…), com senha opcional (AES-GCM);
-  conversas e cada item da biblioteca e documentos, sem as chaves de API.
-- Preview: blocos de código HTML, SVG, JavaScript, Markdown, React (JSX/TSX) e
-  Mermaid abrem em um painel ao lado da conversa, com abas de código e console e tamanhos de tela; a barra
-  de endereço também abre páginas por URL (por exemplo, `localhost:3000`).
-- Paleta de comandos (Ctrl/⌘+K) para ir a conversas, trocar de modelo e abrir
-  telas. Os atalhos podem ser trocados em Configurações → Atalhos.
-- Data e hora de cada mensagem, e um som opcional quando a resposta termina.
-- Vídeos com motion: um bloco `motion` é uma página HTML animada (CSS, anime.js,
-  Lottie ou desenho próprio por quadro) que abre no preview com uma linha do
-  tempo (tocar, pausar, arrastar). O tamanho, a duração e os quadros por segundo
-  vêm de `<meta name="nwlab:size" content="1080x1920">`,
-  `<meta name="nwlab:duration" content="8">` e `<meta name="nwlab:fps" content="30">`.
-  Baixe o arquivo e rode `npm run render -- motion-1.html` para gerar o MP4
-  (H.264, com `--audio musica.wav` para uma trilha, nivelada em -14 LUFS). É o
-  mesmo contrato das páginas de motion do NWLab ForgeOS: nada toca em tempo real,
-  cada quadro é a página posicionada no seu instante e fotografada, então o vídeo
-  sai igual em qualquer máquina. Veja [Vídeos com motion](#vídeos-com-motion).
-- O modelo é avisado, por uma nota no prompt de sistema, de que o preview existe
-  (pode ser desligado em Configurações → Geral).
-- Tema claro e escuro, cor de destaque, tamanho da fonte e densidade.
-- Anexos: imagens e PDFs (colar, arrastar ou escolher), arquivos de texto e
-  planilhas do Excel (.xlsx), lidas no navegador e enviadas como CSV, uma por
-  aba, com datas e resultados de fórmulas como o Excel mostra.
-- Áudio anexado (MP3, WAV, M4A, OGG, FLAC, até 25 MB) toca na conversa e é
-  transcrito na hora pela OpenAI ou pelo Groq (o mesmo provedor do ditado, se
-  houver chave); o modelo recebe o texto, já que as APIs de chat não aceitam
-  áudio. Sem chave, o arquivo vai junto e o modelo é avisado de que não o ouviu.
-  O áudio da conversa também aparece como trilha do vídeo motion.
-- Conversas com busca, pastas, etiquetas, arquivo, fixar, renomear e título
-  gerado automaticamente; várias de uma vez podem ser arquivadas, movidas,
-  etiquetadas ou excluídas.
-- Parâmetros por conversa: prompt de sistema, temperatura, máximo de tokens e
-  nível de raciocínio.
-- Exportar uma conversa em Markdown; backup e restauração de tudo em JSON
-  (conversas, pastas, personas, prompts, memória e bases de conhecimento; sem as
-  chaves de API); exportar uma
-  conversa como página HTML; apagar tudo o que o app guardou no navegador.
-- Raciocínio do modelo, recolhido acima da resposta, quando o provedor envia
-  (Anthropic a partir dos modelos 4.6, OpenRouter, Ollama, DeepSeek).
-- Tokens e custo estimado por resposta e por conversa, com aviso quando o
-  contexto do modelo está quase cheio.
-- Tela de uso: tokens, custo e respostas por dia e por modelo, nos últimos 7,
-  30 ou 90 dias (inclui as versões anteriores das respostas).
-- Proteção opcional das chaves de API por senha (PBKDF2 + AES-GCM).
-- Instalável como aplicativo (PWA); o build de produção abre sem conexão.
-- Erros explicados (chave inválida, limite de uso, falha de rede ou CORS), com
-  botão de tentar de novo.
-- Interface em português e inglês: segue o idioma do navegador e pode ser
-  trocada em Configurações.
-
-## Contexto da pasta, busca própria e pesquisa profunda
-
-- **Contexto da pasta**: no menu de uma pasta da barra lateral, "Contexto da
-  pasta…" define instruções, arquivos e um agente que valem para todas as
-  conversas dela. "Nova conversa nesta pasta" já começa dentro dela, com o
-  agente e o modelo dele.
-- **Busca própria**: em Ferramentas, uma chave da Brave Search, da Tavily, do
-  Google (Programmable Search, com o ID `cx`) ou da Kagi faz qualquer modelo
-  buscar na web e ler páginas (`search_web` e `read_page`), no lugar da busca do
-  provedor, com as fontes listadas abaixo da resposta. O servidor do TSRS faz as
-  chamadas; páginas da rede local não são lidas, nem depois de redirecionamentos.
-- **Pesquisa profunda**: o botão Pesquisa, ao lado de Prompts, transforma a
-  próxima mensagem numa pesquisa em rodadas (várias buscas e leituras, até 40
-  rodadas de ferramentas) que termina num relatório com fontes citadas. O
-  relatório e a lista de todas as páginas consultadas ficam em
-  `pesquisas/` na pasta do projeto. Precisa da busca própria ou de um modelo
-  da Anthropic ou do OpenRouter.
-
-## Pasta do projeto
-
-Quando uma conversa cria arquivos (uma página, seus estilos e scripts, um vídeo
-motion), o TSRS grava cada um como arquivo de verdade numa pasta da conversa,
-criada sozinha em `projetos/` na pasta do TSRS, com o nome da conversa. Junto
-vai um `NOTAS.md` com o pedido e o histórico do que foi salvo. Assim nada se
-perde se o navegador fechar, e o trabalho continua em qualquer ferramenta:
-abra a pasta no Claude Code, no Codex ou num editor. Ao voltar à conversa, o
-modelo lê a versão atual dos arquivos (ferramentas `project_list_files`,
-`project_read_file` e `project_write_file`, só dentro da pasta).
-
-- Imagens, áudios e vídeos gerados vão também para `midia/`, e os MP4 do
-  Gerar MP4 para `videos/`, na pasta da conversa (sem pasta, em `renders/`).
-- O botão da pasta no topo da conversa mostra o caminho, os arquivos (páginas
-  abrem no preview) e permite usar outra pasta, para onde os arquivos atuais
-  são copiados.
-- Um bloco de código vira arquivo quando nomeia o arquivo depois da linguagem
-  (` ```html index.html `) ou quando é uma página, um SVG ou um vídeo motion
-  inteiros; trechos soltos de uma explicação não criam pasta.
-- Liga e desliga em Configurações → Geral. Precisa do TSRS aberto pelo
-  `npm run dev` (ou `vite preview`): o navegador sozinho não grava pastas.
-  `TSRS_PROJECTS` muda a pasta de projetos.
-
-## Extensões: skills, plugins e agenda
-
-O botão Extensões (peça de quebra-cabeça, embaixo na barra lateral) reúne três
-coisas, guardadas em disco em `extensoes/` na pasta do TSRS (`TSRS_EXTENSIONS`
-muda o lugar). Precisam do TSRS aberto pelo `npm run dev`.
-
-- **Skills**, no formato das skills do Claude: uma pasta com `SKILL.md` (nome,
-  quando usar e as instruções) e arquivos de apoio. Instale um `.zip`, um
-  `.skill`, um `SKILL.md` ou uma pasta, ou crie uma no app. O modelo vê só os
-  nomes e descrições e carrega a skill quando a tarefa pede (`skill_load`,
-  `skill_read_file`). Cada uma liga e desliga.
-- **Plugins**, no formato dos plugins do Claude (`.claude-plugin/plugin.json`):
-  skills, comandos (`commands/*.md`, aparecem em Prompts como `/nome`), agentes
-  (`agents/*.md`, um clique adiciona à biblioteca) e servidores MCP (`.mcp.json`;
-  os remotos vão para Ferramentas). Mais ferramentas próprias em `tools/*.json`:
-  por HTTP (o servidor do TSRS faz a chamada; `{param}` na URL e
-  `${env:NOME}` para chaves fora do arquivo) ou em JavaScript, que roda isolado
-  do TSRS, sem acesso às chaves. "Nova ferramenta" cria uma pelo app.
-- **Agenda**: pedidos que o servidor manda ao modelo no horário (uma vez, todo
-  dia ou em dias da semana, ou a cada tantas horas), mesmo com a aba fechada,
-  enquanto o `npm run dev` roda. Cada resposta vira mensagem na conversa
-  "Agenda: nome" e um arquivo em `extensoes/agenda/resultados`. Para rodar
-  sem a aba, a chave do provedor fica num arquivo do computador
-  (`extensoes/agenda/chaves.json`), só com a sua permissão, e pode ser apagada
-  na mesma tela; `TSRS_KEY_OPENAI` e semelhantes no ambiente também servem.
-  Uma tarefa perdida com o computador desligado roda quando o servidor volta.
-
-Nada é apagado de verdade: skills e plugins removidos vão para
-`extensoes/_removidas/`.
-
-## Vídeos com motion
-
-Peça ao modelo uma animação ("faça uma abertura de 6 segundos em 1080x1920 com o
-título X"). A resposta vem num bloco `motion`, que abre no preview com uma linha
-do tempo.
-
-O MP4 sai do próprio preview: escolha a trilha (um áudio da conversa, como uma
-voz ou música gerada, ou um arquivo do computador) e clique em **Gerar MP4**. O
-vídeo aparece para baixar e fica salvo em `renders/`, sem sobrescrever os
-anteriores. O renderizador já vem dentro do `npm run dev` (e do `vite preview`),
-em `/__tsrs/render`, e só aceita pedidos do próprio TSRS; o áudio vai do
-navegador para o servidor no mesmo computador e não sai daí. Um TSRS servido de
-outro jeito (um build estático) usa o renderizador avulso: `npm run render:serve`,
-que escuta só em `127.0.0.1:8788` e atende só o endereço do TSRS (`--origin`
-para outros).
-
-Pelo terminal, com um arquivo baixado do preview:
+You need [Node.js](https://nodejs.org) 22 or newer and a Chromium-based browser
+(Chrome, Edge, Brave, Arc) or Firefox/Safari.
 
 ```bash
-npm run render -- motion-1.html                      # gera motion-1.mp4 ao lado
-npm run render -- motion-1.html --audio trilha.wav   # com trilha, cortada e com fade
-npm run render -- motion-1.html --fps 60 --crf 16 --out abertura.mp4
+git clone https://github.com/Eddienews/tsrs.git
+cd tsrs
+npm ci
+npm run dev        # http://localhost:5173
 ```
 
-Uma composição é uma página HTML comum. O runtime (`public/motion/runtime.js`)
-é carregado antes dos scripts dela e a anima assim, a cada instante `t`:
+Open **Settings**, paste the API key of a provider, click **Load models** (or
+type a model name in the top bar) and send a message. With
+[Ollama](https://ollama.com) installed, local models work with no key at all.
 
-- animações e transições CSS e Web Animations são pausadas e posicionadas em `t`;
-- timelines do anime.js v4 (global `anime`, criadas com `autoplay: false`) passadas a
-  `NWLab.register(tl)` são posicionadas em `t`;
-- funções passadas a `NWLab.onSeek((t) => …)` e `window.nwlabSeek(t)` desenham o quadro;
-- Lottie (global `lottie`, renderer `svg`, `autoplay: false`) com `goToAndStop` no `onSeek`.
+Optional extras:
 
-`window.nwlabReady` (uma promise) faz o render esperar fontes ou arquivos. Nada
-pode depender do relógio (`Date`, `requestAnimationFrame`, `setTimeout`) ou de
-`Math.random` sem semente: o mesmo `t` tem de dar o mesmo quadro. É o contrato
-das páginas de motion do NWLab ForgeOS (MR-013), então uma composição feita aqui
-serve de base para um template de lá.
+```bash
+npm run proxy                         # local proxy for APIs that refuse browsers (OpenCode, Replicate…)
+npm run render -- motion-1.html       # render a motion composition to MP4 (needs ffmpeg)
+npm run render:serve                  # standalone renderer, for a TSRS not served by npm run dev
+npm run build                         # type check + production build in dist/
+```
 
-O ffmpeg precisa estar instalado (Windows: `winget install Gyan.FFmpeg`; macOS:
-`brew install ffmpeg`; Linux: o gerenciador de pacotes) ou indicado em `FFMPEG`.
-O navegador é o mesmo dos testes: `CHROMIUM_PATH`, o Chromium do Playwright, o
-Chrome ou o Edge.
+Rendering video needs [ffmpeg](https://ffmpeg.org) (Windows:
+`winget install Gyan.FFmpeg`; macOS: `brew install ffmpeg`; Linux: your package
+manager) and Chrome, Edge or Playwright's Chromium.
 
-## Provedores
+## Features
+
+### Conversations
+- Streaming replies with Markdown, code highlighting and copy buttons; edit,
+  regenerate, retry, and keep every version (‹ › arrows on each message).
+- Branch a conversation from any message; pin messages; search, folders, tags,
+  archive and bulk actions; automatic titles.
+- Compare models: up to three other models answer the same question in columns.
+- Side question: select part of a reply and ask about it in a side panel.
+- Temporary conversations that leave no history.
+- Per-conversation system prompt, temperature, max tokens and reasoning effort;
+  the model's reasoning, folded above the reply, when the provider sends it.
+- Context summary when a conversation approaches the model's limit.
+- Command palette (Ctrl/⌘+K), configurable shortcuts, timestamps, a sound when a
+  reply ends, light and dark themes, accent colour, font size and density.
+- Interface in English and Portuguese.
+
+### Files and knowledge
+- Attach images, PDFs, text files, Excel spreadsheets (read as CSV, one per
+  sheet) and audio (transcribed by OpenAI or Groq so any model can use it).
+- Local knowledge bases: PDFs, text, Markdown and HTML split into passages and
+  searched by words (BM25, no API) and optionally by meaning (embeddings), per
+  conversation or per agent; the model can search again with `knowledge_search`.
+- **Project folder**: the files a conversation makes are saved in
+  `projetos/<conversation>/` with a `NOTAS.md`; the model reads the current
+  version before changing anything, so you can switch between TSRS and other
+  tools. Any other folder can be used instead.
+- **Folder context**: instructions, files and an agent for every conversation in
+  a sidebar folder.
+
+### Preview, canvas and video
+- Live preview of HTML, SVG, JavaScript, Markdown, React (JSX/TSX) and Mermaid,
+  isolated from the app, with code and console tabs and screen sizes; the address
+  bar also opens pages such as `localhost:3000`.
+- Canvas: a document or code beside the chat that the model writes and edits with
+  tools and you edit by hand.
+- **Motion video**: a `motion` block is an animated HTML page (CSS, anime.js,
+  Lottie or your own drawing per frame) with a timeline in the preview; **Make
+  MP4** renders it frame by frame with a soundtrack. See [Motion video](#motion-video).
+
+### Media and voice
+- Images, video, speech, music and sound effects with the providers' keys
+  (OpenAI, Gemini, xAI) or media services' (ElevenLabs, Runware, fal.ai,
+  Replicate, WaveSpeedAI, Higgsfield, Stability AI, Black Forest Labs, MiniMax,
+  Cartesia), with the estimated cost before sending when the service publishes it.
+- Read replies aloud with the browser's most natural voice (Microsoft Edge's
+  free neural voices) or an ElevenLabs, OpenAI or Gemini voice; pick your own
+  ElevenLabs voices with samples and prices.
+- Dictation through OpenAI, Groq or the browser's speech recognition.
+
+### Tools, agents and extensions
+- Remote MCP servers, with permission before each call.
+- Web search and page reading by the provider (Anthropic, OpenRouter) or with
+  **your own key** (Brave, Tavily, Google, Kagi) for any model, with sources.
+- **Deep research**: rounds of searching and reading that end in a report with
+  cited sources, saved in the project folder.
+- Agents: personas with a model, tools, files, knowledge and starter prompts;
+  four come with the app, along with ready-made prompts with `{{fields}}`.
+- Memory (optional): facts the model keeps about you, in a list you can edit.
+- **Skills** in Claude's `SKILL.md` format, loaded only when a task needs them.
+- **Plugins** in Claude's layout (skills, commands, agents, MCP servers) plus
+  your own tools by HTTP or sandboxed JavaScript.
+- **Schedule**: prompts the local server sends to a model on time, even with
+  the tab closed; the answers land in a conversation.
+
+### Costs, privacy and sync
+- Tokens and estimated cost per reply, per conversation and per day and model
+  (usage view); prompt caching on Anthropic; a price you type for models the app
+  does not know.
+- API keys optionally encrypted with a password (PBKDF2 + AES-GCM).
+- Sync between devices through a folder kept in sync by Dropbox, Drive, OneDrive
+  or Syncthing, a WebDAV server or an S3 bucket, optionally encrypted; keys are
+  never synced.
+- Backup and restore everything as JSON; export a conversation as Markdown or a
+  single HTML page; installable as an app (PWA).
+- The running version and git commit are shown under the name, so a screenshot
+  says which code was running.
+
+## Local server features
+
+`npm run dev` serves the app and, on the same address, a few local services that
+only accept requests from TSRS itself:
+
+| Path | What it does | Folder |
+| --- | --- | --- |
+| `/__tsrs/projects` | Project folders: save, list, read and serve the files of a conversation | `projetos/` (`TSRS_PROJECTS`) |
+| `/__tsrs/render` | Renders motion compositions to MP4 | `renders/` or the project's `videos/` (`TSRS_RENDERS`) |
+| `/__tsrs/ext` | Skills, plugins, own tools by HTTP, web search and page reading, schedule | `extensoes/` (`TSRS_EXTENSIONS`) |
+
+Nothing is ever deleted for real: removed skills and plugins go to
+`extensoes/_removidas/`, and a video never overwrites another. A static build
+(`npm run build`) still works as a browser-only app without these features.
+
+## Motion video
+
+Ask for an animation ("a 6-second opening in 1080x1920 with the title X"). The
+reply comes as a `motion` block that opens in the preview with a timeline; the
+soundtrack plays with it. **Make MP4** renders the video on your computer and
+saves it in the project folder.
+
+A composition is an ordinary HTML page. Size, duration and frame rate come from
+`<meta name="nwlab:size" content="1080x1920">`,
+`<meta name="nwlab:duration" content="8">` and
+`<meta name="nwlab:fps" content="30">`. The runtime (`public/motion/runtime.js`)
+loads before the page's own scripts and moves it to each time `t`:
+
+- CSS animations, transitions and Web Animations are paused and set to `t`;
+- anime.js v4 timelines (global `anime`, created with `autoplay: false`) passed
+  to `NWLab.register(tl)` are set to `t`;
+- functions passed to `NWLab.onSeek((t) => …)` or `window.nwlabSeek(t)` draw the frame;
+- Lottie (global `lottie`, `svg` renderer, `autoplay: false`) with `goToAndStop` in `onSeek`.
+
+Nothing may depend on the clock (`Date`, `requestAnimationFrame`, `setTimeout`)
+or on unseeded `Math.random`: the same `t` must give the same frame, so the
+video comes out the same on any machine. From the terminal:
+
+```bash
+npm run render -- motion-1.html                      # writes motion-1.mp4 beside it
+npm run render -- motion-1.html --audio track.wav    # with a soundtrack, trimmed and faded
+npm run render -- motion-1.html --fps 60 --crf 16 --out opening.mp4
+```
+
+This is the same contract as NWLab ForgeOS motion pages.
+
+## Providers
 
 Anthropic, OpenAI, Google Gemini, OpenRouter, DeepSeek, Mistral, xAI (Grok),
-Groq, Perplexity, Command Code, OpenCode Zen e Go (pelo proxy local), Ollama
-(local), LM Studio (local) e qualquer endpoint compatível com a API de chat da
-OpenAI ("Custom").
+Groq, Perplexity, Command Code, OpenCode Zen and Go (through the local proxy),
+Ollama and LM Studio (local), and any endpoint compatible with OpenAI's chat API
+("Custom").
 
-O Command Code aparece duas vezes, com a mesma chave: "Command Code" para os
-modelos no formato da OpenAI e "Command Code (Claude)" para os modelos Claude,
-que ele só serve no formato da Anthropic. A API dele exige o plano Pro.
+Each provider is one row in `src/providers.ts`: base URL, paths, headers (with
+`{apiKey}` as a placeholder) and the API format (`openai` or `anthropic`). An
+OpenAI-compatible provider needs no new code.
 
-Na Anthropic, o cache de prompt fica ligado por padrão: a parte da conversa já
-enviada é cobrada a cerca de 10% do preço nas mensagens seguintes. O rodapé de
-cada resposta mostra quantos tokens vieram do cache.
+APIs that refuse calls from browsers work through `npm run proxy`, which listens
+only on `localhost:8787`, answers only the app's origin and forwards only to the
+hosts it allows (`--allow host` adds more).
 
-As APIs do OpenCode não aceitam chamadas do navegador. Para usá-las, rode
-`npm run proxy` na pasta do TSRS: o proxy escuta só em `localhost:8787`, atende
-só a origem do app (`--origin` para outra) e só repassa para `opencode.ai`
-(`--allow host` acrescenta outros). Ele vem ligado nos provedores do OpenCode e
-pode ser ligado nos locais e no Custom. O plano gratuito do Zen só funciona
-dentro do próprio OpenCode.
+## Project layout
 
-Cada provedor é uma linha na tabela de `src/providers.ts`: URL base, caminhos,
-cabeçalhos (com `{apiKey}` como placeholder) e o formato da API (`openai` ou
-`anthropic`). Um provedor compatível com OpenAI não exige código novo.
+| Path | Role |
+| --- | --- |
+| `src/App.tsx` | Conversation state, generating replies, layout |
+| `src/stream.ts` | Streaming client (fetch + SSE), errors, model lists, tool loop |
+| `src/providers.ts` | Provider table and known prices |
+| `src/storage.ts` | Settings in localStorage, conversations in IndexedDB |
+| `src/preview.ts`, `src/PreviewPanel.tsx`, `src/MotionStage.tsx` | Preview and motion timeline |
+| `src/projects.ts`, `server/projects.mjs` | Project folders |
+| `src/extensions.ts`, `server/extensions.mjs` | Skills, plugins and own tools |
+| `src/agenda.ts`, `server/agenda.mjs` | Schedule |
+| `src/webSearch.ts`, `src/research.ts`, `server/search.mjs` | Own web search and deep research |
+| `render/` | Motion contract, MP4 renderer and its Vite plugin |
+| `src/media.ts`, `src/mediaJobs.ts`, `src/mediaPrice.ts` | Media services, jobs and prices |
+| `src/knowledge.ts`, `src/embeddings.ts`, `src/extract.ts` | Knowledge bases |
+| `src/sync*.ts` | Sync through a folder, WebDAV or S3 |
+| `src/i18n.ts`, `src/locales/en.ts` | Interface language; English texts keyed by the Portuguese ones |
+| `proxy/cors-proxy.mjs` | Local CORS proxy |
+| `e2e/` | End-to-end tests and the fake provider they use |
 
-## Estrutura
+Conversations are stored in IndexedDB in two parts: metadata (title, folder,
+model, canvas) and messages, read when the conversation opens.
 
-| Arquivo                  | Papel                                                       |
-| ------------------------ | ----------------------------------------------------------- |
-| `src/providers.ts`       | Tabela declarativa de provedores e preços conhecidos        |
-| `src/stream.ts`          | Cliente de streaming (fetch + SSE), erros e lista de modelos |
-| `src/storage.ts`         | Configurações em localStorage, conversas em IndexedDB       |
-| `src/crypto.ts`          | Criptografia das chaves de API                              |
-| `src/mcp.ts`             | Conexão com servidores MCP                                  |
-| `src/tools.ts`           | Ferramentas oferecidas ao modelo em cada requisição         |
-| `src/memory.ts`          | Ferramentas e prompt da memória                             |
-| `src/summary.ts`         | Resumo do contexto                                          |
-| `src/media.ts`           | Serviços de mídia: pedido, fila, progresso e download       |
-| `src/MediaSection.tsx`   | Seção Mídia das Configurações                               |
-| `src/knowledge.ts`       | Trechos e busca (palavras e sentido) da base de conhecimento |
-| `src/embeddings.ts`      | Vetores dos trechos e das perguntas, pelo provedor          |
-| `src/extract.ts`         | Texto de PDFs (pdf.js), HTML e arquivos de texto            |
-| `src/spreadsheet.ts`     | Leitura de planilhas .xlsx (abertas com fflate)             |
-| `src/KnowledgeTab.tsx`   | Bases de conhecimento na Biblioteca                         |
-| `src/canvas.ts`          | Ferramentas e texto do canvas                               |
-| `src/CanvasPanel.tsx`    | Painel do canvas                                            |
-| `src/sync.ts`            | Formato da pasta de sincronização e quem vence cada mudança |
-| `src/syncFolder.ts`      | Acesso à pasta pelo navegador (File System Access API)      |
-| `src/syncRemote.ts`      | Sincronização por WebDAV e S3 (assinatura AWS v4)           |
-| `src/SyncSection.tsx`    | Seção Sincronização das Configurações                       |
-| `src/SideChat.tsx`       | Painel da pergunta à parte                                  |
-| `proxy/cors-proxy.mjs`   | Proxy local para provedores e servidores sem CORS           |
-| `src/ToolsDialog.tsx`    | Ferramentas web e servidores MCP                            |
-| `src/usage.ts`           | Contagem de tokens, custo e uso do contexto                 |
-| `src/report.ts`          | Totais de uso por dia e por modelo                          |
-| `src/UsageView.tsx`      | Tela de uso                                                 |
-| `src/branches.ts`        | Versões de uma conversa (edições e regenerações)            |
-| `src/files.ts`           | Leitura de anexos, exportação Markdown e backup             |
-| `src/i18n.ts`            | Idioma da interface e tradução dos textos (`t()`)           |
-| `src/locales/en.ts`      | Textos em inglês, indexados pelo texto em português         |
-| `src/App.tsx`            | Estado das conversas, geração de respostas e layout         |
-| `src/Sidebar.tsx`        | Busca, pastas, conversas fixadas e menus                    |
-| `src/ChatTopBar.tsx`     | Modelo, persona, uso de tokens e atalhos da conversa        |
-| `src/MessageView.tsx`    | Mensagem, edição, versões e ações                           |
-| `src/Markdown.tsx`       | Markdown das respostas (carregado logo após abrir o app)    |
-| `src/MarkdownRenderer.tsx` | Renderização do Markdown e blocos de código               |
-| `src/ToolCallBlock.tsx`  | Chamada de ferramenta e pedido de permissão                 |
-| `src/Composer.tsx`       | Campo de envio, anexos e prompts salvos                     |
-| `src/PreviewPanel.tsx`   | Painel de preview                                           |
-| `src/preview.ts`         | Documento do preview, console e endereços                   |
-| `src/MotionStage.tsx`    | Composição motion no preview, com a linha do tempo          |
-| `render/motion.mjs`      | Contrato motion, comum ao preview e ao render               |
-| `render/render.mjs`      | `npm run render`: composição motion para MP4                |
-| `render/serve.mjs`       | Renderizador do botão Gerar MP4 (e `npm run render:serve`)  |
-| `render/vite-plugin.mjs` | Renderizador dentro do `npm run dev`, em `/__tsrs/render`   |
-| `server/projects.mjs`    | Pastas de projeto: criar, gravar, ler, listar e servir arquivos |
-| `src/projects.ts`        | Arquivos das respostas, notas e ferramentas da pasta do projeto |
-| `server/extensions.mjs`  | Skills e plugins em disco; ferramentas HTTP                  |
-| `server/agenda.mjs`      | Agenda: horários, execução pelo servidor e fila de respostas |
-| `src/ExtensionsDialog.tsx` | Tela de Extensões (skills e plugins)                       |
-| `src/AgendaTab.tsx`      | Aba Agenda                                                   |
-| `server/search.mjs`      | Busca própria (Brave, Tavily, Google, Kagi) e leitura de páginas |
-| `src/research.ts`        | Pesquisa profunda: instruções e relatório                    |
-| `src/FolderDialog.tsx`   | Contexto da pasta: instruções, arquivos e agente             |
-| `src/RenderBar.tsx`      | Trilha e botão Gerar MP4 do preview                         |
-| `src/videoRender.ts`     | Conversa com o renderizador local                           |
-| `public/motion/`         | Runtime motion, anime.js 4.5.0 e lottie-web 5.13.0 (MIT)    |
-| `src/prompts.ts`         | Campos `{{nome}}` dos prompts salvos                        |
-| `src/starters.ts`        | Personas e prompts que já vêm no app                        |
-| `src/CommandPalette.tsx` | Paleta de comandos                                          |
-| `src/shortcuts.ts`       | Atalhos de teclado configuráveis                            |
-| `src/sound.ts`           | Som ao terminar a resposta                                  |
-| `src/appearance.ts`      | Tema, cor de destaque, fonte e densidade                    |
-| `src/components/ui/`     | Componentes de interface (shadcn/ui sobre Radix)            |
-| `src/styles.css`         | Tailwind e as variáveis de cor e tipografia                 |
-| `src/ParamsPanel.tsx`    | Parâmetros da conversa                                      |
-| `src/SettingsDialog.tsx` | Chaves, URLs base, títulos, segurança e dados               |
-| `src/UnlockDialog.tsx`   | Pedido de senha para desbloquear as chaves                  |
-| `src/LibraryDialog.tsx`  | Personas, agentes, prompts salvos e memória                 |
-| `src/CompareDialog.tsx`  | Escolha do modelo para comparar uma resposta                |
-| `public/sw.js`           | Service worker: app disponível sem conexão                  |
-| `e2e/`                   | Testes de ponta a ponta e o provedor falso que eles usam    |
+## Known limitations
 
-No IndexedDB, cada conversa é gravada em duas partes: os metadados (título,
-pasta, modelo, canvas) e as mensagens. A lista lateral lê só os metadados; as
-mensagens são lidas quando a conversa é aberta. Os documentos das bases de
-conhecimento ficam num terceiro depósito, já divididos em trechos.
+- Without a password, API keys are stored in `localStorage` as plain text. With
+  one, they are encrypted at rest but stay in the page's memory while unlocked.
+- Costs are estimates: the provider's figure when it sends one, otherwise a price
+  table that may be out of date, or a price you typed.
+- Folder sync needs a browser that writes to folders (Chromium-based); Firefox
+  and Safari can use WebDAV or S3.
+- MCP: remote HTTP servers that accept browser calls (CORS), with an optional
+  token. Local command-line servers, OAuth login, MCP resources and prompts are
+  not supported.
+- The preview runs generated code isolated from the app but with network
+  access; React and Mermaid load libraries from public CDNs.
+- Project folders, video rendering, skills, plugins, own search and the schedule
+  need the local server (`npm run dev`); the schedule needs the computer on.
+- Tool results are third-party text sent to the model; keep permission requests
+  on for servers you do not trust, and install plugins only from people you trust.
 
-## Roadmap
+## Contributing
 
-Próximos passos em [ROADMAP.md](ROADMAP.md) e nas issues do repositório.
+Contributions are welcome: read [CONTRIBUTING.md](CONTRIBUTING.md) for the
+principles, how to run the tests and how to send a pull request, and the
+[Code of Conduct](CODE_OF_CONDUCT.md). Ideas and questions go to
+[Discussions](../../discussions); bugs and feature requests to
+[Issues](../../issues). Security problems: see [SECURITY.md](SECURITY.md).
 
-## Contribuindo
+What is done and what comes next: [ROADMAP.md](ROADMAP.md).
 
-Veja o [CONTRIBUTING.md](CONTRIBUTING.md): princípios, como rodar os testes,
-estilo do código e como mandar um pull request.
+## License
 
-## Limitações conhecidas
-
-- Sem senha, as chaves de API ficam no `localStorage` em texto puro. Com senha,
-  ficam criptografadas em repouso, mas continuam na memória da página enquanto
-  o app está desbloqueado.
-- O custo é uma estimativa: usa o valor informado pelo provedor quando existe
-  e, senão, uma tabela de preços que pode estar desatualizada. Sem preço
-  conhecido, só os tokens são mostrados.
-- A sincronização por pasta precisa de um navegador que grave em pastas
-  (Chrome, Edge, Arc e outros baseados no Chromium); no Safari e no Firefox,
-  use WebDAV ou S3. O servidor ou bucket precisa aceitar chamadas do navegador
-  (CORS), ou ser acessado pelo proxy local. Vale a mudança mais recente de cada
-  conversa e de cada item da biblioteca.
-- Sem busca por sentido, a base de conhecimento só acha palavras: sinônimos e
-  paráfrases ficam de fora. Com ela, os documentos e as perguntas vão ao
-  provedor de embeddings. PDFs que são só imagem (escaneados) não têm texto.
-- MCP: só servidores remotos por HTTP que aceitem chamadas do navegador (CORS),
-  com token opcional. Servidores locais por linha de comando, login por OAuth,
-  recursos e prompts do MCP não são suportados.
-- O resultado de uma ferramenta é texto vindo de terceiros e vai para o modelo;
-  mantenha o pedido de permissão ligado para servidores em que não confia.
-- Textos já gravados (erros, rótulos de ferramentas) não mudam ao trocar o idioma.
-- A busca, a exportação em Markdown e o total de tokens consideram só a versão
-  atual de cada conversa, não as versões alternativas.
-- Preview: o código gerado roda em um frame isolado, sem acesso às chaves e às
-  conversas, mas com acesso à rede. React e Mermaid carregam bibliotecas de CDNs
-  públicas (esm.sh, jsDelivr e o CDN do Tailwind), então precisam de internet;
-  pacotes npm importados pelo componente vêm do esm.sh. Muitos sites proíbem ser exibidos dentro de outra página e
-  aparecem em branco; o botão de abrir em nova aba contorna isso. O que está
-  aberto no painel não é guardado entre sessões.
-- PDFs dependem do suporte do provedor e do modelo escolhidos.
-- O render de vídeo roda na pasta do projeto (Node, ffmpeg e Chrome, Edge ou o
-  Chromium do Playwright), não no app instalado nem só no navegador. Ele é
-  offline: o que a composição pede da internet é bloqueado e listado
-  (`--online` libera). Arquivos ao lado da composição (imagens, fontes) podem
-  ser usados por caminho relativo. Um vídeo existente nunca é sobrescrito.
-- Provedores que não liberam CORS para o navegador precisam do proxy local
-  (`npm run proxy`), que não roda no app instalado sem a pasta do projeto.
-- Os arquivos de um agente ficam junto das configurações, no `localStorage`, e
-  somam no máximo cerca de 1,5 MB.
-- O custo do que é gerado só entra na conta da conversa quando o serviço o
-  informa (o Runware informa; os outros não).
-- Replicate, Higgsfield e Black Forest Labs não aceitam chamadas do navegador e
-  precisam do proxy local. Quando o armazenamento de um serviço não deixa o navegador baixar o
-  arquivo, ele fica só no link do serviço, que expira (em geral em 7 dias).
-- Vídeos e áudios gerados ficam guardados na conversa e entram no backup e na
-  sincronização, o que pode deixá-los grandes.
-- A memória e os agentes com ferramentas precisam de um modelo que use
-  ferramentas.
-
-## Licença
-
-[MIT](LICENSE)
+[MIT](LICENSE). anime.js and lottie-web, bundled in `public/motion/`, are MIT too.
