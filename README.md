@@ -169,6 +169,36 @@ modelo lê a versão atual dos arquivos (ferramentas `project_list_files`,
   `npm run dev` (ou `vite preview`): o navegador sozinho não grava pastas.
   `TSRS_PROJECTS` muda a pasta de projetos.
 
+## Extensões: skills, plugins e agenda
+
+O botão Extensões (peça de quebra-cabeça, embaixo na barra lateral) reúne três
+coisas, guardadas em disco em `extensoes/` na pasta do TSRS (`TSRS_EXTENSIONS`
+muda o lugar). Precisam do TSRS aberto pelo `npm run dev`.
+
+- **Skills**, no formato das skills do Claude: uma pasta com `SKILL.md` (nome,
+  quando usar e as instruções) e arquivos de apoio. Instale um `.zip`, um
+  `.skill`, um `SKILL.md` ou uma pasta, ou crie uma no app. O modelo vê só os
+  nomes e descrições e carrega a skill quando a tarefa pede (`skill_load`,
+  `skill_read_file`). Cada uma liga e desliga.
+- **Plugins**, no formato dos plugins do Claude (`.claude-plugin/plugin.json`):
+  skills, comandos (`commands/*.md`, aparecem em Prompts como `/nome`), agentes
+  (`agents/*.md`, um clique adiciona à biblioteca) e servidores MCP (`.mcp.json`;
+  os remotos vão para Ferramentas). Mais ferramentas próprias em `tools/*.json`:
+  por HTTP (o servidor do TSRS faz a chamada; `{param}` na URL e
+  `${env:NOME}` para chaves fora do arquivo) ou em JavaScript, que roda isolado
+  do TSRS, sem acesso às chaves. "Nova ferramenta" cria uma pelo app.
+- **Agenda**: pedidos que o servidor manda ao modelo no horário (uma vez, todo
+  dia ou em dias da semana, ou a cada tantas horas), mesmo com a aba fechada,
+  enquanto o `npm run dev` roda. Cada resposta vira mensagem na conversa
+  "Agenda: nome" e um arquivo em `extensoes/agenda/resultados`. Para rodar
+  sem a aba, a chave do provedor fica num arquivo do computador
+  (`extensoes/agenda/chaves.json`), só com a sua permissão, e pode ser apagada
+  na mesma tela; `TSRS_KEY_OPENAI` e semelhantes no ambiente também servem.
+  Uma tarefa perdida com o computador desligado roda quando o servidor volta.
+
+Nada é apagado de verdade: skills e plugins removidos vão para
+`extensoes/_removidas/`.
+
 ## Vídeos com motion
 
 Peça ao modelo uma animação ("faça uma abertura de 6 segundos em 1080x1920 com o
@@ -291,6 +321,10 @@ cabeçalhos (com `{apiKey}` como placeholder) e o formato da API (`openai` ou
 | `render/vite-plugin.mjs` | Renderizador dentro do `npm run dev`, em `/__tsrs/render`   |
 | `server/projects.mjs`    | Pastas de projeto: criar, gravar, ler, listar e servir arquivos |
 | `src/projects.ts`        | Arquivos das respostas, notas e ferramentas da pasta do projeto |
+| `server/extensions.mjs`  | Skills e plugins em disco; ferramentas HTTP                  |
+| `server/agenda.mjs`      | Agenda: horários, execução pelo servidor e fila de respostas |
+| `src/ExtensionsDialog.tsx` | Tela de Extensões (skills e plugins)                       |
+| `src/AgendaTab.tsx`      | Aba Agenda                                                   |
 | `src/RenderBar.tsx`      | Trilha e botão Gerar MP4 do preview                         |
 | `src/videoRender.ts`     | Conversa com o renderizador local                           |
 | `public/motion/`         | Runtime motion, anime.js 4.5.0 e lottie-web 5.13.0 (MIT)    |

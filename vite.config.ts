@@ -5,6 +5,7 @@ import { defineConfig } from 'vitest/config'
 import { tsrsVersion } from './render/version-plugin.mjs'
 import { tsrsRenderer } from './render/vite-plugin.mjs'
 import { tsrsProjects } from './server/projects-plugin.mjs'
+import { agendaForServer } from './server/agenda.mjs'
 import { tsrsExtensions } from './server/extensions-plugin.mjs'
 
 export default defineConfig({
@@ -12,7 +13,7 @@ export default defineConfig({
   // tsrsVersion: the version and git commit shown in the interface.
   // tsrsProjects: the folders where conversations save their files.
   // tsrsExtensions: skills, plugins and the schedule, kept on disk.
-  plugins: [react(), tailwindcss(), tsrsRenderer(), tsrsVersion(), tsrsProjects(), tsrsExtensions()],
+  plugins: [react(), tailwindcss(), tsrsRenderer(), tsrsVersion(), tsrsProjects(), tsrsExtensions(process.env.VITEST ? undefined : (server) => agendaForServer(server).handle)],
   // Imported only when a chat is exported as HTML; listed so the dev server
   // does not discover it mid-session and reload the page.
   optimizeDeps: { include: ['react-dom/server'] },

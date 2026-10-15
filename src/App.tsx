@@ -166,6 +166,7 @@ const SettingsDialog = lazy(chunks.SettingsDialog)
 const SideChat = lazy(chunks.SideChat)
 const ToolsDialog = lazy(chunks.ToolsDialog)
 const ExtensionsDialog = lazy(chunks.ExtensionsDialog)
+const AgendaTab = lazy(() => import('./AgendaTab'))
 const UnlockDialog = lazy(chunks.UnlockDialog)
 const UsageView = lazy(chunks.UsageView)
 const PREFETCH_DELAY = 2000
@@ -468,6 +469,69 @@ export default function App() {
     listPlugins().then(setPlugins, () => setPlugins([]))
   }, [])
   useEffect(reloadPlugins, [reloadPlugins])
+
+  // Answers of scheduled tasks, run by the server while TSRS may have been
+  // closed, become messages in a conversation per task.
+  const importingAgenda = useRef(false)
+  // The list of conversations is read from storage first, or a task's would be made twice.
+  const metasLoaded = useRef(false)
+  const importAgenda = useCallback(async () => {
+    if (importingAgenda.current || !metasLoaded.current) return
+    importingAgenda.current = true
+    try {
+      const { pendingResults, ackResults } = await import('./agenda')
+      const results = await pendingResults().catch(() => [])
+      for (const result of results) {
+        let meta = metasRef.current.find((c) => c.scheduleId === result.taskId)
+        if (!meta) {
+          meta = {
+            id: crypto.randomUUID(),
+            title: t('Agenda: {name}', { name: result.name }),
+            createdAt: result.at,
+            updatedAt: result.at,
+            providerId: result.providerId,
+            model: result.model,
+            scheduleId: result.taskId,
+          }
+          commitMetas([meta, ...metasRef.current])
+          commitThreads({ ...threadsRef.current, [meta.id]: [] })
+        }
+        const thread = threadsRef.current[meta.id] ?? (await loadThread(meta.id))
+        const added: Message[] = [
+          { id: crypto.randomUUID(), role: 'user', content: result.prompt, createdAt: result.at },
+          {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: result.text,
+            createdAt: result.at + 1,
+            providerId: result.providerId,
+            model: result.model,
+            ...(result.error ? { error: result.error } : {}),
+          },
+        ]
+        const next = [...thread, ...added]
+        commitThreads({ ...threadsRef.current, [meta.id]: next })
+        const id = meta.id
+        commitMetas(metasRef.current.map((c) => (c.id === id ? { ...c, updatedAt: result.at, changedAt: Date.now() } : c)))
+        storeThread(id, next)
+        const stored = metasRef.current.find((c) => c.id === id)
+        if (stored) storeMeta(stored)
+      }
+      if (results.length) await ackResults(results.map((r) => r.id))
+    } finally {
+      importingAgenda.current = false
+    }
+  }, [])
+  useEffect(() => {
+    void importAgenda()
+    const timer = setInterval(() => void importAgenda(), 60_000)
+    const onFocus = () => void importAgenda()
+    window.addEventListener('focus', onFocus)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [importAgenda])
   const [showPalette, setShowPalette] = useState(false)
   const [showUsage, setShowUsage] = useState(false)
   // The conversation list, when it is a drawer on a narrow screen.
@@ -742,7 +806,11 @@ export default function App() {
   }
 
   useEffect(() => {
-    loadMetas().then(commitMetas)
+    loadMetas().then((loaded) => {
+      commitMetas(loaded)
+      metasLoaded.current = true
+      void importAgenda()
+    })
     loadDocs().then(commitDocs)
     loadHandle<FileSystemDirectoryHandle>('sync').then((folder) => folder && setSyncFolder(folder))
     const timer = setTimeout(
@@ -2400,6 +2468,15 @@ export default function App() {
           onChange={setSettings}
           onChanged={reloadPlugins}
           onClose={() => setShowExtensions(false)}
+          agenda={
+            <AgendaTab
+              settings={settings}
+              providerId={provider.id}
+              model={settings.model}
+              locked={locked}
+              onRan={() => void importAgenda()}
+            />
+          }
         />
       )}
       {showTools && (

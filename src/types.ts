@@ -167,6 +167,8 @@ export interface ChatMeta {
   archived?: boolean
   // The folder on this computer where the conversation saves its files.
   project?: ChatProject
+  // The scheduled task whose answers this conversation collects.
+  scheduleId?: string
 }
 
 export interface ChatProject {

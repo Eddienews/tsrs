@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import { strToU8, zipSync } from 'fflate'
@@ -173,4 +173,51 @@ test('plugins: skills, commands, agents, MCP servers and tools by HTTP or JavaSc
   const body = provider.chats.at(-1)!.body
   expect(body.tools.map((t: any) => t.function.name)).not.toContain('eco')
   expect(body.messages[0].content).not.toContain('nwlab-kit:marca')
+})
+
+test('agenda: the server sends a task to the model and the answer lands in a conversation', async ({ page, request }) => {
+  const root = (await (await request.get('/__tsrs/ext/health')).json()).root as string
+  await connect(page)
+  // OpenAI pointed at the mock, with a key: the task needs permission to keep it.
+  await page.getByRole('button', { name: 'Configurações', exact: true }).click()
+  const openai = page.locator('[data-provider=openai]')
+  await openai.getByLabel('URL base').fill(provider.url)
+  await openai.getByLabel(/Chave de API/).fill('sk-agenda')
+  await openai.getByRole('button', { name: 'Carregar modelos' }).click()
+  await expect(openai.getByText('2 modelos carregados.')).toBeVisible()
+  await page.getByTitle('Fechar').click()
+
+  await openExtensions(page, 'Agenda')
+  await page.getByRole('button', { name: 'Nova tarefa' }).click()
+  await page.getByLabel('Nome da tarefa').fill('Bom dia')
+  await page.getByLabel('O que pedir ao modelo').fill('diga bom dia')
+  await page.getByLabel('Modelo da tarefa').selectOption('openai/mock-b')
+  await page.getByLabel('Horário').fill('07:30')
+  await page.getByRole('group', { name: 'Dias da semana' }).getByRole('button', { name: 'seg' }).click()
+  await page.getByRole('button', { name: 'Salvar' }).click()
+  await expect(page.getByText('permita guardar a chave neste computador')).toBeVisible()
+  await page.getByText(/Guardar a chave de OpenAI neste computador/).click()
+  await page.getByRole('button', { name: 'Salvar' }).click()
+
+  const task = page.locator('[data-task="Bom dia"]')
+  await expect(task).toContainText('Às 07:30 (seg) · mock-b')
+  expect(JSON.parse(await readFile(join(root, 'agenda', 'chaves.json'), 'utf8'))).toEqual({ openai: { apiKey: 'sk-agenda' } })
+  await expect(page.getByText('Chaves guardadas para a agenda')).toBeVisible()
+
+  // Run by hand: the server calls the model with TSRS's own code, not the page.
+  const before = provider.chats.length
+  await task.getByRole('button', { name: 'Rodar agora' }).click()
+  await expect(task).toContainText(/Última: \d/)
+  const sent = provider.chats[before]
+  expect(sent.headers.authorization).toBe('Bearer sk-agenda')
+  expect(sent.body.model).toBe('mock-b')
+  await page.keyboard.press('Escape')
+
+  // The answer is a message in the task's own conversation.
+  await expect(page.locator('.chat-item', { hasText: 'Agenda: Bom dia' })).toBeVisible()
+  await page.locator('.chat-item', { hasText: 'Agenda: Bom dia' }).click()
+  await expect(page.locator('.message.user')).toContainText('diga bom dia')
+  await expect(reply(page)).toContainText('Sou um mock.')
+  const folders = await readdir(join(root, 'agenda', 'resultados'))
+  expect(folders).toHaveLength(1)
 })

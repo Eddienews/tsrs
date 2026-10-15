@@ -70,7 +70,9 @@ export function extensionsHandler(root = extensionsRoot(), extra = async () => f
 
 export function tsrsExtensions(makeExtra) {
   const mount = (server) => {
-    const handle = extensionsHandler(extensionsRoot(), makeExtra ? makeExtra(server) : undefined)
+    // The schedule runs the model with Vite's module loader, which only the dev server has.
+    const extra = makeExtra && typeof server.ssrLoadModule === 'function' ? makeExtra(server) : undefined
+    const handle = extensionsHandler(extensionsRoot(), extra)
     server.middlewares.use(EXTENSIONS_PATH, async (req, res, next) => {
       if (!sameOrigin(req)) {
         res.writeHead(403, { 'Content-Type': 'application/json' })

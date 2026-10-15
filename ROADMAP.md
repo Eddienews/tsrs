@@ -68,6 +68,8 @@ cada seção é a ordem sugerida.
       MiniMax (vídeo e voz), Cartesia e o Grok Imagine da xAI (imagem e vídeo)
 - [x] Vídeos com motion: bloco `motion` com linha do tempo no preview e
       `npm run render` para MP4, quadro a quadro, como no NWLab ForgeOS
+- [x] Extensões: skills no formato do Claude, plugins (skills, comandos, agentes,
+      MCP e ferramentas próprias por HTTP ou JavaScript) e agenda rodada pelo servidor
 - [x] Pasta do projeto: os arquivos de cada conversa gravados numa pasta de verdade,
       para continuar no Claude Code, no Codex ou num editor
 - [x] Anexar áudio: tocar na conversa, transcrever (OpenAI ou Groq) para o modelo e
