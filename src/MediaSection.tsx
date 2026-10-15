@@ -33,7 +33,10 @@ function kindName(kind: MediaKind): string {
 // Options worth knowing about, shown in the empty field.
 const OPTION_EXAMPLES: Record<string, Partial<Record<MediaKind, string>>> = {
   openai: { audio: '{"voice": "coral", "instructions": "Fale com entusiasmo"}' },
-  gemini: { video: '{"aspectRatio": "9:16", "durationSeconds": 8, "resolution": "1080p"}' },
+  gemini: {
+    video: '{"aspectRatio": "9:16", "durationSeconds": 8, "resolution": "1080p"}',
+    audio: '{"voice": "Puck", "style": "alegre e acolhedor"}',
+  },
   elevenlabs: { audio: '{"voice_settings": {"stability": 0.5}}' },
   fal: { video: '{"duration": "5", "aspect_ratio": "16:9"}' },
 }

@@ -470,9 +470,11 @@ function veoQueue(job: Job, base: string, key: string, options: object): Queue {
   }
 }
 
-// Speech from a chat provider (OpenAI): the text read aloud, in one request.
+// Speech from a chat provider, the text read aloud in one request: OpenAI's
+// speech endpoint, or Gemini's TTS models through the Interactions API.
 async function providerSpeech(job: Job, options: Record<string, unknown>): Promise<GeneratedMedia> {
   const conn = connection(job.settings, job.target.source)
+  if (conn.provider.id === 'gemini') return geminiSpeech(job, conn.baseUrl, conn.apiKey, options)
   const res = await call(
     conn.provider,
     `${conn.baseUrl.replace(/\/+$/, '')}/audio/speech`,
@@ -494,12 +496,54 @@ async function providerSpeech(job: Job, options: Record<string, unknown>): Promi
   return { mime: blob.type.startsWith('audio/') ? blob.type : 'audio/mpeg', data: await toBase64(blob) }
 }
 
+// Gemini answers with a WAV file (24 kHz, mono) inside the JSON. `voice`
+// picks one of its voices and `style` says how to speak.
+async function geminiSpeech(
+  job: Job,
+  baseUrl: string,
+  key: string,
+  options: Record<string, unknown>,
+): Promise<GeneratedMedia> {
+  const { voice = 'Kore', style, ...rest } = options
+  const base = baseUrl.replace(/\/+$/, '').replace(/\/openai$/, '')
+  const text = {
+    type: 'text',
+    text: job.prompt,
+    ...(style ? { annotations: [{ type: 'speech_metadata', style: String(style) }] } : {}),
+  }
+  const res = await call(
+    { name: 'Gemini' },
+    `${base}/interactions`,
+    {
+      method: 'POST',
+      headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: job.target.model,
+        input: [{ type: 'user_input', content: [text] }],
+        response_format: { type: 'audio' },
+        generation_config: { speech_config: [{ voice: String(voice) }] },
+        ...rest,
+      }),
+      signal: job.signal,
+    },
+  )
+  const json = await res.json()
+  const steps: { type?: string; content?: { type?: string; data?: string }[] }[] = json.steps ?? []
+  const audio = steps
+    .filter((step) => step.type === 'model_output')
+    .flatMap((step) => step.content ?? [])
+    .filter((part) => part.type === 'audio' && part.data)
+    .at(-1)
+  if (!audio?.data) throw new Error(t('{name} não devolveu nenhum arquivo.', { name: 'Gemini' }))
+  return { mime: 'audio/wav', data: audio.data }
+}
+
 export async function generateMedia(job: Job): Promise<GeneratedMedia> {
   const options = parseOptions(job.target.options)
   const service = mediaService(job.target.source)
   if (!service) {
     // A chat provider: images from OpenAI or Gemini, Veo videos from Gemini,
-    // speech from OpenAI.
+    // speech from OpenAI or Gemini.
     const conn = connection(job.settings, job.target.source)
     if (job.kind === 'audio') return providerSpeech(job, options)
     if (job.kind === 'video') {

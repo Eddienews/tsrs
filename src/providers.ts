@@ -57,6 +57,7 @@ export const PROVIDERS: Provider[] = [
     keyRequired: true,
     image: 'imagen-4.0-generate-001',
     video: 'veo-3.1-fast-generate-preview',
+    speech: 'gemini-3.8-flash-tts',
     embedding: 'gemini-embedding-001',
   },
   {

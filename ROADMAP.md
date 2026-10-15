@@ -58,7 +58,8 @@ cada seção é a ordem sugerida.
 - [x] Sincronização sem pasta (WebDAV ou armazenamento S3 do próprio usuário),
       para navegadores sem acesso a pastas, como Firefox e Safari
 - [x] Vídeo pelo Veo (chave do Gemini) e voz pela OpenAI (`gpt-4o-mini-tts`)
-- [ ] Vídeo pelo Sora (chave da OpenAI) e voz pelo Gemini TTS
+- [x] Voz pelo Gemini TTS (`gemini-3.8-flash-tts`). O Sora ficou de fora: a
+      OpenAI encerrou o Sora 2 e a API de vídeos em 24/09/2026
 - [ ] Leitura em voz alta das respostas com uma voz da ElevenLabs
 - [ ] Mostrar o custo estimado de um vídeo antes de gerar
 - [ ] Mais serviços com API oficial, cada um testado quanto a CORS: Black Forest

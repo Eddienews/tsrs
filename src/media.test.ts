@@ -309,6 +309,36 @@ describe('generateMedia', () => {
     })
   })
 
+  it('reads text aloud with Gemini, in a voice and style of choice', async () => {
+    routes.push([
+      /\/interactions$/,
+      () =>
+        json({
+          steps: [
+            { type: 'user_input' },
+            { type: 'model_output', content: [{ type: 'audio', data: 'UklGRg==' }] },
+          ],
+        }),
+    ])
+    const settings = defaultSettings()
+    settings.providers.gemini = { ...settings.providers.gemini, apiKey: 'gk' }
+    const target = { source: 'gemini', model: 'gemini-3.8-flash-tts', options: '{"voice":"Puck","style":"alegre"}' }
+    expect(await run(settings, target, 'audio')).toEqual({ mime: 'audio/wav', data: 'UklGRg==' })
+    expect(calls[0].url).toBe('https://generativelanguage.googleapis.com/v1beta/interactions')
+    expect(calls[0].headers['x-goog-api-key']).toBe('gk')
+    expect(calls[0].body).toEqual({
+      model: 'gemini-3.8-flash-tts',
+      input: [
+        {
+          type: 'user_input',
+          content: [{ type: 'text', text: 'um gato', annotations: [{ type: 'speech_metadata', style: 'alegre' }] }],
+        },
+      ],
+      response_format: { type: 'audio' },
+      generation_config: { speech_config: [{ voice: 'Puck' }] },
+    })
+  })
+
   it('says when a key is refused or the options are not JSON', async () => {
     routes.push([/elevenlabs/, () => json({ detail: { message: 'bad key' } }, 401)])
     const settings = settingsWith({ elevenlabs: 'xi' })

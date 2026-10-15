@@ -57,7 +57,8 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
   enviados.
 - Geração de imagem, vídeo e áudio pelos botões Imagem, Vídeo e Áudio do campo
   de envio: imagens pela OpenAI (GPT Image) ou pelo Gemini (Imagen), vídeo pelo
-  Veo e voz pela OpenAI com as chaves dos provedores, e tudo isso também por
+  Veo e voz pela OpenAI ou pelo Gemini com as chaves dos provedores, e tudo isso
+  também por
   serviços de mídia com a chave do próprio usuário (ElevenLabs,
   Runware, fal.ai, Replicate, WaveSpeedAI e Higgsfield), escolhidos em
   Configurações → Mídia, com o modelo e opções em JSON. Vídeos esperam na fila
