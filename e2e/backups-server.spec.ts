@@ -3,7 +3,7 @@ import { mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { KEEP_DAYS, backupMeta, dayOf, saveBackup } from '../server/backups.mjs'
+import { KEEP_DAYS, backupMeta, dayOf, profileRoot, saveBackup } from '../server/backups.mjs'
 
 const backup = (chats: number, extra: object = {}) =>
   JSON.stringify({ app: 'tsrs', version: 1, chats: Array.from({ length: chats }, (_, i) => ({ id: `c${i}`, messages: [] })), ...extra })
@@ -50,4 +50,11 @@ test('drops daily copies older than two weeks', async () => {
   expect(existsSync(join(root, old))).toBe(false)
   expect(existsSync(join(root, recent))).toBe(true)
   expect(existsSync(join(root, 'mine.json'))).toBe(true)
+})
+
+test("keeps each profile's backups in a folder of its own", () => {
+  expect(profileRoot('/b', null)).toBe('/b')
+  expect(profileRoot('/b', 'a1b2c3')).toBe(join('/b', 'perfis', 'a1b2c3'))
+  expect(() => profileRoot('/b', '../x')).toThrow('Unknown profile')
+  expect(() => profileRoot('/b', 'A B')).toThrow('Unknown profile')
 })

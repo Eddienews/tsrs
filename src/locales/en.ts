@@ -1083,4 +1083,23 @@ export const en: Record<string, string> = {
   'Implantações (deployments)': 'Deployments',
   'Os nomes das implantações do recurso, separados por vírgula, como aparecem no Azure AI Foundry; cada uma vira um modelo na lista. A URL base é a do recurso, terminada em /openai/v1, e a chave fica em Chaves e Endpoint.':
     "The resource's deployment names, separated by commas, as Azure AI Foundry shows them; each one becomes a model in the list. The base URL is the resource's, ending in /openai/v1, and the key is under Keys and Endpoint.",
+
+  // Profiles
+  '(em uso)': '(in use)',
+  'Apagar o perfil "{name}" com as conversas, chaves e configurações dele? Não pode ser desfeito.':
+    'Delete the profile "{name}" with its conversations, keys and settings? This cannot be undone.',
+  'Apagar {name}': 'Delete {name}',
+  'Cada perfil tem as suas próprias chaves, conversas, biblioteca, senha, sincronização e backup automático, como dois TSRS no mesmo navegador. Trocar de perfil recarrega a página. As pastas de projeto, as extensões e a agenda são do computador e valem para todos.':
+    'Each profile has its own keys, conversations, library, password, sync and automatic backup, like two copies of TSRS in the same browser. Switching profile reloads the page. Project folders, extensions and the schedule belong to the computer and are shared by all.',
+  'Criar e abrir': 'Create and open',
+  'Ex.: Trabalho': 'E.g.: Work',
+  'Nome do novo perfil': 'New profile name',
+  'Novo nome do perfil': 'New name for the profile',
+  'Perfil: {name}': 'Profile: {name}',
+  'Perfis': 'Profiles',
+  'Principal': 'Main',
+  'Renomear {name}': 'Rename {name}',
+  'Um perfil novo começa vazio, como uma instalação nova: cole as chaves dele nas configurações.':
+    'A new profile starts empty, like a fresh install: paste its keys in the settings.',
+  'Usar este': 'Use this one',
 }

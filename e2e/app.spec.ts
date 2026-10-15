@@ -40,8 +40,8 @@ async function closeSettings(page: Page) {
 }
 
 // Points the app at the mock provider through the real settings UI.
-async function connect(page: Page, apiKey = '') {
-  await page.goto('/')
+async function connect(page: Page, apiKey = '', load = true) {
+  if (load) await page.goto('/')
   await openSettings(page)
   const section = page.locator('[data-provider=custom]')
   await section.getByLabel('URL base').fill(provider.url)
@@ -2144,4 +2144,47 @@ test('talks to Azure OpenAI deployments with the api-key header', async ({ page 
   expect(request.body.model).toBe('outro-gpt')
   expect(request.headers['api-key']).toBe('azure-key')
   expect(request.headers.authorization).toBeUndefined()
+})
+
+test('keeps a work profile apart from the personal one', async ({ page }) => {
+  await connect(page)
+  await send(page, 'conversa pessoal')
+  await expect(reply(page)).toContainText('Resposta 1')
+  const personal = page.locator('.chat-item').first()
+  const personalTitle = (await personal.innerText()).split('\n')[0]
+
+  // A new profile opens empty, with no provider set up.
+  await openSettings(page, 'Perfis')
+  await page.getByLabel('Nome do novo perfil').fill('Trabalho')
+  await page.getByRole('button', { name: 'Criar e abrir' }).click()
+  await expect(page.getByRole('button', { name: 'Perfil: Trabalho' })).toBeVisible()
+  await expect(page.locator('.chat-item')).toHaveCount(0)
+  const work = await page.evaluate(() => JSON.parse(localStorage.getItem('tsrs:profiles')!))
+  expect(work.list.map((p: any) => p.name)).toEqual(['', 'Trabalho'])
+  const fresh = await page.evaluate((id) => JSON.parse(localStorage.getItem(`tsrs:settings:${id}`)!), work.active)
+  expect(fresh.providers.custom.baseUrl).toBe('')
+
+  // Its conversations are its own.
+  await connect(page, '', false)
+  await send(page, 'conversa do trabalho')
+  await expect(reply(page)).toContainText('Resposta')
+  await expect(page.locator('.chat-item')).toHaveCount(1)
+
+  // Back to the first profile: only its conversation, its settings.
+  await page.getByRole('button', { name: 'Perfil: Trabalho' }).click()
+  await page.getByRole('menuitem', { name: 'Principal' }).click()
+  await expect(page.getByRole('button', { name: 'Perfil: Principal' })).toBeVisible()
+  await expect(page.locator('.chat-item')).toHaveCount(1)
+  await expect(page.locator('.chat-item').first()).toContainText(personalTitle)
+
+  // The other profile can be renamed and removed from here.
+  await openSettings(page, 'Perfis')
+  await page.getByRole('button', { name: 'Renomear Principal' }).click()
+  await page.getByLabel('Novo nome do perfil').fill('Pessoal')
+  await page.getByRole('button', { name: 'Salvar' }).click()
+  page.once('dialog', (dialog) => dialog.accept())
+  await page.getByRole('button', { name: 'Apagar Trabalho' }).click()
+  await expect(page.getByRole('list', { name: 'Perfis' }).locator('li')).toHaveCount(1)
+  await expect(page.getByRole('list', { name: 'Perfis' })).toContainText('Pessoal')
+  expect(await page.evaluate((id) => localStorage.getItem(`tsrs:settings:${id}`), work.active)).toBeNull()
 })

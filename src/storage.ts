@@ -10,8 +10,51 @@ import type { Chat, ChatMeta, KnowledgeDoc, Message, Settings } from './types'
 // `threads` (the messages, read when a chat is opened). Knowledge base
 // documents live in `docs`, and `handles` keeps the sync folder's handle.
 
-export const SETTINGS_KEY = 'tsrs:settings'
-const DB_NAME = 'tsrs'
+// Profiles (personal, work…) keep everything apart: each has its own settings
+// key and its own database. The first profile uses the original names, so
+// nothing moves when a second one is made. The profile in use is read when the
+// page loads; switching reloads the page.
+export const PROFILES_KEY = 'tsrs:profiles'
+export const DEFAULT_PROFILE = 'default'
+
+export interface Profile {
+  id: string
+  // Empty for the first profile until it is named.
+  name: string
+}
+
+export interface Profiles {
+  active: string
+  list: Profile[]
+}
+
+export function loadProfiles(): Profiles {
+  const fallback = { active: DEFAULT_PROFILE, list: [{ id: DEFAULT_PROFILE, name: '' }] }
+  try {
+    const saved = JSON.parse(globalThis.localStorage?.getItem(PROFILES_KEY) ?? 'null') as Profiles | null
+    if (!saved?.list?.length) return fallback
+    const list = saved.list.some((p) => p.id === DEFAULT_PROFILE) ? saved.list : [fallback.list[0], ...saved.list]
+    return { list, active: list.some((p) => p.id === saved.active) ? saved.active : DEFAULT_PROFILE }
+  } catch {
+    return fallback
+  }
+}
+
+export function saveProfiles(profiles: Profiles): void {
+  localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles))
+}
+
+export function settingsKeyFor(profile: string): string {
+  return profile === DEFAULT_PROFILE ? 'tsrs:settings' : `tsrs:settings:${profile}`
+}
+
+export function databaseFor(profile: string): string {
+  return profile === DEFAULT_PROFILE ? 'tsrs' : `tsrs-${profile}`
+}
+
+export const ACTIVE_PROFILE = loadProfiles().active
+export const SETTINGS_KEY = settingsKeyFor(ACTIVE_PROFILE)
+const DB_NAME = databaseFor(ACTIVE_PROFILE)
 const DB_VERSION = 3
 const META = 'meta'
 const THREADS = 'threads'
@@ -146,6 +189,19 @@ function db(): Promise<IDBDatabase> {
     open.onerror = () => reject(open.error)
   })
   return dbPromise
+}
+
+// Removes another profile's conversations and settings, and the profile.
+export async function deleteProfile(id: string): Promise<void> {
+  if (id === DEFAULT_PROFILE || id === ACTIVE_PROFILE) throw new Error('Not this profile.')
+  await new Promise<void>((resolve, reject) => {
+    const request = indexedDB.deleteDatabase(databaseFor(id))
+    request.onsuccess = () => resolve()
+    request.onerror = () => reject(request.error)
+  })
+  localStorage.removeItem(settingsKeyFor(id))
+  const profiles = loadProfiles()
+  saveProfiles({ ...profiles, list: profiles.list.filter((p) => p.id !== id) })
 }
 
 // Removes every conversation and the settings, API keys included.

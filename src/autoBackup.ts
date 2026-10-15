@@ -1,4 +1,5 @@
 import { withoutKeys } from './secrets'
+import { ACTIVE_PROFILE, DEFAULT_PROFILE } from './storage'
 import type { Settings } from './types'
 
 // The automatic backup on disk (server/backups.mjs): the browser's storage can
@@ -7,6 +8,8 @@ import type { Settings } from './types'
 // only sealed with the user's password; without a password they stay out.
 
 export const BACKUPS_PATH = '/__tsrs/backups'
+// Each profile's backups go to a folder of their own.
+const PROFILE = ACTIVE_PROFILE === DEFAULT_PROFILE ? '' : `?profile=${encodeURIComponent(ACTIVE_PROFILE)}`
 // Saved this long after the last change, and at least this often while
 // changes keep coming (a long reply streaming, say).
 export const BACKUP_DELAY = 5_000
@@ -54,7 +57,7 @@ export function backupToOffer(localChats: number, status: BackupStatus | null): 
 
 export async function backupStatus(): Promise<BackupStatus | null> {
   try {
-    const res = await fetch(`${BACKUPS_PATH}/status`)
+    const res = await fetch(`${BACKUPS_PATH}/status${PROFILE}`)
     if (!res.ok || !(res.headers.get('content-type') ?? '').includes('json')) return null
     return await res.json()
   } catch {
@@ -63,7 +66,7 @@ export async function backupStatus(): Promise<BackupStatus | null> {
 }
 
 export async function saveBackupToDisk(text: string): Promise<BackupMeta> {
-  const res = await fetch(`${BACKUPS_PATH}/save`, {
+  const res = await fetch(`${BACKUPS_PATH}/save${PROFILE}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: text,
@@ -74,7 +77,7 @@ export async function saveBackupToDisk(text: string): Promise<BackupMeta> {
 }
 
 export async function readLatestBackup(): Promise<string> {
-  const res = await fetch(`${BACKUPS_PATH}/latest`)
+  const res = await fetch(`${BACKUPS_PATH}/latest${PROFILE}`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.text()
 }
