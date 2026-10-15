@@ -106,6 +106,13 @@ export async function startMockProvider(): Promise<MockProvider> {
         .writeHead(200, { ...CORS, 'Content-Type': 'application/json' })
         .end(JSON.stringify({ data: [{ id: 'mock-a', context_length: 1000 }, { id: 'mock-b' }] }))
     }
+    // A weather service for the plugin tools: GET /clima/<city>.
+    const weather = /^\/clima\/([^/?]+)/.exec(req.url ?? '')
+    if (weather) {
+      return res
+        .writeHead(200, { 'Content-Type': 'application/json' })
+        .end(JSON.stringify({ cidade: decodeURIComponent(weather[1]), graus: 30, unidade: new URL(req.url!, 'http://x').searchParams.get('unidade') }))
+    }
     let raw = ''
     for await (const chunk of req) raw += chunk
     if (req.url === '/v1/audio/transcriptions') {
@@ -150,6 +157,15 @@ export async function startMockProvider(): Promise<MockProvider> {
         : last.role === 'user' && String(last.content).includes('grave a página sobre') && offered('project_write_file')
           ? { name: 'project_write_file', args: { file: 'paginas/sobre.html', content: '<h1>Sobre</h1>' } }
           : null
+    // "chame <tool> <json>" calls that tool, when it was offered.
+    const asked = last.role === 'user' ? /^chame (\S+) (\{.*\})$/.exec(String(last.content)) : null
+    const named = asked && body.tools?.find((t: any) => t.function.name === asked[1])
+    if (asked && named) {
+      const call = { index: 0, id: `call_${chats.length}`, function: { name: asked[1], arguments: asked[2] } }
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [call] } }] })}\n\n`)
+      const done = { choices: [{ delta: {}, finish_reason: 'tool_calls' }] }
+      return res.end(`data: ${JSON.stringify(done)}\n\ndata: [DONE]\n\n`)
+    }
     if (projectCall) {
       const call = {
         index: 0,

@@ -27,6 +27,17 @@ import { forget } from './mcp'
 import { artifactName, lastPreviewable, withPreviewHint, type Artifact } from './preview'
 import { chatTracks, trackBlob, trackFileName } from './videoRender'
 import {
+  enabledPlugins,
+  enabledSkills,
+  listPlugins,
+  listSkills,
+  commandPrompts,
+  pluginToolSet,
+  skillsNote,
+  skillTools,
+  type Plugin,
+} from './extensions'
+import {
   PROJECT_TOOLS,
   copyFiles,
   filesFromReply,
@@ -142,6 +153,7 @@ const chunks = {
   SettingsDialog: () => import('./SettingsDialog'),
   SideChat: () => import('./SideChat'),
   ToolsDialog: () => import('./ToolsDialog'),
+  ExtensionsDialog: () => import('./ExtensionsDialog'),
   UnlockDialog: () => import('./UnlockDialog'),
   UsageView: () => import('./UsageView'),
 }
@@ -153,6 +165,7 @@ const PreviewPanel = lazy(chunks.PreviewPanel)
 const SettingsDialog = lazy(chunks.SettingsDialog)
 const SideChat = lazy(chunks.SideChat)
 const ToolsDialog = lazy(chunks.ToolsDialog)
+const ExtensionsDialog = lazy(chunks.ExtensionsDialog)
 const UnlockDialog = lazy(chunks.UnlockDialog)
 const UsageView = lazy(chunks.UsageView)
 const PREFETCH_DELAY = 2000
@@ -448,6 +461,13 @@ export default function App() {
   const [showParams, setShowParams] = useState(false)
   const [showLibrary, setShowLibrary] = useState(false)
   const [showTools, setShowTools] = useState(false)
+  const [showExtensions, setShowExtensions] = useState(false)
+  // Installed plugins, for their commands in the prompt list.
+  const [plugins, setPlugins] = useState<Plugin[]>([])
+  const reloadPlugins = useCallback(() => {
+    listPlugins().then(setPlugins, () => setPlugins([]))
+  }, [])
+  useEffect(reloadPlugins, [reloadPlugins])
   const [showPalette, setShowPalette] = useState(false)
   const [showUsage, setShowUsage] = useState(false)
   // The conversation list, when it is a drawer on a narrow screen.
@@ -1317,6 +1337,14 @@ export default function App() {
         }
       }
       if (!media) {
+        // Skills and plugins on disk; a TSRS without its server has none.
+        const [skills, plugins] = await Promise.all([
+          listSkills().catch(() => []),
+          listPlugins().catch(() => [] as Plugin[]),
+        ])
+        const skillsOn = enabledSkills(skills, settings)
+        if (skillsOn.length) system = `${system ? `${system}\n\n` : ''}${skillsNote(skillsOn)}`
+        const pluginSet = pluginToolSet(enabledPlugins(plugins, settings))
         const servers = settings.mcpServers.filter(
           (s) => s.url && tools.mcpServers.includes(s.id),
         )
@@ -1325,6 +1353,8 @@ export default function App() {
           ...(project ? [projectTools(meta.id, usings[0].model)] : []),
           ...(remember ? [memoryTools()] : []),
           ...(bases.length ? [knowledgeTools(bases)] : []),
+          ...(skillsOn.length ? [skillTools()] : []),
+          ...(pluginSet ? [pluginSet] : []),
           ...(servers.length ? [await gatherTools(servers)] : []),
         ])
         problems.push(...(toolset?.problems ?? []))
@@ -2007,6 +2037,7 @@ export default function App() {
         setShowDrawer(false)
         if (what === 'library') setShowLibrary(true)
         else if (what === 'tools') setShowTools(true)
+        else if (what === 'extensions') setShowExtensions(true)
         else if (what === 'usage') setShowUsage(true)
         else setShowSettings(true)
       }}
@@ -2176,7 +2207,7 @@ export default function App() {
         transcribing={transcribing}
         onAttach={attach}
         onRemoveAttachment={(id) => setAttachments((list) => list.filter((a) => a.id !== id))}
-        prompts={settings.prompts}
+        prompts={[...settings.prompts, ...commandPrompts(enabledPlugins(plugins, settings))]}
         onInsertPrompt={(text) => setDraft((d) => (d.trim() ? `${d}\n${text}` : text))}
         onManagePrompts={() => setShowLibrary(true)}
         dictation={dictation}
@@ -2361,6 +2392,14 @@ export default function App() {
           onIndex={() => indexDocs()}
           onSearch={searchTest}
           onClose={() => setShowLibrary(false)}
+        />
+      )}
+      {showExtensions && (
+        <ExtensionsDialog
+          settings={settings}
+          onChange={setSettings}
+          onChanged={reloadPlugins}
+          onClose={() => setShowExtensions(false)}
         />
       )}
       {showTools && (

@@ -434,6 +434,9 @@ export interface Settings {
   // Save the files a conversation makes into a project folder (on unless
   // switched off; needs TSRS served by npm run dev).
   projects?: boolean
+  // Skills (by id) and plugins (by name) switched off; all others are on.
+  disabledSkills?: string[]
+  disabledPlugins?: string[]
   knowledgeBases: KnowledgeBase[]
   sync: SyncSettings
   // Present when the API keys are password-protected; the keys are then

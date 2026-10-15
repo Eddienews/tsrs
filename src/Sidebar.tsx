@@ -10,6 +10,7 @@ import {
   FolderOutput,
   FolderPlus,
   Library,
+  Puzzle,
   ListChecks,
   Moon,
   MoreHorizontal,
@@ -58,7 +59,7 @@ interface Props {
   onSearch: (needle: string) => Promise<string[]>
   onFoldersChange: (folders: Folder[]) => void
   onDeleteFolder: (folder: Folder) => void
-  onOpen: (what: 'library' | 'tools' | 'usage' | 'settings') => void
+  onOpen: (what: 'library' | 'tools' | 'extensions' | 'usage' | 'settings') => void
   onToggleTheme: () => void
 }
 
@@ -348,6 +349,7 @@ export default function Sidebar(props: Props) {
   const footer = [
     ['library', Library, t('Biblioteca')],
     ['tools', Wrench, t('Ferramentas')],
+    ['extensions', Puzzle, t('Extensões')],
     ['usage', BarChart3, t('Uso')],
     ['settings', SettingsIcon, t('Configurações')],
   ] as const
@@ -594,7 +596,7 @@ export default function Sidebar(props: Props) {
         )}
       </nav>
 
-      <div className="grid grid-cols-5 gap-1 border-t p-2">
+      <div className="grid grid-cols-6 gap-1 border-t p-2">
         {footer.map(([key, Icon, label]) => (
           <Button
             key={key}
