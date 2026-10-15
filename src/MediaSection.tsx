@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { EyeButton } from './EyeButton'
 import { locale, t } from './i18n'
+import { STOCK_SERVICES, stockKeyId } from './stock'
 import {
   defaultModel,
   MEDIA_KINDS,
@@ -293,6 +294,57 @@ function ReaderChoice(props: Props) {
   )
 }
 
+// Keys for stock video (Pexels, Pixabay), used by short videos and the stock tool.
+function StockKeys(props: Props) {
+  const [shown, setShown] = useState<string | null>(null)
+  return (
+    <section className="space-y-2">
+      <h3 className="text-sm font-medium">{t('Vídeos de banco')}</h3>
+      <p className={hint}>
+        {t(
+          'Trechos de vídeo gratuitos para os vídeos curtos e para a pasta do projeto. As chaves são grátis; os vídeos podem ser usados sem pagar, e o TSRS anota o autor de cada um em CREDITOS.md.',
+        )}
+      </p>
+      {STOCK_SERVICES.map((service) => {
+        const id = stockKeyId(service.id)
+        return (
+          <div key={service.id} className="media-service space-y-2 rounded-md border p-3" data-service={id}>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium">{service.name}</span>
+              <a className={`${link} ml-auto`} href={service.keyUrl} target="_blank" rel="noreferrer">
+                {t('Criar chave')}
+                <ExternalLink className="size-3" />
+              </a>
+            </div>
+            <div className="relative">
+              <Input
+                aria-label={t('Chave de {name}', { name: service.name })}
+                type={shown === id ? 'text' : 'password'}
+                autoComplete="off"
+                disabled={props.locked}
+                placeholder={props.locked ? t('Desbloqueie as chaves para ver ou alterar') : ''}
+                className="pr-9 font-mono text-xs"
+                value={props.settings.mediaKeys[id] ?? ''}
+                onChange={(e) =>
+                  props.onChange((s) => ({ ...s, mediaKeys: { ...s.mediaKeys, [id]: e.target.value.trim() } }))
+                }
+              />
+              <EyeButton
+                visible={shown === id}
+                show={t('Mostrar chave')}
+                hide={t('Ocultar chave')}
+                disabled={props.locked}
+                className="absolute top-0.5 right-0.5"
+                onToggle={() => setShown(shown === id ? null : id)}
+              />
+            </div>
+          </div>
+        )
+      })}
+    </section>
+  )
+}
+
 export default function MediaSection(props: Props) {
   return (
     <div className="media space-y-5">
@@ -319,6 +371,7 @@ export default function MediaSection(props: Props) {
         </p>
       </section>
       <ReaderChoice {...props} />
+      <StockKeys {...props} />
     </div>
   )
 }

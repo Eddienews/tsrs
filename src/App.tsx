@@ -108,6 +108,7 @@ import {
 } from './stream'
 import { SUMMARY_PROMPT, contextResetMark, sinceSummary, withSummary } from './summary'
 import { agentParams, agentPlugins, agentSkills, findMention, withReply } from './agents'
+import { stockToolSet } from './stock'
 import {
   hashOf,
   itemsOf,
@@ -1465,6 +1466,7 @@ export default function App() {
         toolset = mergeTools([
           ...(sharedCanvas ? [canvasTools(meta.id)] : []),
           ...(project ? [projectTools(meta.id, usings[0].model)] : []),
+          ...(project ? [stockTools(meta.id, usings[0].model)].filter((set): set is ToolSet => !!set) : []),
           ...(remember ? [memoryTools()] : []),
           ...(bases.length ? [knowledgeTools(bases)] : []),
           ...(skillsOn.length ? [skillTools()] : []),
@@ -1594,6 +1596,22 @@ export default function App() {
         void saveFiles(project.path, [{ name: 'NOTAS.md', content: historyLine(written, who, new Date()), append: true }])
       })
     })
+  }
+
+  // Stock video saved into the project, credited in CREDITOS.md.
+  function stockTools(chatId: string, who: string): ToolSet | null {
+    return stockToolSet(
+      settingsRef.current,
+      () => findMeta(chatId)?.project,
+      (files, credits) => {
+        const project = findMeta(chatId)?.project
+        if (!project) return
+        void saveFiles(project.path, [
+          { name: 'CREDITOS.md', content: `${credits.join('\n')}\n`, append: true },
+          { name: 'NOTAS.md', content: historyLine(files, who, new Date()), append: true },
+        ])
+      },
+    )
   }
 
   // Points the conversation at another folder, bringing its files along.

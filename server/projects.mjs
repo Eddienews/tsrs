@@ -10,6 +10,8 @@
 //   POST /open   {"name","path"?,"notes"?}   {"path","name"}
 //   POST /write  {"path","files":[{"name","content","append"?}]}   {"written":[...]}
 //   POST /copy   {"from","to"}          {"copied":[...]}
+//   POST /stock/search   {"provider","key","query","orientation"?,"count"?}   {"clips":[...]}
+//   POST /stock/download {"path","url","name"}   {"name","size"}
 //   GET  /list?path=                    {"files":[{"name","size","modified"}]}
 //   GET  /read?path=&file=              {"content"}
 //   GET  /raw/<base64url path>/<file>   the file itself, for the preview
@@ -18,6 +20,7 @@ import { existsSync } from 'node:fs'
 import { copyFile, mkdir, readFile, readdir, stat, writeFile, appendFile } from 'node:fs/promises'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { downloadStock, searchStock } from './stock.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const REGISTRY = '.tsrs-projects.json'
@@ -251,6 +254,18 @@ export function projectsHandler(root = projectsRoot()) {
       if (path === '/write') {
         if (!(await allowed(root, job.path))) return send(res, 403, { error: 'Not a project folder.' }), true
         return send(res, 200, { written: await writeFiles(job.path, job.files) }), true
+      }
+      // Stock video for short videos: searched with the user's key, saved in midia/stock/.
+      if (path === '/stock/search') return send(res, 200, { clips: await searchStock(job) }), true
+      if (path === '/stock/download') {
+        if (!(await allowed(root, job.path))) return send(res, 403, { error: 'Not a project folder.' }), true
+        const name = `midia/stock/${String(job.name ?? '').replace(/[^\w.-]+/g, '-').slice(0, 80) || 'clip'}.mp4`
+        const file = projectFile(job.path, name)
+        if (!file) return send(res, 400, { error: 'Bad file name.' }), true
+        // The same clip is downloaded once per project.
+        if (existsSync(file)) return send(res, 200, { name, size: (await stat(file)).size, cached: true }), true
+        const { size } = await downloadStock(String(job.url ?? ''), file)
+        return send(res, 200, { name, size }), true
       }
       if (path === '/copy') {
         if (!(await allowed(root, job.from)) || !(await allowed(root, job.to)))

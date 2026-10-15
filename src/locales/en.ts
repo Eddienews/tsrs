@@ -961,4 +961,8 @@ export const en: Record<string, string> = {
   'Remover a etapa {n}': 'Remove step {n}',
   'Ex.: Revise {{resposta}} e deixe mais curto.': 'E.g.: Review {{resposta}} and make it shorter.',
   'Adicionar etapa': 'Add a step',
+  // Short videos
+  'Vídeos de banco': 'Stock video',
+  'Trechos de vídeo gratuitos para os vídeos curtos e para a pasta do projeto. As chaves são grátis; os vídeos podem ser usados sem pagar, e o TSRS anota o autor de cada um em CREDITOS.md.':
+    'Free video clips for short videos and the project folder. The keys are free; the clips can be used without paying, and TSRS notes who made each one in CREDITOS.md.',
 }
