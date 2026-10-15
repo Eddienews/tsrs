@@ -1,0 +1,593 @@
+# Manual do TSRS
+
+Como instalar, configurar e tirar o máximo do TSRS (The Signal Room Studio).
+
+[README](../README.pt-BR.md) · [Como contribuir](../CONTRIBUTING.pt-BR.md) ·
+[Roadmap](../ROADMAP.pt-BR.md)
+
+> Os nomes de botões e telas abaixo são os da interface em português. Em inglês,
+> troque o idioma em **Configurações → Geral → Idioma**.
+
+## Sumário
+
+1. [O que é o TSRS](#1-o-que-é-o-tsrs)
+2. [Instalação](#2-instalação)
+3. [Primeiros passos](#3-primeiros-passos)
+4. [Conhecendo a tela](#4-conhecendo-a-tela)
+5. [Conversas](#5-conversas)
+6. [Arquivos, pastas e projetos](#6-arquivos-pastas-e-projetos)
+7. [Preview, canvas e vídeo motion](#7-preview-canvas-e-vídeo-motion)
+8. [Imagem, vídeo, voz e música](#8-imagem-vídeo-voz-e-música)
+9. [Busca na web e pesquisa profunda](#9-busca-na-web-e-pesquisa-profunda)
+10. [Biblioteca: agentes, prompts, memória e conhecimento](#10-biblioteca-agentes-prompts-memória-e-conhecimento)
+11. [Ferramentas e MCP](#11-ferramentas-e-mcp)
+12. [Extensões: skills, plugins e agenda](#12-extensões-skills-plugins-e-agenda)
+13. [Custos e uso](#13-custos-e-uso)
+14. [Segurança, backup e sincronização](#14-segurança-backup-e-sincronização)
+15. [Receitas: tirando o máximo do TSRS](#15-receitas-tirando-o-máximo-do-tsrs)
+16. [Problemas comuns](#16-problemas-comuns)
+17. [Perguntas frequentes](#17-perguntas-frequentes)
+
+---
+
+## 1. O que é o TSRS
+
+O TSRS é um estúdio para trabalhar com modelos de IA que roda **no seu
+computador**. Você usa as suas próprias chaves de API (ou modelos locais, de
+graça) e conversa com Claude, GPT, Gemini, Grok, DeepSeek, Mistral e outros
+numa tela só.
+
+O que muda em relação a usar o site de cada empresa:
+
+- **Um lugar para todos os modelos**, inclusive para comparar respostas lado a lado.
+- **Você paga só o que usa**, direto ao provedor, e vê o custo de cada resposta.
+- **Seus dados ficam com você**: conversas no navegador, arquivos em pastas do
+  seu computador, nada passa por um servidor do TSRS (não existe um).
+- **Arquivos de verdade**: páginas, código, imagens, áudios e vídeos vão para
+  uma pasta de projeto, que você continua no Claude Code, no Codex ou no seu editor.
+
+## 2. Instalação
+
+Você precisa de três coisas: **Node.js 22 ou mais novo**, **Git** e um
+navegador moderno (Chrome, Edge, Brave, Arc, Firefox ou Safari). Para gerar
+vídeos MP4, também do **ffmpeg** (opcional).
+
+### Windows
+
+Abra o **PowerShell** e rode:
+
+```powershell
+winget install OpenJS.NodeJS.LTS
+winget install Git.Git
+winget install Gyan.FFmpeg        # opcional, para vídeo
+```
+
+Feche e abra o PowerShell de novo (para ele achar os programas novos) e siga
+para [Baixar e rodar](#baixar-e-rodar).
+
+### macOS
+
+Com o [Homebrew](https://brew.sh) instalado, abra o **Terminal** e rode:
+
+```bash
+brew install node git
+brew install ffmpeg               # opcional, para vídeo
+```
+
+### Linux
+
+Use o gerenciador de pacotes da sua distribuição, ou o
+[nvm](https://github.com/nvm-sh/nvm) se a versão do Node.js for antiga:
+
+```bash
+# Debian / Ubuntu
+sudo apt install git ffmpeg
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+nvm install 22
+```
+
+Para a leitura em voz alta no Linux, o navegador precisa de vozes instaladas
+(por exemplo, pelo `speech-dispatcher`).
+
+### Baixar e rodar
+
+```bash
+git clone https://github.com/Eddienews/tsrs.git
+cd tsrs
+npm ci
+npm run dev
+```
+
+Abra **http://localhost:5173** no navegador. Pronto. Deixe o terminal aberto
+enquanto usa o TSRS: é ele que grava as pastas de projeto, gera os vídeos e
+roda a agenda.
+
+Confira se `node --version` mostra 22 ou mais. Se aparecer um número menor,
+atualize o Node.js antes do `npm ci`.
+
+### Atualizar
+
+Na pasta do TSRS:
+
+```bash
+git pull
+npm ci
+npm run dev
+```
+
+A versão e o commit em uso aparecem embaixo do nome TSRS, na barra lateral. Se
+algo parecer desatualizado, compare esse número com o do GitHub.
+
+### Instalar como aplicativo (opcional)
+
+No Chrome ou no Edge, use o ícone de instalar na barra de endereço; no Safari do
+Mac, **Arquivo → Adicionar ao Dock**. O TSRS abre numa janela própria, como um
+programa. O `npm run dev` continua precisando estar rodando para os recursos de
+pasta, vídeo, extensões e agenda.
+
+## 3. Primeiros passos
+
+### Opção grátis: modelos locais com o Ollama
+
+1. Instale o [Ollama](https://ollama.com) e baixe um modelo, por exemplo
+   `ollama pull qwen3`.
+2. No TSRS, abra **Configurações → Provedores**, escolha **Ollama (local)** e
+   clique em **Carregar modelos**.
+3. Escolha o modelo na barra superior e converse. Não precisa de chave nem de
+   internet.
+
+O LM Studio funciona do mesmo jeito.
+
+### Com uma chave de API
+
+1. Crie uma chave no site do provedor (Anthropic, OpenAI, Google AI Studio,
+   OpenRouter etc.). Na maioria deles é preciso pôr crédito antes.
+2. Em **Configurações → Provedores**, cole a chave no provedor certo e clique
+   em **Carregar modelos**.
+3. Escolha o modelo na barra superior (ou digite o nome dele) e envie uma mensagem.
+
+**Dica:** o **OpenRouter** dá acesso a centenas de modelos de várias empresas
+com uma chave só. É um bom começo para experimentar antes de abrir conta em
+cada provedor.
+
+### Proteja as chaves
+
+Em **Configurações → Segurança**, defina uma **senha**. As chaves passam a ficar
+criptografadas no navegador, e o TSRS pede a senha ao abrir. **Bloquear agora**
+tranca o app na hora. Sem senha, as chaves ficam guardadas no navegador em texto
+puro — tudo bem num computador só seu, não num compartilhado.
+
+## 4. Conhecendo a tela
+
+- **Barra lateral (esquerda):** **Nova conversa**, busca, pastas, etiquetas e a
+  lista de conversas. Embaixo, os botões **Biblioteca**, **Ferramentas**,
+  **Extensões**, **Uso**, **Configurações** e o tema claro/escuro.
+- **Barra superior:** o modelo da conversa (**Escolher modelo**), o agente
+  (persona), os **Parâmetros**, o total de tokens e custo da conversa, a pasta
+  do projeto, o **Canvas** e o **Preview**.
+- **Caixa de mensagem (embaixo):** **Anexar**, **Ditar**, **Prompts salvos**,
+  **Pesquisa** (pesquisa profunda), **Conversa temporária** e **Enviar**.
+- **Paleta de comandos:** **Ctrl+K** (ou **⌘+K** no Mac) abre uma busca por
+  qualquer ação ou conversa. É o jeito mais rápido de usar o TSRS.
+
+Os atalhos de teclado podem ser mudados em **Configurações → Atalhos**.
+
+## 5. Conversas
+
+### O básico
+
+- **Editar** uma mensagem sua e reenviar, **regenerar** a resposta ou **tentar
+  de novo** depois de um erro. Cada versão fica guardada: use as setas ‹ › na
+  mensagem para alternar entre elas.
+- **Parar** interrompe a resposta no meio.
+- **Fixar** uma mensagem importante: ela ganha um atalho no topo da conversa.
+- **Ramificar a partir daqui** cria uma conversa nova a partir de uma mensagem,
+  sem mexer na original. Ótimo para testar caminhos diferentes.
+- **Ler em voz alta** lê a resposta (veja a [seção 8](#8-imagem-vídeo-voz-e-música)).
+
+### Comparar modelos
+
+Use **Comparar com outros modelos** para até três outros modelos responderem à
+mesma pergunta, em colunas. Bom para escolher o modelo de uma tarefa ou para
+ter uma segunda opinião.
+
+### Pergunta à parte
+
+Selecione um trecho de uma resposta e clique em **Perguntar à parte**. A
+pergunta abre num painel lateral e não entra no histórico da conversa principal.
+Use para "o que quer dizer este termo?" sem desviar o assunto.
+
+### Parâmetros
+
+Em **Parâmetros** você ajusta, por conversa: o prompt de sistema, a temperatura,
+o máximo de tokens e o nível de raciocínio (nos modelos que pensam antes de
+responder). O raciocínio aparece recolhido acima da resposta, quando o provedor
+envia.
+
+### Conversa temporária
+
+Liga um modo em que a conversa não fica salva no histórico. Bom para perguntas
+rápidas ou assuntos que você não quer guardar.
+
+### Conversas longas
+
+O indicador de contexto mostra quanto da memória do modelo a conversa já usa.
+Perto do limite, **Resumir a conversa** troca o começo por um resumo e libera
+espaço sem perder o fio.
+
+### Organizar
+
+- **Pastas** e **etiquetas** na barra lateral; arraste conversas para as pastas.
+- **Selecionar conversas** para arquivar, mover ou excluir várias de uma vez.
+- A busca procura no título e no conteúdo das conversas.
+- O título é criado sozinho depois da primeira resposta (configurável em
+  **Configurações → Geral**).
+
+## 6. Arquivos, pastas e projetos
+
+### Anexos
+
+Clique em **Anexar** (ou arraste para a caixa de mensagem):
+
+- **Imagens** e **PDFs**: o modelo vê o conteúdo (nos modelos com visão).
+- **Textos, código, CSV, Markdown, HTML**.
+- **Planilhas Excel (.xlsx)**: cada aba vira uma tabela que o modelo lê.
+- **Áudio** (MP3, WAV, M4A…): toca na conversa e é **transcrito** pela OpenAI ou
+  pelo Groq, para qualquer modelo entender; também serve de trilha para os vídeos
+  motion.
+
+### Pasta do projeto
+
+Quando uma conversa cria arquivos (uma página, um código, uma imagem, um vídeo),
+o TSRS grava tudo numa pasta própria em `projetos/<nome-da-conversa>/`, dentro da
+pasta do TSRS, com um `NOTAS.md` que registra o que foi feito.
+
+- O botão da pasta na barra superior mostra o caminho e deixa **copiar o
+  caminho** ou mover a conversa para **outra pasta** do computador.
+- Antes de mudar um arquivo, o modelo lê a versão atual da pasta. Então você
+  pode editar à mão, ou continuar no **Claude Code**, no **Codex** ou em qualquer
+  ferramenta apontando para a mesma pasta, e depois voltar ao TSRS.
+- Mídias geradas e vídeos MP4 da conversa também vão para a pasta do projeto.
+- Para desligar ou mudar a pasta raiz: **Configurações → Geral**.
+
+**Dica:** peça "crie a página inicial do site X em arquivos separados
+(index.html, estilo.css, app.js)" e o projeto já nasce organizado.
+
+### Contexto da pasta
+
+Nas **Opções da pasta** (barra lateral), **Contexto da pasta…** define o que
+todas as conversas daquela pasta recebem:
+
+- **Instruções** (ex.: "Projeto do site da empresa. Público: pequenas empresas.
+  Tom direto, sem jargão. Cores #dc5000 e #05070a.");
+- **Arquivos de contexto** (manual da marca, briefing, planilha de preços);
+- **Agente da pasta**, usado nas conversas que não escolheram outro.
+
+É o jeito mais prático de organizar trabalho por cliente ou por projeto: crie
+uma pasta, dê o contexto uma vez e toda conversa nova já começa sabendo tudo.
+
+## 7. Preview, canvas e vídeo motion
+
+### Preview
+
+Quando a resposta traz HTML, SVG, JavaScript, Markdown, React (JSX/TSX) ou um
+diagrama Mermaid, o **Preview** mostra o resultado funcionando, ao lado da
+conversa. Ele tem abas de código e console e tamanhos de tela (celular, tablet,
+desktop). A barra de endereço do preview também abre páginas locais, como o
+`localhost:3000` de um projeto seu.
+
+O código roda isolado do app: não consegue ver as suas chaves.
+
+### Canvas
+
+O **Canvas** é um documento ou código ao lado da conversa. O modelo escreve e
+edita por partes, e você também edita à mão. Selecione um trecho para pedir uma
+mudança só nele. Bom para textos longos, contratos, artigos e arquivos de
+código que vão sendo refinados.
+
+### Vídeo motion
+
+Peça uma animação, por exemplo:
+
+> "Uma abertura de 6 segundos em 1080x1920 com o título NWLab, fundo escuro,
+> logo entrando com um brilho."
+
+A resposta vem num bloco `motion`, que abre no Preview com uma **linha do
+tempo**: dá para dar play, pausar e arrastar.
+
+1. Para ter som, anexe um áudio na conversa (ou gere uma música, seção 8) e
+   escolha a trilha no preview.
+2. Clique em **Gerar MP4**. O vídeo é renderizado quadro a quadro no seu
+   computador e salvo na pasta do projeto, com o volume da trilha ajustado e
+   fade no final.
+
+Precisa do `npm run dev` rodando e do ffmpeg instalado. Peça ajustes à vontade
+("deixe o título 1 segundo mais cedo", "troque a cor para laranja"): cada nova
+versão vira um MP4 novo, sem apagar os anteriores.
+
+## 8. Imagem, vídeo, voz e música
+
+Em **Configurações → Mídia** você cola as chaves dos serviços de mídia
+(ElevenLabs, Runware, fal.ai, Replicate, Stability, Black Forest Labs, MiniMax,
+Cartesia…) e escolhe, em **Quem gera cada tipo**, qual serviço gera imagem,
+vídeo, voz, música e efeitos. As chaves da OpenAI, do Gemini e da xAI também
+servem para imagem e vídeo.
+
+Depois é só pedir na conversa: "gere uma imagem…", "crie uma música de 30
+segundos…", "narre este texto…". Quando o serviço publica o preço, o TSRS mostra
+o **custo estimado antes** de gerar.
+
+### Ler respostas em voz alta
+
+- **Grátis:** o TSRS escolhe a voz mais natural do navegador. No **Microsoft
+  Edge** existem vozes neurais grátis em português muito boas ("Natural");
+  vale usar o Edge para isso.
+- **ElevenLabs:** escolha uma das **suas vozes** (as que você criou ou salvou),
+  com amostra e preço por caractere.
+- **OpenAI** ou **Gemini:** com a chave desses provedores.
+
+### Ditado
+
+O botão **Ditar** transcreve a sua fala pela OpenAI, pelo Groq (rápido e
+barato) ou pelo reconhecimento de voz do navegador (grátis).
+
+## 9. Busca na web e pesquisa profunda
+
+### Busca na web
+
+Abra **Ferramentas**. Alguns provedores (Anthropic, OpenRouter, Perplexity) têm
+busca própria. Para **qualquer modelo** buscar na web, configure a **Busca
+própria (qualquer modelo)** com uma chave do Brave, do Tavily, do Google ou do
+Kagi. O modelo então busca e lê páginas sozinho e cita as fontes.
+
+O Brave e o Tavily têm planos gratuitos com uma cota mensal, suficientes para
+uso pessoal.
+
+### Pesquisa profunda
+
+Ligue **Pesquisa** na caixa de mensagem e faça a pergunta. O modelo faz várias
+rodadas de busca e leitura e termina num **relatório com fontes citadas**, salvo
+em `pesquisas/` na pasta do projeto.
+
+Use para: comparar fornecedores, levantar o estado de um mercado, preparar uma
+reunião, revisar o que existe sobre um assunto. Leva alguns minutos e gasta mais
+tokens que uma pergunta normal: veja o custo na barra superior.
+
+## 10. Biblioteca: agentes, prompts, memória e conhecimento
+
+O botão **Biblioteca** tem quatro abas.
+
+### Personas (agentes)
+
+Um agente é um "funcionário" configurado: nome, instruções, modelo preferido,
+ferramentas, arquivos, base de conhecimento e sugestões iniciais. O TSRS já vem
+com quatro. Crie os seus para tarefas que se repetem: redator da marca, revisor
+de contratos, analista de planilhas, professor de inglês…
+
+Escolha o agente da conversa em **Persona desta conversa**, na barra superior.
+
+### Prompts salvos
+
+Textos que você usa sempre, com campos `{{assim}}` que o TSRS pergunta na hora:
+
+```
+Escreva um post para {{rede}} sobre {{assunto}}, em tom {{tom}}, com no máximo {{tamanho}} palavras.
+```
+
+Use pelo botão **Prompts salvos** da caixa de mensagem ou pela paleta (Ctrl+K).
+
+### Memória
+
+Com **Usar memória** ligado, o modelo pode guardar fatos sobre você ("trabalho com
+marketing", "prefiro respostas curtas") numa lista que você vê, edita e apaga.
+Esses fatos vão junto nas conversas novas.
+
+### Conhecimento (bases de conhecimento)
+
+Coloque PDFs, textos, Markdown e HTML numa **base de conhecimento**. Ela é
+dividida em trechos e buscada a cada pergunta, sem enviar tudo ao modelo — o
+que permite usar documentos muito maiores que o limite dele. A busca por
+palavras funciona sem API; com uma chave de embeddings, a busca entende também
+o sentido.
+
+Ligue uma base a uma conversa ou a um agente. Ex.: um agente "Suporte" com a
+base dos manuais do seu produto.
+
+## 11. Ferramentas e MCP
+
+Em **Ferramentas** você também conecta **servidores MCP** remotos, que dão ao
+modelo acesso a outros sistemas (agenda, tarefas, bancos de dados,
+ferramentas da sua empresa). Antes de cada uso, o TSRS pede permissão; marque
+como confiáveis só os servidores que você conhece.
+
+## 12. Extensões: skills, plugins e agenda
+
+O botão **Extensões** tem três abas. Tudo fica em `extensoes/`, na pasta do
+TSRS, e nada é apagado de verdade: o que você remove vai para
+`extensoes/_removidas/`.
+
+### Skills
+
+Uma skill é um pacote de instruções (no mesmo formato `SKILL.md` das skills do
+Claude) que o modelo carrega **só quando a tarefa pede**. Ex.: "padrão de
+propostas comerciais da empresa", "guia de estilo do blog".
+
+- **Nova skill** para escrever uma no app.
+- **Instalar .zip, .skill ou SKILL.md** para usar uma pronta, inclusive skills
+  feitas para o Claude.
+
+### Plugins
+
+Um plugin junta skills, comandos (viram prompts), agentes, servidores MCP e
+**ferramentas próprias**: chamadas HTTP a uma API (com a chave guardada em
+variável de ambiente, nunca no arquivo) ou pequenos códigos JavaScript que
+rodam isolados. Use **Instalar plugin .zip** ou **Instalar uma pasta**; plugins
+no formato do Claude também funcionam.
+
+**Atenção:** instale plugins e skills só de quem você confia. Eles acrescentam
+instruções e ferramentas que o modelo vai usar.
+
+### Agenda
+
+**Nova tarefa** agenda um pedido para o modelo num horário (todo dia às 8h,
+toda segunda etc.). Quem roda é o servidor do `npm run dev`, então funciona
+mesmo com a aba fechada, desde que o computador esteja ligado e o terminal
+aberto. A resposta chega numa conversa "Agenda: <nome da tarefa>".
+
+Para rodar com a aba fechada, o TSRS pede permissão para guardar a chave daquele
+provedor no computador. Ideias: "resumo das notícias do meu setor toda manhã",
+"lembrete semanal com os itens pendentes da pasta X".
+
+## 13. Custos e uso
+
+- Cada resposta mostra os **tokens** e o **custo estimado**; a barra superior
+  mostra o **total da conversa**.
+- O botão **Uso** abre a tela de uso por dia e por modelo, com totais e
+  relatório.
+- Para um modelo que o TSRS não conhece, clique no aviso de preço e informe o
+  preço por milhão de tokens: as respostas antigas também passam a contar.
+- Na Anthropic, o **cache de prompt** é automático e reduz o custo de conversas
+  longas.
+
+**Para gastar menos:**
+
+- Use modelos menores (Haiku, GPT mini/nano, Gemini Flash) para tarefas simples
+  e os maiores só quando precisa.
+- Comece conversas novas para assuntos novos: o histórico inteiro vai junto em
+  cada pergunta.
+- Use **Resumir a conversa** em conversas longas.
+- Prefira bases de conhecimento a anexar o mesmo PDF grande em toda conversa.
+- Teste ideias com o Ollama, de graça, antes de usar um modelo pago.
+
+## 14. Segurança, backup e sincronização
+
+### Onde ficam os seus dados
+
+- **Conversas, configurações e biblioteca:** no navegador (IndexedDB e
+  localStorage) do computador onde você usa o TSRS. Outro navegador ou outro
+  computador não vê.
+- **Arquivos:** `projetos/`, `extensoes/` e `renders/`, dentro da pasta do TSRS
+  (ou nas pastas que você escolheu).
+- **Chaves:** no navegador, criptografadas se você definiu senha. Nunca vão para
+  backups, sincronização ou exportações.
+
+### Backup
+
+Em **Configurações → Dados**: **Exportar backup** grava tudo num arquivo JSON;
+**Importar backup** restaura. Faça backups de vez em quando, principalmente
+antes de limpar os dados do navegador. Uma conversa sozinha pode ser exportada
+em Markdown ou numa página HTML (**Exportar Markdown**, **Exportar HTML**).
+
+### Sincronizar entre computadores
+
+Em **Configurações → Sincronização**, escolha:
+
+- **Uma pasta** sincronizada pelo Dropbox, Google Drive, OneDrive ou Syncthing
+  (Chrome, Edge e outros baseados no Chromium);
+- **WebDAV** (Nextcloud, por exemplo) ou **S3** (AWS, Cloudflare R2…), que
+  funcionam em qualquer navegador.
+
+Use a **senha da sincronização** para que os arquivos fiquem criptografados no
+serviço. As chaves de API não são sincronizadas: cole-as em cada computador.
+
+## 15. Receitas: tirando o máximo do TSRS
+
+**Site ou landing page.** Crie uma pasta "Site da empresa" com o contexto (marca,
+cores, público). Peça a página em arquivos separados, veja no Preview, ajuste
+conversando e abra a pasta do projeto no seu editor ou no Claude Code para
+publicar.
+
+**Vídeo para redes sociais.** Gere a trilha ("música eletrônica calma de 15
+segundos"), peça a animação motion em 1080x1920 com o texto da campanha, ajuste
+na linha do tempo e clique em **Gerar MP4**.
+
+**Pesquisa de mercado.** Configure a busca própria, ligue **Pesquisa** e pergunte
+"quais são os principais concorrentes de X no Brasil, preços e diferenciais".
+O relatório com fontes fica na pasta do projeto para você revisar e reaproveitar.
+
+**Atendimento ou suporte.** Crie uma base de conhecimento com os manuais e as
+perguntas frequentes, um agente "Suporte" ligado a ela e use para responder
+clientes com base nos documentos oficiais.
+
+**Escolher o melhor modelo.** Use **Comparar com outros modelos** com a mesma
+tarefa em três modelos e veja qualidade, velocidade e custo lado a lado.
+
+**Rotina automática.** Uma tarefa na **Agenda** toda manhã com "resuma as
+novidades de IA de ontem em 5 tópicos" (com a busca própria ligada).
+
+**Padronizar a equipe.** Escreva skills com os padrões da empresa (tom de voz,
+formato de propostas, checklist de revisão) e compartilhe a pasta da skill: cada
+pessoa instala no seu TSRS.
+
+**Dicas gerais:**
+
+- Diga o **formato** que quer ("em tabela", "em 5 tópicos", "em arquivos separados").
+- Dê **exemplos** do que é bom e do que não é.
+- Para tarefas grandes, peça **um plano primeiro** e depois a execução.
+- Use **Ramificar** para testar outra abordagem sem perder a conversa atual.
+- Ctrl+K é o atalho para quase tudo.
+
+## 16. Problemas comuns
+
+**"Failed to fetch" ou erro de CORS com um provedor.** Algumas APIs não aceitam
+chamadas do navegador. Rode `npm run proxy` em outro terminal e ligue **Usar o proxy
+local** no provedor, em **Configurações → Provedores**.
+
+**"Carregar modelos" não mostra nada.** Confira a chave (sem espaços sobrando)
+e se a conta tem crédito. Dá para digitar o nome do modelo direto na barra
+superior.
+
+**O Ollama não conecta.** Confira se o Ollama está aberto (`ollama list` no
+terminal) e se o modelo foi baixado.
+
+**A pasta do projeto ou o Gerar MP4 não aparecem.** Esses recursos precisam do
+TSRS aberto pelo `npm run dev`, não por um build estático. Confira se o
+terminal está rodando.
+
+**O MP4 não gera.** Instale o ffmpeg e reinicie o `npm run dev`. No Windows,
+feche e abra o terminal depois de instalar.
+
+**O vídeo saiu sem som.** Escolha a trilha no preview antes de clicar em **Gerar
+MP4**.
+
+**A leitura em voz alta está robótica.** Use o Microsoft Edge (vozes "Natural"
+grátis) ou uma voz da ElevenLabs, da OpenAI ou do Gemini.
+
+**Esqueci a senha das chaves.** Não há como recuperar: é isso que mantém as
+chaves seguras. Em **Configurações → Dados**, **Apagar tudo** e cole as chaves de
+novo (faça um backup das conversas antes; ele não inclui chaves).
+
+**As conversas sumiram.** Elas ficam no navegador: confira se está no mesmo
+navegador, perfil e endereço (`localhost:5173`). Limpar os dados do site apaga
+as conversas — por isso os backups.
+
+**`npm ci` falha.** Confira `node --version` (precisa ser 22 ou mais). No Windows,
+rode o terminal como usuário comum, não como administrador.
+
+**A agenda não rodou.** O computador precisa estar ligado, o `npm run dev`
+rodando e a chave do provedor guardada para a agenda.
+
+## 17. Perguntas frequentes
+
+**O TSRS é grátis?** Sim, é open source (licença MIT). Você paga só o uso dos
+provedores, direto a eles, ou nada, com modelos locais.
+
+**Os meus dados são usados para treinar modelos?** O TSRS não envia nada a
+ninguém além do provedor que você escolheu. O uso dos dados por cada provedor
+segue a política dele; nas APIs pagas, em geral, os dados não são usados para
+treino. Confira a política do provedor.
+
+**Funciona sem internet?** Com o Ollama ou o LM Studio, sim. Os outros
+provedores precisam de internet.
+
+**Posso usar no celular?** Por enquanto, o TSRS é feito para rodar no
+computador, onde ficam as pastas, o servidor local e as chaves.
+
+**Posso usar com a minha equipe?** Cada pessoa roda o seu TSRS. Para dividir
+padrões, compartilhe skills, plugins, agentes (pelo backup) e pastas de projeto.
+Recursos de equipe hospedados estão fora do escopo, de propósito.
+
+**Como peço um recurso ou relato um problema?** Pelas
+[Issues](https://github.com/Eddienews/tsrs/issues) ou pelas
+[Discussions](https://github.com/Eddienews/tsrs/discussions), em português ou
+inglês. Veja também o [Como contribuir](../CONTRIBUTING.pt-BR.md).

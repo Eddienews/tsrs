@@ -1,31 +1,42 @@
-name: Problema
-description: Algo não funciona como deveria
+name: Bug · Problema
+description: Something doesn't work as it should · Algo não funciona como deveria
 labels: [bug]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Write in English or Portuguese. **Never paste API keys.** Security problems go through [SECURITY.md](https://github.com/Eddienews/tsrs/blob/main/SECURITY.md), not here.
+        Escreva em inglês ou português. **Nunca cole chaves de API.** Problemas de segurança vão pelo [SECURITY.md](https://github.com/Eddienews/tsrs/blob/main/SECURITY.md), não por aqui.
   - type: textarea
     id: what
     attributes:
-      label: O que aconteceu
-      description: E o que você esperava que acontecesse.
+      label: What happened · O que aconteceu
+      description: And what you expected to happen. · E o que você esperava que acontecesse.
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
-      label: Como reproduzir
+      label: How to reproduce · Como reproduzir
       placeholder: |
-        1. Abra as Configurações
+        1. Open Settings · Abra as Configurações
         2. ...
     validations:
       required: true
   - type: input
+    id: version
+    attributes:
+      label: TSRS version · Versão do TSRS
+      description: Shown under the name in the app. · Aparece embaixo do nome, no app.
+      placeholder: v0.2.0 · 6b043d6
+  - type: input
     id: where
     attributes:
-      label: Navegador, sistema e provedor
-      placeholder: Chrome 140, Windows 11, Ollama com qwen3
+      label: Browser, system and provider · Navegador, sistema e provedor
+      placeholder: Chrome 140, Windows 11, Ollama qwen3
   - type: textarea
     id: console
     attributes:
-      label: Erros no console do navegador
-      description: Se houver. Apague chaves de API e dados pessoais antes de colar.
+      label: Browser console or terminal errors · Erros no console ou no terminal
+      description: If any. Remove keys and personal data first. · Se houver. Apague chaves e dados pessoais antes.
       render: text

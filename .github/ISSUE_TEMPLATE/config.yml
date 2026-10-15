@@ -1,1 +1,11 @@
 blank_issues_enabled: true
+contact_links:
+  - name: Questions and ideas · Dúvidas e ideias
+    url: https://github.com/Eddienews/tsrs/discussions
+    about: Ask, share what you built, discuss ideas · Pergunte, mostre o que fez, discuta ideias
+  - name: Manual (Português)
+    url: https://github.com/Eddienews/tsrs/blob/main/docs/MANUAL.pt-BR.md
+    about: How to use TSRS and get the most out of it · Como usar o TSRS e tirar o máximo dele
+  - name: Security · Segurança
+    url: https://github.com/Eddienews/tsrs/security/policy
+    about: Report vulnerabilities privately · Relate vulnerabilidades em particular
