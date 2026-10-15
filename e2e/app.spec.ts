@@ -756,6 +756,12 @@ test('generates video and audio with media services and keeps the files', async 
         : { request_id: 'r1', status_url: `${base}/status`, response_url: base, cancel_url: `${base}/cancel` }
     await route.fulfill({ json: body, headers: cors })
   })
+  await page.route('https://api.fal.ai/v1/models/pricing**', (route) =>
+    route.fulfill({
+      json: { prices: [{ endpoint_id: 'x', unit_price: 0.084, unit: 'second', currency: 'USD' }] },
+      headers: cors,
+    }),
+  )
   await page.route('https://v3.fal.media/**', (route) =>
     route.fulfill({ body: Buffer.from([1, 2, 3]), contentType: 'video/mp4', headers: cors }),
   )
@@ -773,6 +779,10 @@ test('generates video and audio with media services and keeps the files', async 
   await closeSettings(page)
 
   await page.getByRole('button', { name: 'Vídeo' }).click()
+  // The cost is shown before anything is sent.
+  await expect(page.locator('.media-price')).toHaveText(
+    /^Custo estimado: US\$\s0,08 por segundo\. Fonte: fal\.ai\.$/,
+  )
   await page.getByPlaceholder(/Descreva o vídeo/).fill('ondas na praia')
   await page.getByPlaceholder(/Descreva o vídeo/).press('Enter')
   await expect(reply(page)).toContainText(/Gerando vídeo…\s*\(na fila: 3\)/)

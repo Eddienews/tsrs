@@ -63,6 +63,9 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
   Configurações → Mídia, com o modelo e opções em JSON. Vídeos esperam na fila
   do serviço mostrando o progresso; parar a resposta cancela o pedido na fal.ai,
   no Replicate e na Higgsfield. O arquivo gerado é baixado e fica na conversa.
+  Antes de enviar, aparece o custo estimado quando há como saber: pela tabela
+  de preços do Veo, pela API de preços da fal.ai e pelas fichas dos modelos do
+  Runware.
 - Leitura das respostas em voz alta com a voz do navegador ou com uma voz da
   ElevenLabs, da OpenAI ou do Gemini (Configurações → Mídia); respostas longas
   são lidas em trechos, e cada trecho é gerado uma vez por sessão.

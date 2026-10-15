@@ -681,4 +681,17 @@ export const en: Record<string, string> = {
   'Opções da voz (JSON)': 'Voice options (JSON)',
   'Voz do navegador': 'Browser voice',
   'Voz ou modelo da leitura': 'Reading voice or model',
+  // Cost estimates
+  'cerca de {total} ({seconds} s a {rate} por segundo)': 'about {total} ({seconds} s at {rate} per second)',
+  'cerca de {total} ({seconds} s em {resolution}, a {rate} por segundo)':
+    'about {total} ({seconds} s at {resolution}, {rate} per second)',
+  'Custo estimado: {estimate}. Fonte: {source}.': 'Estimated cost: {estimate}. Source: {source}.',
+  'imagem': 'image',
+  '{name} só informa o custo depois de gerar.': '{name} only reports the cost after generating.',
+  'pedido': 'request',
+  '{price} em {configuration}': '{price} for {configuration}',
+  '{rate} por {unit}': '{rate} per {unit}',
+  'segundo': 'second',
+  'tabela de preços do Gemini, outubro de 2026': 'Gemini price list, October 2026',
+  'vídeo': 'video',
 }

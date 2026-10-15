@@ -62,7 +62,8 @@ cada seção é a ordem sugerida.
       OpenAI encerrou o Sora 2 e a API de vídeos em 24/09/2026
 - [x] Leitura em voz alta das respostas com uma voz da ElevenLabs, da OpenAI ou
       do Gemini
-- [ ] Mostrar o custo estimado de um vídeo antes de gerar
+- [x] Mostrar o custo estimado antes de gerar (Veo, fal.ai e Runware; os outros
+      serviços só informam depois)
 - [ ] Mais serviços com API oficial, cada um testado quanto a CORS: Black Forest
       Labs, Stability, Ideogram, Recraft, Luma, Runway, Kling, MiniMax, Cartesia,
       Hume, Deepgram (sem Midjourney, Suno e Udio, que não têm API oficial)
