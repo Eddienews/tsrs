@@ -10,6 +10,7 @@ import {
   FolderOutput,
   FolderPlus,
   Library,
+  Puzzle,
   ListChecks,
   Moon,
   MoreHorizontal,
@@ -24,6 +25,7 @@ import {
   Trash2,
   Wrench,
   X,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -39,6 +41,7 @@ import { cn } from '@/lib/utils'
 import { t } from './i18n'
 import { allTags, hasTag, parseTags, withTag } from './tags'
 import type { ChatMeta, Folder } from './types'
+import { versionDetails, versionLabel } from './version'
 
 const SEARCH_DELAY_MS = 200
 
@@ -57,7 +60,11 @@ interface Props {
   onSearch: (needle: string) => Promise<string[]>
   onFoldersChange: (folders: Folder[]) => void
   onDeleteFolder: (folder: Folder) => void
-  onOpen: (what: 'library' | 'tools' | 'usage' | 'settings') => void
+  // Opens the folder's context: instructions, files and agent.
+  onEditFolder: (folder: Folder) => void
+  // Starts a conversation inside the folder.
+  onNewInFolder: (folder: Folder) => void
+  onOpen: (what: 'library' | 'tools' | 'extensions' | 'usage' | 'settings') => void
   onToggleTheme: () => void
 }
 
@@ -309,6 +316,9 @@ export default function Sidebar(props: Props) {
               <ChevronRight className={cn('size-3.5 transition-transform', open && 'rotate-90')} />
               <FolderIcon className="size-3.5 text-muted-foreground" />
               <span className="flex-1 truncate text-left">{folder.name}</span>
+              {(folder.instructions?.trim() || folder.files?.length || folder.personaId) && (
+                <span className="size-1.5 rounded-full bg-primary" title={t('Esta pasta tem contexto próprio')} />
+              )}
               <span className="font-mono text-[11px] text-muted-foreground">{items.length}</span>
             </button>
             <DropdownMenu>
@@ -324,6 +334,14 @@ export default function Sidebar(props: Props) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" onCloseAutoFocus={(e) => e.preventDefault()}>
+                <DropdownMenuItem onSelect={() => props.onNewInFolder(folder)}>
+                  <Plus />
+                  {t('Nova conversa nesta pasta')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => props.onEditFolder(folder)}>
+                  <SlidersHorizontal />
+                  {t('Contexto da pasta…')}
+                </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setNaming(folder.id)}>
                   <Pencil />
                   {t('Renomear')}
@@ -347,6 +365,7 @@ export default function Sidebar(props: Props) {
   const footer = [
     ['library', Library, t('Biblioteca')],
     ['tools', Wrench, t('Ferramentas')],
+    ['extensions', Puzzle, t('Extensões')],
     ['usage', BarChart3, t('Uso')],
     ['settings', SettingsIcon, t('Configurações')],
   ] as const
@@ -357,8 +376,20 @@ export default function Sidebar(props: Props) {
         <div className="flex size-6 items-center justify-center rounded border border-primary/60">
           <span className="live-dot" />
         </div>
-        <span className="font-mono text-sm font-semibold tracking-wider">TSRS</span>
-        <span className="truncate text-xs text-muted-foreground">The Signal Room Studio</span>
+        <div className="flex min-w-0 flex-col leading-tight">
+          <div className="flex min-w-0 items-baseline gap-2">
+            <span className="font-mono text-sm font-semibold tracking-wider">TSRS</span>
+            <span className="truncate text-xs text-muted-foreground">The Signal Room Studio</span>
+          </div>
+          {/* Which code is running, so a screenshot says it too. */}
+          <span
+            className="truncate font-mono text-[10px] text-muted-foreground"
+            title={versionDetails()}
+            data-testid="version"
+          >
+            {versionLabel()}
+          </span>
+        </div>
       </div>
       <div className="space-y-2 px-3 pb-2">
         <div className="flex gap-2">
@@ -581,7 +612,7 @@ export default function Sidebar(props: Props) {
         )}
       </nav>
 
-      <div className="grid grid-cols-5 gap-1 border-t p-2">
+      <div className="grid grid-cols-6 gap-1 border-t p-2">
         {footer.map(([key, Icon, label]) => (
           <Button
             key={key}

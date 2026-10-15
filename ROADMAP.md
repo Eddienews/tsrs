@@ -66,6 +66,16 @@ cada seção é a ordem sugerida.
       serviços só informam depois)
 - [x] Mais serviços com API oficial: Stability, Black Forest Labs (pelo proxy),
       MiniMax (vídeo e voz), Cartesia e o Grok Imagine da xAI (imagem e vídeo)
+- [x] Vídeos com motion: bloco `motion` com linha do tempo no preview e
+      `npm run render` para MP4, quadro a quadro, como no NWLab ForgeOS
+- [x] Extensões: skills no formato do Claude, plugins (skills, comandos, agentes,
+      MCP e ferramentas próprias por HTTP ou JavaScript) e agenda rodada pelo servidor
+- [x] Pasta do projeto: os arquivos de cada conversa gravados numa pasta de verdade,
+      para continuar no Claude Code, no Codex ou num editor
+- [x] Anexar áudio: tocar na conversa, transcrever (OpenAI ou Groq) para o modelo e
+      usar como trilha do vídeo motion
+- [x] Botão Gerar MP4 no preview, com trilha da conversa ou do computador; o
+      renderizador vem dentro do `npm run dev`
 - [ ] Ainda de fora: Luma (a API está mudando para a "Agents API"), Runway (só
       documenta vídeo a partir de imagem), Ideogram, Recraft, Kling oficial e
       Hume (não aceitam o navegador; precisariam do proxy), Deepgram (sem vozes em

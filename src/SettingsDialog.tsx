@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Download, Lock, RefreshCw, Trash2, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -23,6 +23,8 @@ import ShortcutsSection from './ShortcutsSection'
 import { chime } from './sound'
 import SyncSection, { type SyncProps } from './SyncSection'
 import type { Appearance, Provider, ProviderSettings, Settings } from './types'
+import { versionDetails } from './version'
+import { projectsRoot } from './projects'
 
 interface Props {
   settings: Settings
@@ -192,6 +194,12 @@ export default function SettingsDialog(props: Props) {
                 {sectionName(id)}
               </button>
             ))}
+            <p
+              className="mt-auto hidden whitespace-pre-line px-2.5 pt-3 font-mono text-[10px] leading-relaxed text-muted-foreground select-text sm:block"
+              data-testid="version-details"
+            >
+              {versionDetails()}
+            </p>
           </nav>
 
           <div className="min-w-0 flex-1 space-y-4 overflow-y-auto p-5">
@@ -408,6 +416,10 @@ export default function SettingsDialog(props: Props) {
                     )}
                   </p>
                 </div>
+                <ProjectsSetting
+                  on={settings.projects !== false}
+                  onToggle={(projects) => onChange((s) => ({ ...s, projects }))}
+                />
                 <div className="space-y-3">
                   <h3 className="text-sm font-medium">{t('Títulos')}</h3>
                   <label className="flex items-center justify-between gap-4 rounded-md border p-3 text-sm">
@@ -632,5 +644,45 @@ export default function SettingsDialog(props: Props) {
         </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// Saving the files of each conversation into a folder of its own.
+function ProjectsSetting(p: { on: boolean; onToggle: (on: boolean) => void }) {
+  // Undefined while asking the server, null when it cannot save files.
+  const [root, setRoot] = useState<string | null | undefined>(undefined)
+  useEffect(() => {
+    let stale = false
+    projectsRoot().then((found) => !stale && setRoot(found))
+    return () => {
+      stale = true
+    }
+  }, [])
+  return (
+    <div className="space-y-1.5">
+      <label className="flex items-center justify-between gap-4 rounded-md border p-3 text-sm">
+        {t('Salvar os arquivos de cada conversa numa pasta')}
+        <Switch
+          aria-label={t('Salvar os arquivos de cada conversa numa pasta')}
+          checked={p.on}
+          onCheckedChange={p.onToggle}
+        />
+      </label>
+      <p className="text-xs text-muted-foreground">
+        {t(
+          'Páginas, estilos, scripts e vídeos motion que o modelo escreve são gravados como arquivos de verdade numa pasta da conversa, criada sozinha. Nada se perde se o navegador fechar, e o Claude Code, o Codex ou um editor podem continuar a partir dela. Cada conversa pode usar outra pasta pelo botão da pasta no topo.',
+        )}
+      </p>
+      {root && (
+        <p className="text-xs text-muted-foreground">
+          {t('Pastas em: {root}', { root })}
+        </p>
+      )}
+      {root === null && (
+        <p className="text-xs text-warning">
+          {t('Este TSRS não está rodando pelo npm run dev, então não consegue gravar pastas.')}
+        </p>
+      )}
+    </div>
   )
 }

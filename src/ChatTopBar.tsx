@@ -1,6 +1,8 @@
 import {
   AlertTriangle,
   ChevronDown,
+  Copy,
+  FolderOpen,
   Menu,
   MessageSquareDashed,
   NotebookPen,
@@ -9,7 +11,7 @@ import {
   UserRound,
   Wrench,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -30,7 +32,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils'
 import { t } from './i18n'
 import { PROVIDERS } from './providers'
-import type { Provider, Settings } from './types'
+import { fileUrl, listFiles } from './projects'
+import type { ChatProject, Provider, Settings } from './types'
+import { Input } from '@/components/ui/input'
 import { CONTEXT_WARNING, formatCost, formatTokens, modelInfo, type Totals } from './usage'
 
 interface Props {
@@ -51,14 +55,225 @@ interface Props {
   onMenu: () => void
   onModel: (providerId: string, model: string) => void
   onPersona: (id: string) => void
+  // Saves the price typed for a model whose price is not known; null removes it.
+  onPrice: (providerId: string, model: string, price: { inputPrice: number; outputPrice: number } | null) => void
   onTools: () => void
   onParams: () => void
   onTogglePreview: () => void
   onToggleCanvas: () => void
+  // The folder where the conversation saves its files, once it has one.
+  project?: ChatProject
+  onOpenUrl: (url: string, name: string) => void
+  onMoveProject: (path: string) => Promise<void>
   // The conversation is temporary, or the next one will be.
   temporary: boolean
   // Absent once the conversation has started: it stays what it is.
   onToggleTemporary?: () => void
+}
+
+// Asks for a model's price when neither the provider nor the app knows it, so
+// the conversation's cost can be shown.
+function PriceButton(p: Pick<Props, 'settings' | 'provider' | 'onPrice'>) {
+  const model = p.settings.model
+  const typed = p.settings.modelPrices?.[`${p.provider.id}/${model}`]
+  const [open, setOpen] = useState(false)
+  const [input, setInput] = useState('')
+  const [output, setOutput] = useState('')
+  const valid = (text: string) => text.trim() !== '' && Number(text.replace(',', '.')) >= 0
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (next) {
+          setInput(typed ? String(typed.inputPrice) : '')
+          setOutput(typed ? String(typed.outputPrice) : '')
+        }
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button
+          className="underline underline-offset-2 hover:text-foreground"
+          title={t('Informar o preço de {model} para ver o custo', { model })}
+        >
+          {typed ? t('preço informado') : t('definir preço')}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72 space-y-2 text-xs">
+        <p className="font-medium">{t('Preço de {model}', { model })}</p>
+        <p className="text-muted-foreground">
+          {t(
+            'O provedor não informa o preço deste modelo. Copie da página de preços dele, em dólares por milhão de tokens; o custo da conversa passa a aparecer.',
+          )}
+        </p>
+        <form
+          className="space-y-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (!valid(input) || !valid(output)) return
+            p.onPrice(p.provider.id, model, {
+              inputPrice: Number(input.replace(',', '.')),
+              outputPrice: Number(output.replace(',', '.')),
+            })
+            setOpen(false)
+          }}
+        >
+          <div className="grid grid-cols-2 gap-2">
+            <label className="space-y-1">
+              <span>{t('Entrada (US$)')}</span>
+              <Input inputMode="decimal" value={input} onChange={(e) => setInput(e.target.value)} />
+            </label>
+            <label className="space-y-1">
+              <span>{t('Saída (US$)')}</span>
+              <Input inputMode="decimal" value={output} onChange={(e) => setOutput(e.target.value)} />
+            </label>
+          </div>
+          <div className="flex justify-end gap-2">
+            {typed && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  p.onPrice(p.provider.id, model, null)
+                  setOpen(false)
+                }}
+              >
+                {t('Remover')}
+              </Button>
+            )}
+            <Button type="submit" size="sm" disabled={!valid(input) || !valid(output)}>
+              {t('Salvar')}
+            </Button>
+          </div>
+        </form>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+// The conversation's folder: where it is, what is in it, and moving it.
+function ProjectButton(p: {
+  project: ChatProject
+  onOpenUrl: Props['onOpenUrl']
+  onMoveProject: Props['onMoveProject']
+}) {
+  const [open, setOpen] = useState(false)
+  const [files, setFiles] = useState<{ name: string; size: number }[] | null>(null)
+  const [error, setError] = useState('')
+  const [path, setPath] = useState('')
+  const [moving, setMoving] = useState(false)
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!open) return
+    setFiles(null)
+    setError('')
+    listFiles(p.project.path)
+      .then(setFiles)
+      .catch((err) => setError(err instanceof Error ? err.message : String(err)))
+  }, [open, p.project.path])
+  const pages = (files ?? []).filter((f) => /\.(html?|svg)$/i.test(f.name))
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="project h-8 max-w-48 gap-1.5 text-xs"
+          title={t('Pasta do projeto: {path}', { path: p.project.path })}
+        >
+          <FolderOpen className="size-3.5 shrink-0" />
+          <span className="truncate">{p.project.name}</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-96 space-y-3 text-xs">
+        <div className="space-y-1">
+          <p className="font-medium">{t('Pasta do projeto')}</p>
+          <div className="flex items-center gap-1">
+            <code className="min-w-0 flex-1 select-all break-all rounded bg-code px-2 py-1 font-mono text-[11px]">
+              {p.project.path}
+            </code>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 shrink-0"
+              aria-label={t('Copiar o caminho')}
+              title={copied ? t('Copiado') : t('Copiar o caminho')}
+              onClick={() => {
+                void navigator.clipboard.writeText(p.project.path)
+                setCopied(true)
+                setTimeout(() => setCopied(false), 1500)
+              }}
+            >
+              <Copy className="size-3.5" />
+            </Button>
+          </div>
+          <p className="text-muted-foreground">
+            {t(
+              'Os arquivos que a conversa cria ficam aqui. Abra esta pasta no Claude Code, no Codex ou num editor para continuar; o TSRS lê a versão atual.',
+            )}
+          </p>
+        </div>
+        <div className="space-y-1">
+          <p className="font-medium">{t('Arquivos')}</p>
+          {error && <p className="text-destructive">{error}</p>}
+          {!files && !error && <p className="text-muted-foreground">{t('Carregando…')}</p>}
+          {files && files.length === 0 && <p className="text-muted-foreground">{t('Ainda vazia.')}</p>}
+          <ul className="max-h-40 space-y-0.5 overflow-y-auto font-mono text-[11px]">
+            {(files ?? []).map((f) => (
+              <li key={f.name} className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                {pages.includes(f) && (
+                  <button
+                    className="shrink-0 text-primary underline-offset-2 hover:underline"
+                    onClick={() => {
+                      p.onOpenUrl(fileUrl(p.project.path, f.name), f.name)
+                      setOpen(false)
+                    }}
+                  >
+                    {t('Abrir no preview')}
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <form
+          className="space-y-1"
+          onSubmit={async (e) => {
+            e.preventDefault()
+            if (!path.trim()) return
+            setMoving(true)
+            setError('')
+            try {
+              await p.onMoveProject(path.trim())
+              setPath('')
+              setOpen(false)
+            } catch (err) {
+              setError(err instanceof Error ? err.message : String(err))
+            } finally {
+              setMoving(false)
+            }
+          }}
+        >
+          <p className="font-medium">{t('Usar outra pasta')}</p>
+          <div className="flex gap-1">
+            <Input
+              aria-label={t('Caminho da outra pasta')}
+              placeholder={'C:\\Users\\voce\\Sites\\nwlab'}
+              className="h-8 font-mono text-[11px]"
+              value={path}
+              onChange={(e) => setPath(e.target.value)}
+            />
+            <Button type="submit" size="sm" className="h-8" disabled={moving || !path.trim()}>
+              {t('Usar')}
+            </Button>
+          </div>
+          <p className="text-muted-foreground">{t('Os arquivos atuais são copiados para lá.')}</p>
+        </form>
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 function ModelPicker({ settings, onModel }: Pick<Props, 'settings' | 'onModel'>) {
@@ -159,6 +374,13 @@ export default function ChatTopBar(p: Props) {
   const { settings, spent, context } = p
   const persona = settings.personas.find((x) => x.id === p.personaId)
   const warn = context !== undefined && context >= CONTEXT_WARNING
+  const info = modelInfo(settings, p.provider.id, settings.model)
+  const priceUnknown =
+    !!settings.model &&
+    // Local models (Ollama, LM Studio) need no key and cost nothing.
+    (p.provider.keyRequired || !!settings.providers[p.provider.id]?.apiKey) &&
+    spent.cost === undefined &&
+    (info.inputPrice === undefined || info.outputPrice === undefined)
 
   return (
     <header className="toolbar flex flex-wrap items-center gap-1.5 border-b px-2 py-1.5">
@@ -202,6 +424,9 @@ export default function ChatTopBar(p: Props) {
         </DropdownMenu>
       )}
       <div className="ml-auto flex flex-wrap items-center gap-1">
+        {p.project && (
+          <ProjectButton project={p.project} onOpenUrl={p.onOpenUrl} onMoveProject={p.onMoveProject} />
+        )}
         {spent.tokens > 0 && (
           <div
             className={cn(
@@ -213,6 +438,11 @@ export default function ChatTopBar(p: Props) {
             {warn && <AlertTriangle className="size-3.5" />}
             <span>{formatTokens(spent.tokens)} tokens</span>
             {spent.cost !== undefined && <span>· {formatCost(spent.cost)}</span>}
+            {(priceUnknown || p.settings.modelPrices?.[`${p.provider.id}/${p.settings.model}`]) && (
+              <span>
+                · <PriceButton settings={p.settings} provider={p.provider} onPrice={p.onPrice} />
+              </span>
+            )}
             {context !== undefined && (
               <span className="hidden sm:inline">
                 · {t('contexto {percent}%', { percent: Math.round(context * 100) })}

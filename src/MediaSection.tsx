@@ -1,11 +1,10 @@
 import { useState } from 'react'
-import { ExternalLink, Loader2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { ExternalLink } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { EyeButton } from './EyeButton'
-import { t } from './i18n'
+import { locale, t } from './i18n'
 import {
   defaultModel,
   MEDIA_KINDS,
@@ -16,7 +15,7 @@ import {
   sourceName,
   type MediaService,
 } from './media'
-import { listVoices } from './mediaJobs'
+import { BrowserVoiceField, ElevenModelField, ElevenVoiceField } from './VoiceFields'
 import type { MediaChoice, MediaKind, Settings } from './types'
 
 interface Props {
@@ -58,32 +57,11 @@ function isJsonObject(text: string): boolean {
   }
 }
 
-interface Voice {
-  id: string
-  name: string
-}
-
-function KeyCard(props: Props & { service: MediaService; onVoices: (voices: Voice[]) => void }) {
+function KeyCard(props: Props & { service: MediaService }) {
   const { service, settings, locked } = props
   const [shown, setShown] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [note, setNote] = useState('')
   const key = settings.mediaKeys[service.id] ?? ''
   const kinds = MEDIA_KINDS.filter((kind) => kind in service.models)
-
-  async function loadVoices() {
-    setBusy(true)
-    setNote('')
-    try {
-      const voices = await listVoices(key)
-      props.onVoices(voices)
-      setNote(t('{count} vozes carregadas.', { count: voices.length }))
-    } catch (err) {
-      setNote(err instanceof Error ? err.message : String(err))
-    } finally {
-      setBusy(false)
-    }
-  }
 
   return (
     <div className="media-service space-y-2 rounded-md border p-3" data-service={service.id}>
@@ -137,32 +115,16 @@ function KeyCard(props: Props & { service: MediaService; onVoices: (voices: Voic
           )}
         </p>
       )}
-      {service.id === 'elevenlabs' && key && (
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 gap-1"
-            disabled={busy || locked}
-            onClick={loadVoices}
-          >
-            {busy && <Loader2 className="size-3.5 animate-spin" />}
-            {t('Carregar vozes')}
-          </Button>
-          {note && <span className={hint}>{note}</span>}
-        </div>
-      )}
     </div>
   )
 }
 
-function KindChoice(props: Props & { kind: MediaKind; voices: Voice[] }) {
+function KindChoice(props: Props & { kind: MediaKind }) {
   const { kind, settings, onChange } = props
   const choice = settings.media[kind]
   const service = mediaService(choice.source)
   const fallback = choice.source === 'auto' ? '' : defaultModel(choice.source, kind)
   const example = service?.examples[kind]
-  const list = `media-models-${kind}`
   const set = (fields: Partial<MediaChoice>) =>
     onChange((s) => ({ ...s, media: { ...s.media, [kind]: { ...s.media[kind], ...fields } } }))
 
@@ -183,28 +145,37 @@ function KindChoice(props: Props & { kind: MediaKind; voices: Voice[] }) {
             </option>
           ))}
         </select>
-        {choice.source !== 'auto' && (
+        {choice.source !== 'auto' && service?.id === 'elevenlabs' && kind === 'audio' ? (
           <>
+            <ElevenVoiceField
+              apiKey={settings.mediaKeys.elevenlabs ?? ''}
+              label={t('Voz ou tipo de áudio')}
+              value={choice.model}
+              fallback={fallback}
+              extras={[
+                { value: 'sound-effects', label: t('Efeitos sonoros') },
+                { value: 'music', label: t('Música') },
+              ]}
+              onChange={(model) => set({ model })}
+            />
+            {!['music', 'sound-effects'].includes(choice.model) && (
+              <ElevenModelField
+                apiKey={settings.mediaKeys.elevenlabs ?? ''}
+                options={choice.options}
+                onOptions={(options) => set({ options })}
+              />
+            )}
+          </>
+        ) : (
+          choice.source !== 'auto' && (
             <Input
               aria-label={t('Modelo de {kind}', { kind: kindName(kind).toLowerCase() })}
               className="h-9 min-w-48 flex-1 font-mono text-xs"
-              list={service?.id === 'elevenlabs' ? list : undefined}
               placeholder={fallback || (example ? t('ex.: {example}', { example }) : t('Modelo'))}
               value={choice.model}
               onChange={(e) => set({ model: e.target.value.trim() })}
             />
-            {service?.id === 'elevenlabs' && (
-              <datalist id={list}>
-                <option value="sound-effects">{t('Efeitos sonoros')}</option>
-                <option value="music">{t('Música')}</option>
-                {props.voices.map((voice) => (
-                  <option key={voice.id} value={voice.id}>
-                    {voice.name}
-                  </option>
-                ))}
-              </datalist>
-            )}
-          </>
+          )
         )}
       </div>
       {choice.source !== 'auto' && !fallback && !choice.model && (
@@ -244,7 +215,7 @@ function KindChoice(props: Props & { kind: MediaKind; voices: Voice[] }) {
 }
 
 // Who reads replies aloud: the browser's voices or a voice service.
-function ReaderChoice(props: Props & { voices: Voice[] }) {
+function ReaderChoice(props: Props) {
   const { settings, onChange } = props
   const choice = settings.readAloud
   const service = choice.source === 'browser' ? undefined : choice.source
@@ -270,24 +241,31 @@ function ReaderChoice(props: Props & { voices: Voice[] }) {
             </option>
           ))}
         </select>
-        {service && (
+        {service === 'elevenlabs' ? (
+          <>
+            <ElevenVoiceField
+              apiKey={settings.mediaKeys.elevenlabs ?? ''}
+              label={t('Voz da leitura')}
+              value={choice.model}
+              fallback={fallback}
+              onChange={(model) => set({ model })}
+            />
+            <ElevenModelField
+              apiKey={settings.mediaKeys.elevenlabs ?? ''}
+              options={choice.options}
+              onOptions={(options) => set({ options })}
+            />
+          </>
+        ) : service ? (
           <Input
             aria-label={t('Voz ou modelo da leitura')}
             className="h-9 min-w-48 flex-1 font-mono text-xs"
-            list={service === 'elevenlabs' ? 'reader-voices' : undefined}
             placeholder={fallback}
             value={choice.model}
             onChange={(e) => set({ model: e.target.value.trim() })}
           />
-        )}
-        {service === 'elevenlabs' && (
-          <datalist id="reader-voices">
-            {props.voices.map((voice) => (
-              <option key={voice.id} value={voice.id}>
-                {voice.name}
-              </option>
-            ))}
-          </datalist>
+        ) : (
+          <BrowserVoiceField value={choice.model} lang={locale()} onChange={(model) => set({ model })} />
         )}
       </div>
       {service && (
@@ -308,7 +286,7 @@ function ReaderChoice(props: Props & { voices: Voice[] }) {
       )}
       <p className={hint}>
         {t(
-          'O botão Ler em voz alta de cada resposta usa esta voz. A do navegador é grátis e funciona sem internet; um serviço soa mais natural e cobra pelo texto lido (cada trecho é gerado uma vez por sessão). Sem a chave do serviço, volta para a do navegador.',
+          'O botão Ler em voz alta de cada resposta usa esta voz. As do navegador são grátis: as marcadas como naturais (no Microsoft Edge, as "Online (Natural)") soam quase como um serviço pago; as outras, instaladas no sistema, funcionam sem internet. Um serviço cobra pelo texto lido (cada trecho é gerado uma vez por sessão). Sem a chave do serviço, volta para a do navegador.',
         )}
       </p>
     </section>
@@ -316,7 +294,6 @@ function ReaderChoice(props: Props & { voices: Voice[] }) {
 }
 
 export default function MediaSection(props: Props) {
-  const [voices, setVoices] = useState<Voice[]>([])
   return (
     <div className="media space-y-5">
       <p className={hint}>
@@ -327,13 +304,13 @@ export default function MediaSection(props: Props) {
       <section className="space-y-2">
         <h3 className="text-sm font-medium">{t('Chaves')}</h3>
         {MEDIA_SERVICES.map((service) => (
-          <KeyCard key={service.id} {...props} service={service} onVoices={setVoices} />
+          <KeyCard key={service.id} {...props} service={service} />
         ))}
       </section>
       <section className="space-y-4">
         <h3 className="text-sm font-medium">{t('Quem gera cada tipo')}</h3>
         {MEDIA_KINDS.map((kind) => (
-          <KindChoice key={kind} {...props} kind={kind} voices={voices} />
+          <KindChoice key={kind} {...props} kind={kind} />
         ))}
         <p className={hint}>
           {t(
@@ -341,7 +318,7 @@ export default function MediaSection(props: Props) {
           )}
         </p>
       </section>
-      <ReaderChoice {...props} voices={voices} />
+      <ReaderChoice {...props} />
     </div>
   )
 }

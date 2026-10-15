@@ -1,5 +1,6 @@
 import { locale, t } from './i18n'
 import { mediaService, type MediaService, type MediaTarget } from './media'
+import { ELEVEN_PRICES, elevenSpeechPrice } from './mediaPrice'
 import { connection } from './providers'
 import { generateImage } from './stream'
 import type { MediaKind, Settings } from './types'
@@ -206,6 +207,26 @@ function proxyFor(settings: Settings, service: Who): string | undefined {
   return proxy
 }
 
+// What an ElevenLabs request cost at its API list price: speech by the
+// characters it reports (or the text's length), music and sound effects by
+// the length asked for, when one was.
+export function elevenCost(
+  model: string,
+  body: Record<string, unknown>,
+  characters: string | null,
+): number | undefined {
+  if (model === 'music') {
+    const ms = Number(body.music_length_ms)
+    return ms > 0 ? (ms / 60_000) * ELEVEN_PRICES.music : undefined
+  }
+  if (model === 'sound-effects') {
+    const seconds = Number(body.duration_seconds)
+    return seconds > 0 ? (seconds / 60) * ELEVEN_PRICES.soundEffects : undefined
+  }
+  const count = Number(characters) || String(body.text ?? '').length
+  return (count / 1000) * elevenSpeechPrice(String(body.model_id ?? ''))
+}
+
 async function elevenlabs(job: Job, key: string, options: Record<string, unknown>): Promise<GeneratedMedia> {
   const service = mediaService('elevenlabs')!
   const base = 'https://api.elevenlabs.io/v1'
@@ -227,7 +248,8 @@ async function elevenlabs(job: Job, key: string, options: Record<string, unknown
     signal: job.signal,
   })
   const blob = await res.blob()
-  return { mime: blob.type || 'audio/mpeg', data: await toBase64(blob) }
+  const cost = elevenCost(model, body, res.headers.get('character-cost'))
+  return { mime: blob.type || 'audio/mpeg', data: await toBase64(blob), ...(cost === undefined ? {} : { cost }) }
 }
 
 async function runware(job: Job, key: string, options: Record<string, unknown>): Promise<GeneratedMedia> {
@@ -711,12 +733,54 @@ export async function generateMedia(job: Job): Promise<GeneratedMedia> {
   }
 }
 
-// ElevenLabs voices, for the settings.
-export async function listVoices(key: string): Promise<{ id: string; name: string }[]> {
+export interface ElevenVoice {
+  id: string
+  name: string
+  // The account's own voices (cloned, designed, added from the library), as
+  // opposed to the ones ElevenLabs gives everyone.
+  mine: boolean
+  // A short sample, on ElevenLabs' servers.
+  preview?: string
+  // Accent, gender, age… as the voice describes itself.
+  description?: string
+}
+
+// The voices of the ElevenLabs account, its own first, for the settings.
+export async function listVoices(key: string): Promise<ElevenVoice[]> {
   const res = await call(mediaService('elevenlabs')!, 'https://api.elevenlabs.io/v1/voices', {
     headers: { 'xi-api-key': key },
   })
   const json = await res.json()
-  const voices: { voice_id: string; name: string }[] = json.voices ?? []
-  return voices.map((v) => ({ id: v.voice_id, name: v.name }))
+  const voices: {
+    voice_id: string
+    name: string
+    category?: string
+    preview_url?: string
+    labels?: Record<string, string>
+  }[] = json.voices ?? []
+  return voices
+    .map((v) => ({
+      id: v.voice_id,
+      name: v.name,
+      mine: !!v.category && v.category !== 'premade',
+      ...(v.preview_url ? { preview: v.preview_url } : {}),
+      ...(v.labels ? { description: Object.values(v.labels).filter(Boolean).join(', ') } : {}),
+    }))
+    .sort((a, b) => Number(b.mine) - Number(a.mine) || a.name.localeCompare(b.name))
+}
+
+export interface ElevenModel {
+  id: string
+  name: string
+}
+
+// The ElevenLabs models that read text aloud.
+export async function listElevenModels(key: string): Promise<ElevenModel[]> {
+  const res = await call(mediaService('elevenlabs')!, 'https://api.elevenlabs.io/v1/models', {
+    headers: { 'xi-api-key': key },
+  })
+  const models: { model_id: string; name: string; can_do_text_to_speech?: boolean }[] = await res.json()
+  return models
+    .filter((m) => m.can_do_text_to_speech !== false)
+    .map((m) => ({ id: m.model_id, name: m.name }))
 }

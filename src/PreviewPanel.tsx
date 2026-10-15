@@ -15,17 +15,21 @@ import { cn } from '@/lib/utils'
 import { download } from './files'
 import { t } from './i18n'
 import Markdown from './Markdown'
+import MotionStage from './MotionStage'
 import {
   PREVIEW_SOURCE,
   fenced,
   isMarkdown,
+  isMotion,
   isScript,
+  motionSettings,
   normalizeUrl,
   previewDocument,
   urlSandbox,
   type Artifact,
   type ConsoleEntry,
 } from './preview'
+import type { Track } from './videoRender'
 
 const MAX_LOG_ENTRIES = 500
 
@@ -45,6 +49,10 @@ interface Props {
   // Opens a page by address in a new tab of the panel.
   onOpenUrl: (url: string) => void
   onClose: () => void
+  // Audio in the conversation, for the soundtrack of a motion video.
+  tracks?: Track[]
+  // The conversation's folder, where videos are saved.
+  project?: string
 }
 
 // A fence longer than any run of backticks in the code, so it cannot end early.
@@ -79,6 +87,7 @@ export default function PreviewPanel(p: Props) {
 
   const isUrl = artifact?.lang === 'url'
   const markdown = !!artifact && isMarkdown(artifact.lang)
+  const motion = !!artifact && isMotion(artifact.lang)
   const html = artifact && !isUrl ? previewDocument(artifact.lang, artifact.code) : null
 
   useEffect(() => {
@@ -89,8 +98,15 @@ export default function PreviewPanel(p: Props) {
 
   useEffect(() => {
     function receive(event: MessageEvent) {
-      const data = event.data as { source?: string; level?: ConsoleEntry['level']; text?: string }
+      const data = event.data as {
+        source?: string
+        level?: ConsoleEntry['level']
+        text?: string
+        motion?: unknown
+      }
       if (event.source !== frameRef.current?.contentWindow || data?.source !== PREVIEW_SOURCE) return
+      // A composition saying it is ready is for the timeline, not the console.
+      if (data.motion) return
       const entry: ConsoleEntry = { level: data.level ?? 'log', text: String(data.text ?? '') }
       setLog((current) => ({
         key: frameKey,
@@ -213,7 +229,9 @@ export default function PreviewPanel(p: Props) {
             aria-label={t('Baixar')}
             title={t('Baixar')}
             disabled={!artifact}
-            onClick={() => artifact && download(artifact.name, artifact.code, 'text/plain')}
+            onClick={() =>
+              artifact && download(artifact.name, artifact.code, motion ? 'text/html' : 'text/plain')
+            }
           >
             <Download className="size-3.5" />
           </Button>
@@ -226,7 +244,7 @@ export default function PreviewPanel(p: Props) {
           <p className="text-sm font-medium text-foreground">{t('Nada para mostrar ainda')}</p>
           <p className="max-w-64 text-xs">
             {t(
-              'Use “Abrir preview” em um bloco de código HTML, SVG, JavaScript ou Markdown, ou digite um endereço acima.',
+              'Use “Abrir preview” em um bloco de código HTML, SVG, JavaScript, Markdown ou motion, ou digite um endereço acima.',
             )}
           </p>
         </div>
@@ -259,34 +277,43 @@ export default function PreviewPanel(p: Props) {
                 </TabsList>
               </Tabs>
             )}
-            <div className="ml-auto flex items-center gap-1">
-              {(Object.keys(VIEWPORTS) as Viewport[]).map((key) => {
-                const Icon = VIEWPORTS[key].icon
-                return (
-                  <Button
-                    key={key}
-                    variant={viewport === key ? 'secondary' : 'ghost'}
-                    size="icon"
-                    className="size-7"
-                    aria-label={VIEWPORTS[key].label()}
-                    title={VIEWPORTS[key].label()}
-                    aria-pressed={viewport === key}
-                    onClick={() => setViewport(key)}
-                  >
-                    <Icon className="size-3.5" />
-                  </Button>
-                )
-              })}
-              <span className="hidden font-mono text-[11px] text-muted-foreground sm:inline">
-                {size.width}×{size.height}
+            {motion ? (
+              <span className="ml-auto font-mono text-[11px] text-muted-foreground">
+                {(() => {
+                  const m = motionSettings(artifact.code)
+                  return `${m.width}×${m.height} · ${m.fps} fps`
+                })()}
               </span>
-            </div>
+            ) : (
+              <div className="ml-auto flex items-center gap-1">
+                {(Object.keys(VIEWPORTS) as Viewport[]).map((key) => {
+                  const Icon = VIEWPORTS[key].icon
+                  return (
+                    <Button
+                      key={key}
+                      variant={viewport === key ? 'secondary' : 'ghost'}
+                      size="icon"
+                      className="size-7"
+                      aria-label={VIEWPORTS[key].label()}
+                      title={VIEWPORTS[key].label()}
+                      aria-pressed={viewport === key}
+                      onClick={() => setViewport(key)}
+                    >
+                      <Icon className="size-3.5" />
+                    </Button>
+                  )
+                })}
+                <span className="hidden font-mono text-[11px] text-muted-foreground sm:inline">
+                  {size.width}×{size.height}
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="relative min-h-0 flex-1 overflow-auto">
             {tab === 'code' && !isUrl && (
               <div className="px-3">
-                <Markdown content={fenced(artifact.lang, artifact.code)} />
+                <Markdown content={fenced(motion ? 'html' : artifact.lang, artifact.code)} />
               </div>
             )}
             {tab === 'console' && (
@@ -309,46 +336,57 @@ export default function PreviewPanel(p: Props) {
               </div>
             )}
             {/* The frame stays mounted behind the other tabs so its page keeps running. */}
-            <div
-              className={cn(
-                'flex h-full items-start justify-center p-3',
-                tab !== 'preview' && 'hidden',
-              )}
-            >
-              <div
-                className="h-full overflow-auto rounded border bg-background"
-                style={
-                  viewport === 'desktop'
-                    ? { width: '100%' }
-                    : { width: size.width, maxWidth: '100%', maxHeight: size.height }
-                }
-              >
-                {markdown ? (
-                  <div className="p-4">
-                    <Markdown content={artifact.code} />
-                  </div>
-                ) : isUrl ? (
-                  <iframe
-                    key={frameKey}
-                    title={artifact.name}
-                    src={artifact.code}
-                    sandbox={urlSandbox(artifact.code, location.origin)}
-                    referrerPolicy="no-referrer"
-                    className="size-full border-0 bg-white"
-                  />
-                ) : (
-                  <iframe
-                    key={frameKey}
-                    ref={frameRef}
-                    title={artifact.name}
-                    // No allow-same-origin: generated code cannot reach this app's storage.
-                    sandbox="allow-scripts"
-                    srcDoc={html ?? ''}
-                    className="size-full border-0 bg-white"
-                  />
-                )}
+            {motion && html ? (
+              <div className={cn('h-full', tab !== 'preview' && 'hidden')}>
+                <MotionStage
+                  html={html}
+                  code={artifact.code}
+                  name={artifact.name}
+                  frameKey={frameKey}
+                  frameRef={frameRef}
+                  tracks={p.tracks ?? []}
+                  project={p.project}
+                />
               </div>
-            </div>
+            ) : (
+              <div
+                className={cn('flex h-full items-start justify-center p-3', tab !== 'preview' && 'hidden')}
+              >
+                <div
+                  className="h-full overflow-auto rounded border bg-background"
+                  style={
+                    viewport === 'desktop'
+                      ? { width: '100%' }
+                      : { width: size.width, maxWidth: '100%', maxHeight: size.height }
+                  }
+                >
+                  {markdown ? (
+                    <div className="p-4">
+                      <Markdown content={artifact.code} />
+                    </div>
+                  ) : isUrl ? (
+                    <iframe
+                      key={frameKey}
+                      title={artifact.name}
+                      src={artifact.code}
+                      sandbox={urlSandbox(artifact.code, location.origin)}
+                      referrerPolicy="no-referrer"
+                      className="size-full border-0 bg-white"
+                    />
+                  ) : (
+                    <iframe
+                      key={frameKey}
+                      ref={frameRef}
+                      title={artifact.name}
+                      // No allow-same-origin: generated code cannot reach this app's storage.
+                      sandbox="allow-scripts"
+                      srcDoc={html ?? ''}
+                      className="size-full border-0 bg-white"
+                    />
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}

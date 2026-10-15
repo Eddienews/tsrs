@@ -14,6 +14,8 @@ npm run build    # checagem de tipos + build de produção em dist/
 npm test         # testes unitários (vitest)
 npm run test:e2e # testes de ponta a ponta (Playwright, com um provedor falso)
 npm run proxy    # proxy local opcional para provedores sem CORS (OpenCode)
+npm run render -- motion-1.html  # transforma uma composição motion em MP4 (precisa do ffmpeg)
+npm run render:serve             # renderizador avulso, para um TSRS servido sem o npm run dev
 ```
 
 Os testes de ponta a ponta usam o Chromium do Playwright, se instalado
@@ -69,7 +71,15 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
   Runware.
 - Leitura das respostas em voz alta com a voz do navegador ou com uma voz da
   ElevenLabs, da OpenAI ou do Gemini (Configurações → Mídia); respostas longas
-  são lidas em trechos, e cada trecho é gerado uma vez por sessão.
+  são lidas em trechos, e cada trecho é gerado uma vez por sessão. Das vozes do
+  navegador, a escolhida automaticamente é a mais natural do idioma: no
+  Microsoft Edge, as neurais "Online (Natural)", grátis. Na ElevenLabs, a lista
+  traz as vozes da sua conta (as suas primeiro, com amostra para ouvir) e o
+  modelo (Multilingual, v3, Flash), com o preço por mil caracteres.
+- Custo: o preço de cada modelo vem do provedor (OpenRouter), da tabela do app
+  (Anthropic e OpenAI, outubro de 2026) ou do que você informar em "definir
+  preço", ao lado dos tokens da conversa. Áudio da ElevenLabs mostra o custo
+  antes (por caractere) e depois de gerar.
 - Conversa temporária: fica só na memória da aba, sem histórico, sincronização
   nem memória, e some quando você sai dela.
 - Pergunta à parte: selecione um trecho da resposta e pergunte sobre ele num
@@ -93,12 +103,27 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
 - Paleta de comandos (Ctrl/⌘+K) para ir a conversas, trocar de modelo e abrir
   telas. Os atalhos podem ser trocados em Configurações → Atalhos.
 - Data e hora de cada mensagem, e um som opcional quando a resposta termina.
+- Vídeos com motion: um bloco `motion` é uma página HTML animada (CSS, anime.js,
+  Lottie ou desenho próprio por quadro) que abre no preview com uma linha do
+  tempo (tocar, pausar, arrastar). O tamanho, a duração e os quadros por segundo
+  vêm de `<meta name="nwlab:size" content="1080x1920">`,
+  `<meta name="nwlab:duration" content="8">` e `<meta name="nwlab:fps" content="30">`.
+  Baixe o arquivo e rode `npm run render -- motion-1.html` para gerar o MP4
+  (H.264, com `--audio musica.wav` para uma trilha, nivelada em -14 LUFS). É o
+  mesmo contrato das páginas de motion do NWLab ForgeOS: nada toca em tempo real,
+  cada quadro é a página posicionada no seu instante e fotografada, então o vídeo
+  sai igual em qualquer máquina. Veja [Vídeos com motion](#vídeos-com-motion).
 - O modelo é avisado, por uma nota no prompt de sistema, de que o preview existe
   (pode ser desligado em Configurações → Geral).
 - Tema claro e escuro, cor de destaque, tamanho da fonte e densidade.
 - Anexos: imagens e PDFs (colar, arrastar ou escolher), arquivos de texto e
   planilhas do Excel (.xlsx), lidas no navegador e enviadas como CSV, uma por
   aba, com datas e resultados de fórmulas como o Excel mostra.
+- Áudio anexado (MP3, WAV, M4A, OGG, FLAC, até 25 MB) toca na conversa e é
+  transcrito na hora pela OpenAI ou pelo Groq (o mesmo provedor do ditado, se
+  houver chave); o modelo recebe o texto, já que as APIs de chat não aceitam
+  áudio. Sem chave, o arquivo vai junto e o modelo é avisado de que não o ouviu.
+  O áudio da conversa também aparece como trilha do vídeo motion.
 - Conversas com busca, pastas, etiquetas, arquivo, fixar, renomear e título
   gerado automaticamente; várias de uma vez podem ser arquivadas, movidas,
   etiquetadas ou excluídas.
@@ -120,6 +145,121 @@ modelos** (ou digite o nome do modelo na barra superior) e envie uma mensagem.
   botão de tentar de novo.
 - Interface em português e inglês: segue o idioma do navegador e pode ser
   trocada em Configurações.
+
+## Contexto da pasta, busca própria e pesquisa profunda
+
+- **Contexto da pasta**: no menu de uma pasta da barra lateral, "Contexto da
+  pasta…" define instruções, arquivos e um agente que valem para todas as
+  conversas dela. "Nova conversa nesta pasta" já começa dentro dela, com o
+  agente e o modelo dele.
+- **Busca própria**: em Ferramentas, uma chave da Brave Search, da Tavily, do
+  Google (Programmable Search, com o ID `cx`) ou da Kagi faz qualquer modelo
+  buscar na web e ler páginas (`search_web` e `read_page`), no lugar da busca do
+  provedor, com as fontes listadas abaixo da resposta. O servidor do TSRS faz as
+  chamadas; páginas da rede local não são lidas, nem depois de redirecionamentos.
+- **Pesquisa profunda**: o botão Pesquisa, ao lado de Prompts, transforma a
+  próxima mensagem numa pesquisa em rodadas (várias buscas e leituras, até 40
+  rodadas de ferramentas) que termina num relatório com fontes citadas. O
+  relatório e a lista de todas as páginas consultadas ficam em
+  `pesquisas/` na pasta do projeto. Precisa da busca própria ou de um modelo
+  da Anthropic ou do OpenRouter.
+
+## Pasta do projeto
+
+Quando uma conversa cria arquivos (uma página, seus estilos e scripts, um vídeo
+motion), o TSRS grava cada um como arquivo de verdade numa pasta da conversa,
+criada sozinha em `projetos/` na pasta do TSRS, com o nome da conversa. Junto
+vai um `NOTAS.md` com o pedido e o histórico do que foi salvo. Assim nada se
+perde se o navegador fechar, e o trabalho continua em qualquer ferramenta:
+abra a pasta no Claude Code, no Codex ou num editor. Ao voltar à conversa, o
+modelo lê a versão atual dos arquivos (ferramentas `project_list_files`,
+`project_read_file` e `project_write_file`, só dentro da pasta).
+
+- Imagens, áudios e vídeos gerados vão também para `midia/`, e os MP4 do
+  Gerar MP4 para `videos/`, na pasta da conversa (sem pasta, em `renders/`).
+- O botão da pasta no topo da conversa mostra o caminho, os arquivos (páginas
+  abrem no preview) e permite usar outra pasta, para onde os arquivos atuais
+  são copiados.
+- Um bloco de código vira arquivo quando nomeia o arquivo depois da linguagem
+  (` ```html index.html `) ou quando é uma página, um SVG ou um vídeo motion
+  inteiros; trechos soltos de uma explicação não criam pasta.
+- Liga e desliga em Configurações → Geral. Precisa do TSRS aberto pelo
+  `npm run dev` (ou `vite preview`): o navegador sozinho não grava pastas.
+  `TSRS_PROJECTS` muda a pasta de projetos.
+
+## Extensões: skills, plugins e agenda
+
+O botão Extensões (peça de quebra-cabeça, embaixo na barra lateral) reúne três
+coisas, guardadas em disco em `extensoes/` na pasta do TSRS (`TSRS_EXTENSIONS`
+muda o lugar). Precisam do TSRS aberto pelo `npm run dev`.
+
+- **Skills**, no formato das skills do Claude: uma pasta com `SKILL.md` (nome,
+  quando usar e as instruções) e arquivos de apoio. Instale um `.zip`, um
+  `.skill`, um `SKILL.md` ou uma pasta, ou crie uma no app. O modelo vê só os
+  nomes e descrições e carrega a skill quando a tarefa pede (`skill_load`,
+  `skill_read_file`). Cada uma liga e desliga.
+- **Plugins**, no formato dos plugins do Claude (`.claude-plugin/plugin.json`):
+  skills, comandos (`commands/*.md`, aparecem em Prompts como `/nome`), agentes
+  (`agents/*.md`, um clique adiciona à biblioteca) e servidores MCP (`.mcp.json`;
+  os remotos vão para Ferramentas). Mais ferramentas próprias em `tools/*.json`:
+  por HTTP (o servidor do TSRS faz a chamada; `{param}` na URL e
+  `${env:NOME}` para chaves fora do arquivo) ou em JavaScript, que roda isolado
+  do TSRS, sem acesso às chaves. "Nova ferramenta" cria uma pelo app.
+- **Agenda**: pedidos que o servidor manda ao modelo no horário (uma vez, todo
+  dia ou em dias da semana, ou a cada tantas horas), mesmo com a aba fechada,
+  enquanto o `npm run dev` roda. Cada resposta vira mensagem na conversa
+  "Agenda: nome" e um arquivo em `extensoes/agenda/resultados`. Para rodar
+  sem a aba, a chave do provedor fica num arquivo do computador
+  (`extensoes/agenda/chaves.json`), só com a sua permissão, e pode ser apagada
+  na mesma tela; `TSRS_KEY_OPENAI` e semelhantes no ambiente também servem.
+  Uma tarefa perdida com o computador desligado roda quando o servidor volta.
+
+Nada é apagado de verdade: skills e plugins removidos vão para
+`extensoes/_removidas/`.
+
+## Vídeos com motion
+
+Peça ao modelo uma animação ("faça uma abertura de 6 segundos em 1080x1920 com o
+título X"). A resposta vem num bloco `motion`, que abre no preview com uma linha
+do tempo.
+
+O MP4 sai do próprio preview: escolha a trilha (um áudio da conversa, como uma
+voz ou música gerada, ou um arquivo do computador) e clique em **Gerar MP4**. O
+vídeo aparece para baixar e fica salvo em `renders/`, sem sobrescrever os
+anteriores. O renderizador já vem dentro do `npm run dev` (e do `vite preview`),
+em `/__tsrs/render`, e só aceita pedidos do próprio TSRS; o áudio vai do
+navegador para o servidor no mesmo computador e não sai daí. Um TSRS servido de
+outro jeito (um build estático) usa o renderizador avulso: `npm run render:serve`,
+que escuta só em `127.0.0.1:8788` e atende só o endereço do TSRS (`--origin`
+para outros).
+
+Pelo terminal, com um arquivo baixado do preview:
+
+```bash
+npm run render -- motion-1.html                      # gera motion-1.mp4 ao lado
+npm run render -- motion-1.html --audio trilha.wav   # com trilha, cortada e com fade
+npm run render -- motion-1.html --fps 60 --crf 16 --out abertura.mp4
+```
+
+Uma composição é uma página HTML comum. O runtime (`public/motion/runtime.js`)
+é carregado antes dos scripts dela e a anima assim, a cada instante `t`:
+
+- animações e transições CSS e Web Animations são pausadas e posicionadas em `t`;
+- timelines do anime.js v4 (global `anime`, criadas com `autoplay: false`) passadas a
+  `NWLab.register(tl)` são posicionadas em `t`;
+- funções passadas a `NWLab.onSeek((t) => …)` e `window.nwlabSeek(t)` desenham o quadro;
+- Lottie (global `lottie`, renderer `svg`, `autoplay: false`) com `goToAndStop` no `onSeek`.
+
+`window.nwlabReady` (uma promise) faz o render esperar fontes ou arquivos. Nada
+pode depender do relógio (`Date`, `requestAnimationFrame`, `setTimeout`) ou de
+`Math.random` sem semente: o mesmo `t` tem de dar o mesmo quadro. É o contrato
+das páginas de motion do NWLab ForgeOS (MR-013), então uma composição feita aqui
+serve de base para um template de lá.
+
+O ffmpeg precisa estar instalado (Windows: `winget install Gyan.FFmpeg`; macOS:
+`brew install ffmpeg`; Linux: o gerenciador de pacotes) ou indicado em `FFMPEG`.
+O navegador é o mesmo dos testes: `CHROMIUM_PATH`, o Chromium do Playwright, o
+Chrome ou o Edge.
 
 ## Provedores
 
@@ -192,6 +332,23 @@ cabeçalhos (com `{apiKey}` como placeholder) e o formato da API (`openai` ou
 | `src/Composer.tsx`       | Campo de envio, anexos e prompts salvos                     |
 | `src/PreviewPanel.tsx`   | Painel de preview                                           |
 | `src/preview.ts`         | Documento do preview, console e endereços                   |
+| `src/MotionStage.tsx`    | Composição motion no preview, com a linha do tempo          |
+| `render/motion.mjs`      | Contrato motion, comum ao preview e ao render               |
+| `render/render.mjs`      | `npm run render`: composição motion para MP4                |
+| `render/serve.mjs`       | Renderizador do botão Gerar MP4 (e `npm run render:serve`)  |
+| `render/vite-plugin.mjs` | Renderizador dentro do `npm run dev`, em `/__tsrs/render`   |
+| `server/projects.mjs`    | Pastas de projeto: criar, gravar, ler, listar e servir arquivos |
+| `src/projects.ts`        | Arquivos das respostas, notas e ferramentas da pasta do projeto |
+| `server/extensions.mjs`  | Skills e plugins em disco; ferramentas HTTP                  |
+| `server/agenda.mjs`      | Agenda: horários, execução pelo servidor e fila de respostas |
+| `src/ExtensionsDialog.tsx` | Tela de Extensões (skills e plugins)                       |
+| `src/AgendaTab.tsx`      | Aba Agenda                                                   |
+| `server/search.mjs`      | Busca própria (Brave, Tavily, Google, Kagi) e leitura de páginas |
+| `src/research.ts`        | Pesquisa profunda: instruções e relatório                    |
+| `src/FolderDialog.tsx`   | Contexto da pasta: instruções, arquivos e agente             |
+| `src/RenderBar.tsx`      | Trilha e botão Gerar MP4 do preview                         |
+| `src/videoRender.ts`     | Conversa com o renderizador local                           |
+| `public/motion/`         | Runtime motion, anime.js 4.5.0 e lottie-web 5.13.0 (MIT)    |
 | `src/prompts.ts`         | Campos `{{nome}}` dos prompts salvos                        |
 | `src/starters.ts`        | Personas e prompts que já vêm no app                        |
 | `src/CommandPalette.tsx` | Paleta de comandos                                          |
@@ -253,6 +410,11 @@ estilo do código e como mandar um pull request.
   aparecem em branco; o botão de abrir em nova aba contorna isso. O que está
   aberto no painel não é guardado entre sessões.
 - PDFs dependem do suporte do provedor e do modelo escolhidos.
+- O render de vídeo roda na pasta do projeto (Node, ffmpeg e Chrome, Edge ou o
+  Chromium do Playwright), não no app instalado nem só no navegador. Ele é
+  offline: o que a composição pede da internet é bloqueado e listado
+  (`--online` libera). Arquivos ao lado da composição (imagens, fontes) podem
+  ser usados por caminho relativo. Um vídeo existente nunca é sobrescrito.
 - Provedores que não liberam CORS para o navegador precisam do proxy local
   (`npm run proxy`), que não roda no app instalado sem a pasta do projeto.
 - Os arquivos de um agente ficam junto das configurações, no `localStorage`, e

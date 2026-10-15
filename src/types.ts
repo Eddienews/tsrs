@@ -14,6 +14,9 @@ export interface Attachment {
   data: string
   // Where generated media can be fetched, when it could not be kept here.
   url?: string
+  // What an attached audio file says, transcribed when it was attached; the
+  // model gets this text, since chat APIs take no audio files.
+  transcript?: string
 }
 
 // What a media generation produces.
@@ -100,6 +103,8 @@ export interface Message {
   references?: Reference[]
   // Kept at the top of the conversation for quick access.
   pinned?: boolean
+  // A question sent as deep research: searched in rounds, answered with a report.
+  research?: boolean
   // A summary of everything before it, which replaces those messages in later
   // requests.
   summary?: boolean
@@ -162,6 +167,17 @@ export interface ChatMeta {
   tags?: string[]
   // Kept out of the main lists, in a section of its own; still searchable.
   archived?: boolean
+  // The folder on this computer where the conversation saves its files.
+  project?: ChatProject
+  // The scheduled task whose answers this conversation collects.
+  scheduleId?: string
+}
+
+export interface ChatProject {
+  // Full path of the folder.
+  path: string
+  // The folder's name, to show.
+  name: string
 }
 
 export interface Chat extends ChatMeta {
@@ -229,6 +245,12 @@ export interface SavedPrompt {
 export interface Folder {
   id: string
   name: string
+  // Context every conversation in the folder gets: instructions added to the
+  // system prompt, files sent with the first message, and the agent used when
+  // the conversation has none of its own.
+  instructions?: string
+  files?: Attachment[]
+  personaId?: string
 }
 
 // Wire format spoken by a provider's chat endpoint.
@@ -416,6 +438,18 @@ export interface Settings {
   embedModel: string
   // Address of the local proxy (npm run proxy) for providers without CORS.
   proxyUrl: string
+  // Prices the user typed for models whose price is not known, in US dollars
+  // per million tokens, by "provider/model".
+  modelPrices?: Record<string, { inputPrice: number; outputPrice: number }>
+  // Save the files a conversation makes into a project folder (on unless
+  // switched off; needs TSRS served by npm run dev).
+  projects?: boolean
+  // Skills (by id) and plugins (by name) switched off; all others are on.
+  disabledSkills?: string[]
+  disabledPlugins?: string[]
+  // Web search with the user's own key, in place of the provider's: the
+  // service, and Google's search engine ID. The key is in mediaKeys.
+  ownSearch?: { provider: string; googleCx?: string }
   knowledgeBases: KnowledgeBase[]
   sync: SyncSettings
   // Present when the API keys are password-protected; the keys are then

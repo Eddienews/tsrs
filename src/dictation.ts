@@ -21,12 +21,24 @@ function recognizer(): (new () => any) | undefined {
 
 // Where speech goes to become text: a provider's transcription model, the
 // browser's recognizer, or nowhere.
+function transcribes(settings: Settings, id: string): boolean {
+  const provider = PROVIDERS.find((p) => p.id === id)
+  const conn = settings.providers[id]
+  return !!provider?.transcription && !!conn?.baseUrl && (!!conn.apiKey || !provider.keyRequired)
+}
+
+// The provider that transcribes attached audio files: the one chosen for
+// dictation, or the first with a transcription model and a key. The browser's
+// recognizer only hears the microphone, so it cannot.
+export function fileTranscriber(settings: Settings, locked: boolean): string | null {
+  if (locked) return null
+  if (settings.dictation !== 'auto' && settings.dictation !== 'browser' && transcribes(settings, settings.dictation))
+    return settings.dictation
+  return PROVIDERS.find((p) => p.transcription && transcribes(settings, p.id))?.id ?? null
+}
+
 export function dictationSource(settings: Settings, locked: boolean): string | null {
-  const usable = (id: string) => {
-    const provider = PROVIDERS.find((p) => p.id === id)
-    const conn = settings.providers[id]
-    return !!provider?.transcription && !!conn?.baseUrl && (!!conn.apiKey || !provider.keyRequired)
-  }
+  const usable = (id: string) => transcribes(settings, id)
   const browser = recognizer() ? 'browser' : null
   if (settings.dictation === 'browser') return browser
   if (settings.dictation !== 'auto') return !locked && usable(settings.dictation) ? settings.dictation : null

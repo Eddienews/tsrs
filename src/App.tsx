@@ -5,7 +5,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useIsMobile } from '@/lib/use-mobile'
 import { applyAppearance } from './appearance'
-import { useDictation } from './dictation'
+import { fileTranscriber, useDictation } from './dictation'
 import { branchAt, patchMessage, switchVersion, versions, type Branch } from './branches'
 import ChatTopBar from './ChatTopBar'
 import type { PaletteAction } from './CommandPalette'
@@ -25,6 +25,34 @@ import MessageView from './MessageView'
 import ParamsPanel from './ParamsPanel'
 import { forget } from './mcp'
 import { artifactName, lastPreviewable, withPreviewHint, type Artifact } from './preview'
+import { chatTracks, trackBlob, trackFileName } from './videoRender'
+import { ownSearch, webToolSet, withSources } from './webSearch'
+import { agentFor, folderNote } from './folders'
+import { RESEARCH_NOTE, RESEARCH_ROUNDS, reportFile, reportName } from './research'
+import {
+  enabledPlugins,
+  enabledSkills,
+  listPlugins,
+  listSkills,
+  commandPrompts,
+  pluginToolSet,
+  skillsNote,
+  skillTools,
+  type Plugin,
+} from './extensions'
+import {
+  PROJECT_TOOLS,
+  copyFiles,
+  filesFromReply,
+  historyLine,
+  openProject,
+  projectNote,
+  projectNotes,
+  projectsRoot,
+  runProjectTool,
+  saveFiles,
+  type SavedFile,
+} from './projects'
 import { CANVAS_NOTE, CANVAS_TOOLS, newCanvas, runCanvasTool, undo, withCanvas } from './canvas'
 import { extractText } from './extract'
 import {
@@ -49,7 +77,7 @@ import { MEMORY_TOOLS, runMemoryTool, withMemories } from './memory'
 import { connection, getProvider } from './providers'
 import Sidebar from './Sidebar'
 import { comboOf, SHORTCUT_ACTIONS, shortcutsOf } from './shortcuts'
-import { setReader } from './speech'
+import { setBrowserVoice, setReader } from './speech'
 import type { PriceEstimate } from './mediaPrice'
 import { chime } from './sound'
 import {
@@ -76,6 +104,7 @@ import {
   streamChat,
   type Connection,
   type RequestMessage,
+  transcribe,
 } from './stream'
 import { SUMMARY_PROMPT, sinceSummary, withSummary } from './summary'
 import {
@@ -111,6 +140,7 @@ import {
   CONTEXT_WARNING,
   contextUse,
   costOf,
+  formatCost,
   modelInfo,
   totals,
 } from './usage'
@@ -126,6 +156,7 @@ const chunks = {
   SettingsDialog: () => import('./SettingsDialog'),
   SideChat: () => import('./SideChat'),
   ToolsDialog: () => import('./ToolsDialog'),
+  ExtensionsDialog: () => import('./ExtensionsDialog'),
   UnlockDialog: () => import('./UnlockDialog'),
   UsageView: () => import('./UsageView'),
 }
@@ -137,13 +168,16 @@ const PreviewPanel = lazy(chunks.PreviewPanel)
 const SettingsDialog = lazy(chunks.SettingsDialog)
 const SideChat = lazy(chunks.SideChat)
 const ToolsDialog = lazy(chunks.ToolsDialog)
+const ExtensionsDialog = lazy(chunks.ExtensionsDialog)
+const AgendaTab = lazy(() => import('./AgendaTab'))
+const FolderDialog = lazy(() => import('./FolderDialog'))
 const UnlockDialog = lazy(chunks.UnlockDialog)
 const UsageView = lazy(chunks.UsageView)
 const PREFETCH_DELAY = 2000
 
 const TITLE_LENGTH = 60
 // Code blocks that open the preview by themselves, when that is turned on.
-const AUTO_PREVIEW = ['html', 'svg', 'jsx', 'tsx', 'react', 'mermaid']
+const AUTO_PREVIEW = ['html', 'svg', 'jsx', 'tsx', 'react', 'mermaid', 'motion']
 const TITLE_EXCERPT = 1000
 const TITLE_PROMPT =
   'Crie um título curto (no máximo 6 palavras) para a conversa abaixo, no mesmo idioma dela. ' +
@@ -241,9 +275,8 @@ function withCanvasText(messages: RequestMessage[], canvas: Canvas | undefined):
   return [...messages.slice(0, -1), { ...last, content: withCanvas(last.content, canvas) }]
 }
 
-// An agent's files go with the first message of every request.
-function withFiles(messages: RequestMessage[], persona: Persona | undefined): RequestMessage[] {
-  const files = persona?.files ?? []
+// The files of the conversation's folder and agent go with the first message of every request.
+function withFiles(messages: RequestMessage[], files: Attachment[]): RequestMessage[] {
   if (!files.length || !messages.length) return messages
   const [first, ...rest] = messages
   return [{ ...first, attachments: [...files, ...(first.attachments ?? [])] }, ...rest]
@@ -424,12 +457,84 @@ export default function App() {
   const [draft, setDraft] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [attachError, setAttachError] = useState('')
+  // Attached audio files whose transcription is on its way; sending waits for it.
+  const [transcribing, setTranscribing] = useState<string[]>([])
   // Parameters for the conversation that has not been created yet.
   const [draftParams, setDraftParams] = useState<ChatParams>({})
   const [showSettings, setShowSettings] = useState(false)
   const [showParams, setShowParams] = useState(false)
   const [showLibrary, setShowLibrary] = useState(false)
   const [showTools, setShowTools] = useState(false)
+  const [showExtensions, setShowExtensions] = useState(false)
+  // Installed plugins, for their commands in the prompt list.
+  const [plugins, setPlugins] = useState<Plugin[]>([])
+  const reloadPlugins = useCallback(() => {
+    listPlugins().then(setPlugins, () => setPlugins([]))
+  }, [])
+  useEffect(reloadPlugins, [reloadPlugins])
+
+  // Answers of scheduled tasks, run by the server while TSRS may have been
+  // closed, become messages in a conversation per task.
+  const importingAgenda = useRef(false)
+  // The list of conversations is read from storage first, or a task's would be made twice.
+  const metasLoaded = useRef(false)
+  const importAgenda = useCallback(async () => {
+    if (importingAgenda.current || !metasLoaded.current) return
+    importingAgenda.current = true
+    try {
+      const { pendingResults, ackResults } = await import('./agenda')
+      const results = await pendingResults().catch(() => [])
+      for (const result of results) {
+        let meta = metasRef.current.find((c) => c.scheduleId === result.taskId)
+        if (!meta) {
+          meta = {
+            id: crypto.randomUUID(),
+            title: t('Agenda: {name}', { name: result.name }),
+            createdAt: result.at,
+            updatedAt: result.at,
+            providerId: result.providerId,
+            model: result.model,
+            scheduleId: result.taskId,
+          }
+          commitMetas([meta, ...metasRef.current])
+          commitThreads({ ...threadsRef.current, [meta.id]: [] })
+        }
+        const thread = threadsRef.current[meta.id] ?? (await loadThread(meta.id))
+        const added: Message[] = [
+          { id: crypto.randomUUID(), role: 'user', content: result.prompt, createdAt: result.at },
+          {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: result.text,
+            createdAt: result.at + 1,
+            providerId: result.providerId,
+            model: result.model,
+            ...(result.error ? { error: result.error } : {}),
+          },
+        ]
+        const next = [...thread, ...added]
+        commitThreads({ ...threadsRef.current, [meta.id]: next })
+        const id = meta.id
+        commitMetas(metasRef.current.map((c) => (c.id === id ? { ...c, updatedAt: result.at, changedAt: Date.now() } : c)))
+        storeThread(id, next)
+        const stored = metasRef.current.find((c) => c.id === id)
+        if (stored) storeMeta(stored)
+      }
+      if (results.length) await ackResults(results.map((r) => r.id))
+    } finally {
+      importingAgenda.current = false
+    }
+  }, [])
+  useEffect(() => {
+    void importAgenda()
+    const timer = setInterval(() => void importAgenda(), 60_000)
+    const onFocus = () => void importAgenda()
+    window.addEventListener('focus', onFocus)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [importAgenda])
   const [showPalette, setShowPalette] = useState(false)
   const [showUsage, setShowUsage] = useState(false)
   // The conversation list, when it is a drawer on a narrow screen.
@@ -450,6 +555,8 @@ export default function App() {
   const artifactCount = useRef(0)
   // MCP servers that could not be reached for the last reply.
   const [toolProblems, setToolProblems] = useState<string[]>([])
+  // Whether the user was already told why files could not be saved to a folder.
+  const projectWarned = useRef(false)
   // Tool calls waiting for the user to allow or deny them, by call id.
   const approvals = useRef(new Map<string, (allowed: boolean) => void>())
   // Position in the conversation of the reply whose versions are shown side
@@ -460,6 +567,11 @@ export default function App() {
   const abortRef = useRef<AbortController | null>(null)
   // The next message asks for an image, a video or audio instead of a reply.
   const [mediaMode, setMediaMode] = useState<MediaKind | null>(null)
+  // The next message is a deep research request.
+  const [research, setResearch] = useState(false)
+  // The folder whose context is being edited, and the one a new conversation goes in.
+  const [editingFolder, setEditingFolder] = useState<Folder | null>(null)
+  const [draftFolder, setDraftFolder] = useState<string | undefined>(undefined)
   const [aside, setAside] = useState<Aside | null>(null)
   // Knowledge base documents, all kept in memory to search them.
   const [docs, setDocs] = useState<KnowledgeDoc[]>([])
@@ -478,6 +590,8 @@ export default function App() {
   const active = metas.find((c) => c.id === activeId) ?? null
   // Undefined while the active conversation's messages are being read.
   const messages = activeId ? threads[activeId] : undefined
+  // Audio of the conversation, offered as the soundtrack of a motion video.
+  const tracks = useMemo(() => chatTracks(messages ?? []), [messages])
   const params = active ? (active.params ?? {}) : draftParams
   const canvas = active ? active.canvas : draftCanvas
   const temporary = active ? !!active.temporary : draftTemporary
@@ -511,6 +625,7 @@ export default function App() {
   useEffect(() => {
     const target = readerSource(settings, locked)
     setReader(target && { settings, target, name: sourceName(target.source) })
+    setBrowserVoice(settings.readAloud.source === 'browser' ? settings.readAloud.model : '')
   }, [settings, locked])
   const blocked = mediaMode
     ? maker
@@ -518,7 +633,7 @@ export default function App() {
       : { text: mediaProblem(settings, mediaMode), fix: 'settings' as const }
     : blocker(settings, locked)
   const info = modelInfo(settings, provider.id, settings.model)
-  const spent = totals(messages ?? [])
+  const spent = totals(messages ?? [], (id, model) => modelInfo(settings, id, model))
   const context = contextUse(messages ?? [], info)
 
   function commitMetas(next: ChatMeta[]) {
@@ -699,7 +814,11 @@ export default function App() {
   }
 
   useEffect(() => {
-    loadMetas().then(commitMetas)
+    loadMetas().then((loaded) => {
+      commitMetas(loaded)
+      metasLoaded.current = true
+      void importAgenda()
+    })
     loadDocs().then(commitDocs)
     loadHandle<FileSystemDirectoryHandle>('sync').then((folder) => folder && setSyncFolder(folder))
     const timer = setTimeout(
@@ -1038,6 +1157,7 @@ export default function App() {
   }
 
   async function selectChat(id: string | null) {
+    setDraftFolder(undefined)
     if (id !== activeId) closeAside()
     // Leaving a temporary conversation throws it away.
     const left = findMeta(activeId)
@@ -1124,10 +1244,14 @@ export default function App() {
     // The reply may be the current version or one beside it.
     const patcher = (id: string) => (patch: (m: Message) => Message) =>
       patchThread(meta.id, (thread) => patchMessage(thread, id, patch))
-    const agent = settings.personas.find((p) => p.id === meta.params?.personaId)
+    // The folder's context, and its agent when the conversation has none.
+    const folder = settings.folders.find((f) => f.id === meta.folderId)
+    const agent = agentFor(settings.personas, meta.params?.personaId, folder)
     const tools = toolsFor(settings, agent)
     const recent = sinceSummary(history)
-    let system = meta.params?.system?.trim() || settings.systemPrompt
+    let system = meta.params?.system?.trim() || agent?.system?.trim() || settings.systemPrompt
+    if (folder?.instructions?.trim()) system = `${system ? `${system}\n\n` : ''}${folderNote(folder)}`
+    const contextFiles = [...(folder?.files ?? []), ...(agent?.files ?? [])]
     // A temporary conversation neither reads nor saves memories.
     const remember = settings.memory && !meta.temporary
     if (remember) system = withMemories(system, settings.memories)
@@ -1135,7 +1259,16 @@ export default function App() {
     // Comparing models would let each of them change the same canvas.
     const sharedCanvas = !media && !targets ? meta.canvas : undefined
     if (sharedCanvas) system = `${system ? `${system}\n\n` : ''}${CANVAS_NOTE}`
+    // The project folder, read when the request is sent: an earlier reply may have made it.
+    const project = settings.projects !== false && !targets ? findMeta(meta.id)?.project : undefined
+    if (project) system = `${system ? `${system}\n\n` : ''}${projectNote(project)}`
     let toolset: ToolSet | null = null
+    // A deep research request: searched in rounds, answered with a report.
+    const asked = history.at(-1)
+    const researching = !media && !targets && asked?.role === 'user' && !!asked.research
+    if (researching) system = `${system ? `${system}\n\n` : ''}${RESEARCH_NOTE}`
+    // Search with the user's own key replaces the provider's, for every model.
+    const webSet = !media && (tools.webSearch || researching) ? webToolSet(settings) : null
 
     async function paint(reply: Message, job: MediaJob): Promise<boolean> {
       const patchReply = patcher(reply.id)
@@ -1157,6 +1290,14 @@ export default function App() {
           kind: job.kind,
           data: made.data,
           ...(made.url && !made.data ? { url: made.url } : {}),
+        }
+        // The file is kept in the conversation's folder too, in midia/.
+        if (made.data && settings.projects !== false && !meta.temporary) {
+          void saveToProject(
+            meta.id,
+            [{ name: `midia/${attachment.name}`, content: made.data, encoding: 'base64' }],
+            sourceName(job.target.source),
+          )
         }
         patchReply((m) => ({
           ...m,
@@ -1193,7 +1334,7 @@ export default function App() {
           system: settings.previewHint ? withPreviewHint(system, t('Abrir preview')) : system,
           messages: withFiles(
             withCanvasText(withKnowledge(toRequest(recent.messages), references), sharedCanvas),
-            agent,
+            contextFiles,
           ),
           // An effort level chosen for another provider may not exist in this one.
           params: {
@@ -1202,8 +1343,9 @@ export default function App() {
           },
           signal: abort.signal,
           tools: toolset?.defs,
-          webSearch: tools.webSearch && !!via.webTools,
-          webFetch: tools.webFetch && via.webTools === 'anthropic',
+          webSearch: (tools.webSearch || researching) && !!via.webTools && !webSet,
+          webFetch: (tools.webFetch || researching) && via.webTools === 'anthropic' && !webSet,
+          ...(researching ? { maxRounds: RESEARCH_ROUNDS } : {}),
           showThinking: settings.showThinking,
           // Automatic caching is a feature of Anthropic's own API.
           promptCache: settings.promptCache && via.id === 'anthropic',
@@ -1221,6 +1363,9 @@ export default function App() {
             const result = await toolset.run(call, abort.signal)
             if (result.references?.length) {
               patchReply((m) => ({ ...m, references: withMore(m.references, result.references!) }))
+            }
+            if (result.sources?.length) {
+              patchReply((m) => ({ ...m, sources: withSources(m.sources, result.sources!) }))
             }
             return result
           },
@@ -1283,13 +1428,25 @@ export default function App() {
         }
       }
       if (!media) {
+        // Skills and plugins on disk; a TSRS without its server has none.
+        const [skills, plugins] = await Promise.all([
+          listSkills().catch(() => []),
+          listPlugins().catch(() => [] as Plugin[]),
+        ])
+        const skillsOn = enabledSkills(skills, settings)
+        if (skillsOn.length) system = `${system ? `${system}\n\n` : ''}${skillsNote(skillsOn)}`
+        const pluginSet = pluginToolSet(enabledPlugins(plugins, settings))
         const servers = settings.mcpServers.filter(
           (s) => s.url && tools.mcpServers.includes(s.id),
         )
         toolset = mergeTools([
           ...(sharedCanvas ? [canvasTools(meta.id)] : []),
+          ...(project ? [projectTools(meta.id, usings[0].model)] : []),
           ...(remember ? [memoryTools()] : []),
           ...(bases.length ? [knowledgeTools(bases)] : []),
+          ...(skillsOn.length ? [skillTools()] : []),
+          ...(pluginSet ? [pluginSet] : []),
+          ...(webSet ? [webSet] : []),
           ...(servers.length ? [await gatherTools(servers)] : []),
         ])
         problems.push(...(toolset?.problems ?? []))
@@ -1308,6 +1465,27 @@ export default function App() {
     } finally {
       setStreaming(false)
       persistThread(meta.id)
+    }
+
+    // A research report is kept in the project folder, with every page consulted.
+    if (completed && researching && settings.projects !== false && !meta.temporary) {
+      const reply = threadsRef.current[meta.id]?.find((m) => m.id === first.id)
+      if (reply?.content.trim()) {
+        const at = new Date()
+        const question = asked!.content
+        void saveToProject(
+          meta.id,
+          [{ name: reportName(question, at), content: reportFile(question, reply.content, reply.sources ?? [], usings[0].model, at) }],
+          usings[0].model,
+        )
+      }
+    }
+
+    // The files the reply made go to the conversation's folder.
+    if (completed && !targets && !media && settings.projects !== false && !meta.temporary) {
+      const reply = threadsRef.current[meta.id]?.find((m) => m.id === first.id)
+      const files = reply ? filesFromReply(reply.content) : []
+      if (files.length) void saveToProject(meta.id, files, usings[0].model)
     }
 
     if (completed && !targets && !media && settings.autoPreview) {
@@ -1338,6 +1516,69 @@ export default function App() {
       }
       return result
     })
+  }
+
+  // The folder a conversation saves into, made the first time it has files.
+  async function ensureProject(chatId: string) {
+    const meta = findMeta(chatId)
+    if (!meta) return null
+    if (meta.project) return meta.project
+    const thread = threadsRef.current[chatId] ?? []
+    const request = thread.find((m) => m.role === 'user')?.content ?? meta.title
+    const project = await openProject({
+      name: meta.title || request.slice(0, 48),
+      notes: projectNotes(meta.title || t('Projeto'), request, new Date()),
+    })
+    updateChat(chatId, { project })
+    return project
+  }
+
+  function warnProject(error: string) {
+    if (projectWarned.current) return
+    projectWarned.current = true
+    setToolProblems((list) => [...list, error])
+  }
+
+  // Saves files into the conversation's folder and notes it in NOTAS.md.
+  async function saveToProject(chatId: string, files: SavedFile[], who: string) {
+    try {
+      if (!findMeta(chatId)?.project && !(await projectsRoot())) {
+        return warnProject(
+          t(
+            'Os arquivos desta conversa não foram salvos numa pasta: abra o TSRS pelo npm run dev na pasta do projeto para isso.',
+          ),
+        )
+      }
+      const project = await ensureProject(chatId)
+      if (!project) return
+      const written = await saveFiles(project.path, files)
+      await saveFiles(project.path, [{ name: 'NOTAS.md', content: historyLine(written, who, new Date()), append: true }])
+    } catch (err) {
+      warnProject(
+        t('Os arquivos desta conversa não foram salvos na pasta: {error}', {
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      )
+    }
+  }
+
+  // Reading and writing the conversation's folder, without asking: it is its own.
+  function projectTools(chatId: string, who: string): ToolSet {
+    return localTools(PROJECT_TOOLS, t('Pasta do projeto'), async (call) => {
+      const project = findMeta(chatId)?.project
+      if (!project) return { content: 'This conversation has no project folder.', isError: true }
+      return runProjectTool(project, call, (written) => {
+        void saveFiles(project.path, [{ name: 'NOTAS.md', content: historyLine(written, who, new Date()), append: true }])
+      })
+    })
+  }
+
+  // Points the conversation at another folder, bringing its files along.
+  async function moveProject(chatId: string, path: string) {
+    const meta = findMeta(chatId)
+    const next = await openProject({ path, name: meta?.title })
+    if (meta?.project && meta.project.path !== next.path) await copyFiles(meta.project.path, next.path)
+    updateChat(chatId, { project: next })
   }
 
   // Searching the conversation's knowledge bases again, with the model's words.
@@ -1522,7 +1763,17 @@ export default function App() {
     const text = (request ?? draft).trim()
     const files = typed ? attachments : []
     if ((!text && !files.length) || streaming || blocked) return
+    if (typed && transcribing.length) return
     if (mediaMode && typed && !text) return
+    const researching = typed && research && !mediaMode
+    if (researching && !ownSearch(settings) && !provider.webTools) {
+      setAttachError(
+        t(
+          'A pesquisa profunda precisa de busca na web: configure uma Busca própria em Ferramentas, ou use um modelo da Anthropic ou do OpenRouter.',
+        ),
+      )
+      return
+    }
     const existing = findMeta(activeId)
     const history = existing ? threadsRef.current[existing.id] : []
     if (!history) return // still loading
@@ -1533,7 +1784,9 @@ export default function App() {
       content: text,
       createdAt: now,
       ...(files.length ? { attachments: files } : {}),
+      ...(researching ? { research: true } : {}),
     }
+    if (researching) setResearch(false)
     const base: ChatMeta = existing ?? {
       id: crypto.randomUUID(),
       title: text.slice(0, TITLE_LENGTH) || files[0]?.name || t('Nova conversa'),
@@ -1542,6 +1795,7 @@ export default function App() {
       providerId: provider.id,
       model: settings.model,
       params: draftParams,
+      ...(draftFolder ? { folderId: draftFolder } : {}),
       ...(draftCanvas ? { canvas: draftCanvas } : {}),
       ...(draftTemporary ? { temporary: true } : {}),
     }
@@ -1714,9 +1968,37 @@ export default function App() {
       try {
         const attachment = await readAttachment(file)
         setAttachments((list) => [...list, attachment])
+        if (attachment.kind === 'audio') void transcribeAttachment(attachment)
       } catch (err) {
         setAttachError(err instanceof Error ? err.message : String(err))
       }
+    }
+  }
+
+  // The model reads what an attached audio file says: chat APIs take no audio.
+  // Without a provider that transcribes, the file still goes along (the motion
+  // preview can use it as a soundtrack) and the model is told it cannot hear it.
+  async function transcribeAttachment(attachment: Attachment) {
+    const providerId = fileTranscriber(settings, locked)
+    if (!providerId) return
+    setTranscribing((list) => [...list, attachment.id])
+    try {
+      const text = await transcribe(
+        connection(settings, providerId),
+        trackBlob(attachment),
+        '',
+        trackFileName(attachment),
+      )
+      setAttachments((list) => list.map((a) => (a.id === attachment.id ? { ...a, transcript: text } : a)))
+    } catch (err) {
+      setAttachError(
+        t('Não foi possível transcrever "{name}": {error}', {
+          name: attachment.name,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      )
+    } finally {
+      setTranscribing((list) => list.filter((id) => id !== attachment.id))
     }
   }
 
@@ -1869,10 +2151,22 @@ export default function App() {
       onSearch={searchThreads}
       onFoldersChange={(folders) => setSettings((s) => ({ ...s, folders }))}
       onDeleteFolder={removeFolder}
+      onEditFolder={setEditingFolder}
+      onNewInFolder={(folder) => {
+        void selectChat(null)
+        setDraftFolder(folder.id)
+        const persona = settings.personas.find((p) => p.id === folder.personaId)
+        setDraftParams(persona ? { system: persona.system, personaId: persona.id } : {})
+        if (persona?.providerId && persona.model) {
+          const { providerId, model } = persona
+          setSettings((s) => ({ ...s, providerId, model }))
+        }
+      }}
       onOpen={(what) => {
         setShowDrawer(false)
         if (what === 'library') setShowLibrary(true)
         else if (what === 'tools') setShowTools(true)
+        else if (what === 'extensions') setShowExtensions(true)
         else if (what === 'usage') setShowUsage(true)
         else setShowSettings(true)
       }}
@@ -1884,6 +2178,7 @@ export default function App() {
     <Suspense fallback={null}>
       <UsageView
         load={loadChats}
+        price={(id, model) => modelInfo(settings, id, model)}
         onBack={() => setShowUsage(false)}
         showMenu={isMobile}
         onMenu={() => setShowDrawer(true)}
@@ -1920,12 +2215,33 @@ export default function App() {
         onMenu={() => setShowDrawer(true)}
         onModel={selectModel}
         onPersona={applyPersona}
+        project={settings.projects !== false ? active?.project : undefined}
+        onOpenUrl={(url, name) => showArtifact('url', url, name)}
+        onMoveProject={(path) => (active ? moveProject(active.id, path) : Promise.resolve())}
+        onPrice={(providerId, model, price) =>
+          setSettings((s) => {
+            const prices = { ...s.modelPrices }
+            if (price) prices[`${providerId}/${model}`] = price
+            else delete prices[`${providerId}/${model}`]
+            return { ...s, modelPrices: prices }
+          })
+        }
         onTools={() => setShowTools(true)}
         onParams={() => setShowParams(true)}
         onTogglePreview={togglePreview}
         temporary={temporary}
         onToggleTemporary={active ? undefined : () => setDraftTemporary((on) => !on)}
       />
+      {!active && draftFolder && (
+        <p
+          role="status"
+          className="folder-note flex items-center justify-center gap-1.5 border-b bg-surface-2 px-4 py-1.5 text-center text-xs text-muted-foreground"
+        >
+          {t('Nova conversa na pasta “{name}”, com o contexto dela.', {
+            name: settings.folders.find((f) => f.id === draftFolder)?.name ?? '',
+          })}
+        </p>
+      )}
       {temporary && (
         <p
           role="status"
@@ -2028,15 +2344,24 @@ export default function App() {
         blocked={!!blocked}
         dragging={dragging}
         attachments={attachments}
+        transcribing={transcribing}
         onAttach={attach}
         onRemoveAttachment={(id) => setAttachments((list) => list.filter((a) => a.id !== id))}
-        prompts={settings.prompts}
+        prompts={[...settings.prompts, ...commandPrompts(enabledPlugins(plugins, settings))]}
         onInsertPrompt={(text) => setDraft((d) => (d.trim() ? `${d}\n${text}` : text))}
         onManagePrompts={() => setShowLibrary(true)}
         dictation={dictation}
         mediaMode={mediaMode}
         mediaKinds={MEDIA_KINDS.filter((kind) => mediaTargets[kind] || mediaMode === kind)}
-        onMediaMode={setMediaMode}
+        onMediaMode={(kind) => {
+          setMediaMode(kind)
+          if (kind) setResearch(false)
+        }}
+        research={research}
+        onResearch={(on) => {
+          setResearch(on)
+          if (on) setMediaMode(null)
+        }}
       >
         {blocked && (
           <p className="notice rounded-md border border-warning/50 px-3 py-2 text-xs text-warning">
@@ -2074,6 +2399,15 @@ export default function App() {
                   estimate: price.text,
                   source: price.source,
                 })}
+            {price !== 'unknown' && price.perCharacter && draft.trim() && (
+              <>
+                {' '}
+                {t('Esta mensagem: {count} caracteres, cerca de {total}.', {
+                  count: draft.trim().length,
+                  total: formatCost(draft.trim().length * price.perCharacter),
+                })}
+              </>
+            )}
           </p>
         )}
         {[...toolProblems, ...[attachError, dictation.error].filter(Boolean)].map((problem) => (
@@ -2114,6 +2448,8 @@ export default function App() {
           onCloseTab={closeArtifact}
           onOpenUrl={(url) => showArtifact('url', url, new URL(url).host)}
           onClose={() => setShowPreview(false)}
+          tracks={tracks}
+          project={settings.projects !== false ? active?.project?.path : undefined}
         />
       )}
     </Suspense>
@@ -2204,6 +2540,33 @@ export default function App() {
           onIndex={() => indexDocs()}
           onSearch={searchTest}
           onClose={() => setShowLibrary(false)}
+        />
+      )}
+      {editingFolder && (
+        <FolderDialog
+          folder={editingFolder}
+          personas={settings.personas}
+          onSave={(folder) =>
+            setSettings((s) => ({ ...s, folders: s.folders.map((f) => (f.id === folder.id ? folder : f)) }))
+          }
+          onClose={() => setEditingFolder(null)}
+        />
+      )}
+      {showExtensions && (
+        <ExtensionsDialog
+          settings={settings}
+          onChange={setSettings}
+          onChanged={reloadPlugins}
+          onClose={() => setShowExtensions(false)}
+          agenda={
+            <AgendaTab
+              settings={settings}
+              providerId={provider.id}
+              model={settings.model}
+              locked={locked}
+              onRan={() => void importAgenda()}
+            />
+          }
         />
       )}
       {showTools && (

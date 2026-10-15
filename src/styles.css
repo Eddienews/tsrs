@@ -157,6 +157,14 @@ html[data-density="comfortable"] { --density: 1; }
     -webkit-font-smoothing: antialiased;
   }
   :focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+  /* Thin scrollbars in the theme's colours: no white track and no arrows. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--muted-foreground) 40%, transparent) transparent;
+  }
+  /* Native parts (scrollbars, select menus, date pickers) follow the theme. */
+  :root { color-scheme: light; }
+  .dark { color-scheme: dark; }
 }
 
 @utility pad-d { padding: calc(0.75rem * var(--density)) calc(1rem * var(--density)); }

@@ -17,6 +17,8 @@ import {
   Columns2,
   Columns3,
   Copy,
+  AudioLines,
+  Telescope,
   FileText,
   FileType2,
   Pencil,
@@ -255,7 +257,27 @@ function MessageView(props: Props) {
     >
       {message.attachments?.length && !image ? (
         <div className="flex flex-wrap justify-end gap-2">
-          {message.attachments.map((a) => (
+          {message.attachments.map((a) =>
+            a.kind === 'audio' ? (
+              <div
+                key={a.id}
+                className="attached-audio flex w-80 max-w-full flex-col gap-1.5 rounded-md border bg-card px-2 py-1.5 text-xs"
+              >
+                <span className="flex items-center gap-2" title={a.name}>
+                  <AudioLines className="size-4 shrink-0 text-primary" />
+                  <span className="truncate">{a.name}</span>
+                </span>
+                {a.data && <audio controls src={`data:${a.mime};base64,${a.data}`} className="h-8 w-full" />}
+                {a.transcript !== undefined ? (
+                  <details>
+                    <summary className="cursor-pointer text-muted-foreground">{t('Transcrição')}</summary>
+                    <p className="mt-1 whitespace-pre-wrap">{a.transcript || t('(nenhuma fala)')}</p>
+                  </details>
+                ) : (
+                  <span className="text-muted-foreground">{t('Sem transcrição: o modelo não ouviu este áudio.')}</span>
+                )}
+              </div>
+            ) : (
             <div
               key={a.id}
               className="flex items-center gap-2 rounded-md border bg-card px-2 py-1.5 text-xs"
@@ -274,10 +296,16 @@ function MessageView(props: Props) {
               )}
               <span className="max-w-32 truncate">{a.name}</span>
             </div>
-          ))}
+            ),
+          )}
         </div>
       ) : null}
 
+      {message.research && (
+        <span className="research-label flex items-center gap-1 text-[11px] text-primary">
+          <Telescope className="size-3" /> {t('Pesquisa profunda')}
+        </span>
+      )}
       {message.pinned && (
         <span className="flex items-center gap-1 text-[11px] text-primary">
           <Pin className="size-3" /> {t('Fixada')}

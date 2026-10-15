@@ -1,7 +1,10 @@
 import { existsSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { chromium, defineConfig } from '@playwright/test'
 
 const PORT = 5174
+const EXT_PORT = 5175
 
 // CHROMIUM_PATH picks a browser by hand; without it, Playwright's own Chromium
 // is used when installed (npx playwright install chromium), and otherwise the
@@ -28,9 +31,21 @@ export default defineConfig({
       args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'],
     },
   },
-  webServer: {
-    command: `npm run dev -- --port ${PORT} --strictPort`,
-    url: `http://localhost:${PORT}`,
+  projects: [
+    { name: 'app', testIgnore: /extensions\.spec/ },
+    // Skills and plugins change what every request carries, so their tests get
+    // a server and a folder of their own.
+    { name: 'extensions', testMatch: /extensions\.spec/, use: { baseURL: `http://localhost:${EXT_PORT}` } },
+  ],
+  webServer: [PORT, EXT_PORT].map((port) => ({
+    command: `npm run dev -- --port ${port} --strictPort`,
+    url: `http://localhost:${port}`,
     reuseExistingServer: !process.env.CI,
-  },
+    // Videos, project folders and extensions made by the tests go to temporary folders.
+    env: {
+      TSRS_RENDERS: join(tmpdir(), 'tsrs-e2e-renders'),
+      TSRS_PROJECTS: join(tmpdir(), 'tsrs-e2e-projects'),
+      TSRS_EXTENSIONS: join(tmpdir(), port === PORT ? 'tsrs-e2e-no-extensions' : `tsrs-e2e-extensions-${process.pid}`),
+    },
+  })),
 })

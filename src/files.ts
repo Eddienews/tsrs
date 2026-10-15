@@ -12,11 +12,31 @@ import type {
 } from './types'
 
 export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
+// Audio may be longer: 25 MB is also the most transcription APIs take.
+export const MAX_AUDIO_BYTES = 25 * 1024 * 1024
+
+const AUDIO_EXTENSIONS: Record<string, string> = {
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+  m4a: 'audio/mp4',
+  aac: 'audio/aac',
+  ogg: 'audio/ogg',
+  oga: 'audio/ogg',
+  opus: 'audio/opus',
+  flac: 'audio/flac',
+}
+
+// The audio type of a file, from the browser or its extension, or null.
+export function audioType(file: Pick<File, 'name' | 'type'>): string | null {
+  if (file.type.startsWith('audio/')) return file.type
+  const extension = file.name.split('.').pop()?.toLowerCase() ?? ''
+  return file.type && file.type !== 'application/octet-stream' ? null : (AUDIO_EXTENSIONS[extension] ?? null)
+}
 
 const BACKUP_APP = 'tsrs'
 const BACKUP_VERSION = 1
 
-async function base64(file: File): Promise<string> {
+export async function base64(file: Blob): Promise<string> {
   const bytes = new Uint8Array(await file.arrayBuffer())
   // Encoded in slices: spreading a large file into one call overflows the stack.
   const SLICE = 0x8000
@@ -28,10 +48,15 @@ async function base64(file: File): Promise<string> {
 }
 
 export async function readAttachment(file: File): Promise<Attachment> {
+  const base = { id: crypto.randomUUID(), name: file.name || t('colado') }
+  const audio = audioType(file)
+  if (audio) {
+    if (file.size > MAX_AUDIO_BYTES) throw new Error(t('"{name}" passa de 25 MB.', { name: file.name }))
+    return { ...base, mime: audio, kind: 'audio', data: await base64(file) }
+  }
   if (file.size > MAX_ATTACHMENT_BYTES) {
     throw new Error(t('"{name}" passa de 10 MB.', { name: file.name }))
   }
-  const base = { id: crypto.randomUUID(), name: file.name || t('colado') }
   if (file.type.startsWith('image/')) {
     return { ...base, mime: file.type, kind: 'image', data: await base64(file) }
   }
@@ -44,7 +69,7 @@ export async function readAttachment(file: File): Promise<Attachment> {
   if (isOtherSpreadsheet(file.name)) throw new Error(otherSpreadsheet(file.name))
   const text = await file.text()
   if (text.includes('\u0000')) {
-    throw new Error(t('"{name}" não é imagem, PDF nem texto.', { name: file.name }))
+    throw new Error(t('"{name}" não é imagem, PDF, áudio nem texto.', { name: file.name }))
   }
   return { ...base, mime: file.type || 'text/plain', kind: 'text', data: text }
 }

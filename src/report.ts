@@ -1,4 +1,5 @@
-import type { Chat, Message } from './types'
+import type { Chat, Message, ModelInfo } from './types'
+import { costOf } from './usage'
 
 export interface UsageRow {
   input: number
@@ -57,7 +58,14 @@ function* everyMessage(messages: Message[]): Generator<Message> {
 }
 
 // Tokens and cost of the replies of the last `days` days, today included.
-export function usageReport(chats: Chat[], days: number, now = Date.now()): UsageReport {
+// `price` prices replies saved before their model's price was known, such as
+// one the user typed afterwards.
+export function usageReport(
+  chats: Chat[],
+  days: number,
+  now = Date.now(),
+  price?: (providerId: string, model: string) => ModelInfo,
+): UsageReport {
   const daily = new Map<string, DayUsage>()
   const today = new Date(now)
   for (let i = days - 1; i >= 0; i--) {
@@ -79,10 +87,12 @@ export function usageReport(chats: Chat[], days: number, now = Date.now()): Usag
       const model = message.model ?? chat.model
       const key = `${providerId}/${model}`
       if (!byModel.has(key)) byModel.set(key, { providerId, model, ...empty() })
-      add(day, message)
-      add(byModel.get(key)!, message)
-      add(total, message)
-      if (message.usage.cost === undefined) unpriced++
+      const cost = message.usage.cost ?? (price ? costOf(message.usage, price(providerId, model)) : undefined)
+      const priced = cost === message.usage.cost ? message : { ...message, usage: { ...message.usage, cost } }
+      add(day, priced)
+      add(byModel.get(key)!, priced)
+      add(total, priced)
+      if (cost === undefined) unpriced++
       if (message.createdAt === undefined) undated++
     }
   }
