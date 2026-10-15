@@ -2065,3 +2065,33 @@ test('designs and clones ElevenLabs voices and picks the new one to read', async
   expect(asked[2].body).toContain('name="files"; filename="amostra.wav"')
   expect(asked[2].body).toContain('Minha voz')
 })
+
+test('sends an attached video as frames and the transcription of its sound', async ({ page }) => {
+  await connect(page)
+  await openSettings(page)
+  const openai = page.locator('[data-provider=openai]')
+  await openai.getByLabel('URL base').fill(provider.url)
+  await openai.getByLabel(/Chave de API/).fill('sk-audio')
+  await closeSettings(page)
+  const video = await readFile(join(import.meta.dirname, 'fixtures', 'clipe.webm'))
+  await page.locator('footer input[type=file]').setInputFiles({ name: 'clipe.webm', mimeType: 'video/webm', buffer: video })
+  const chip = page.locator('.chip', { hasText: 'clipe.webm' })
+  await expect(chip).toContainText('2 quadros')
+  await expect(chip).toContainText('transcrito')
+  await expect(chip.locator('img')).toHaveCount(1)
+  // Its sound went to be transcribed as a small WAV, not the whole video.
+  expect(provider.transcriptions.at(-1)).toContain('filename="video-audio.wav"')
+
+  await send(page, 'O que acontece no vídeo?')
+  const question = provider.chats.at(-1)!.body.messages.at(-1)
+  const images = question.content.filter((part: any) => part.type === 'image_url')
+  expect(images).toHaveLength(2)
+  expect(images[0].image_url.url).toMatch(/^data:image\/jpeg;base64,/)
+  const text = question.content.find((part: any) => part.type === 'text').text
+  expect(text).toContain('<video name="clipe.webm" duration="4s">')
+  expect(text).toContain('2 of the attached images are frames of this video, in order, taken at 1s, 3s.')
+  expect(text).toContain('ditado de teste')
+  const card = page.locator('.message.user .attached-video')
+  await expect(card).toContainText('2 quadros · 0:04')
+  await expect(card.locator('img')).toHaveCount(2)
+})

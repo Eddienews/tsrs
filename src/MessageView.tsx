@@ -22,6 +22,7 @@ import {
   Telescope,
   FileText,
   FileType2,
+  Film,
   Pencil,
   RefreshCw,
   Scissors,
@@ -35,6 +36,7 @@ import { canSpeak, speak, speakable, stopSpeaking, useSpeaking, useSpeechProblem
 import Markdown, { useCopy } from './Markdown'
 import ToolCallBlock from './ToolCallBlock'
 import type { Attachment, Message, Reference, Usage } from './types'
+import { clock } from './videoFrames'
 import { formatCost, formatTokens } from './usage'
 
 interface Props {
@@ -274,7 +276,9 @@ function MessageView(props: Props) {
       {message.attachments?.length && !image ? (
         <div className={cn('flex flex-wrap gap-2', isUser ? 'justify-end' : 'justify-start')}>
           {message.attachments.map((a) =>
-            a.kind === 'video' ? (
+            a.kind === 'video' && a.frames ? (
+              <AttachedVideo key={a.id} video={a} />
+            ) : a.kind === 'video' ? (
               <video
                 key={a.id}
                 controls
@@ -669,3 +673,38 @@ function MessageView(props: Props) {
 }
 
 export default memo(MessageView)
+
+// A video the user attached: the frames the model saw and what is said in it.
+function AttachedVideo({ video }: { video: Attachment }) {
+  const frames = video.frames ?? []
+  return (
+    <div className="attached-video flex w-96 max-w-full flex-col gap-1.5 rounded-md border bg-card px-2 py-1.5 text-xs">
+      <span className="flex items-center gap-2" title={video.name}>
+        <Film className="size-4 shrink-0 text-primary" />
+        <span className="truncate">{video.name}</span>
+        <span className="ml-auto shrink-0 text-muted-foreground">
+          {t('{count} quadros · {length}', { count: frames.length, length: clock(video.duration ?? 0) })}
+        </span>
+      </span>
+      <div className="flex gap-1 overflow-x-auto pb-1">
+        {frames.map((frame) => (
+          <img
+            key={frame.at}
+            src={`data:image/jpeg;base64,${frame.data}`}
+            alt={t('Quadro em {at}', { at: clock(frame.at) })}
+            title={clock(frame.at)}
+            className="h-14 shrink-0 rounded border object-cover"
+          />
+        ))}
+      </div>
+      {video.transcript !== undefined ? (
+        <details>
+          <summary className="cursor-pointer text-muted-foreground">{t('Transcrição')}</summary>
+          <p className="mt-1 whitespace-pre-wrap">{video.transcript || t('(nenhuma fala)')}</p>
+        </details>
+      ) : (
+        <span className="text-muted-foreground">{t('Sem transcrição: o modelo só viu os quadros.')}</span>
+      )}
+    </div>
+  )
+}

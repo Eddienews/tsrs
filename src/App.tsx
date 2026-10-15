@@ -17,6 +17,7 @@ import {
   download,
   fileName,
   parseBackup,
+  isVideo,
   readAttachment,
   type Backup,
 } from './files'
@@ -2123,12 +2124,29 @@ export default function App() {
   async function attach(files: File[]) {
     setAttachError('')
     for (const file of files) {
+      // A video takes a moment to read: it shows as being read meanwhile.
+      const video = isVideo(file)
+      const placeholder = video ? crypto.randomUUID() : ''
+      if (video) {
+        setAttachments((list) => [...list, { id: placeholder, name: file.name, mime: file.type, kind: 'video', data: '' }])
+        setTranscribing((list) => [...list, placeholder])
+      }
       try {
         const attachment = await readAttachment(file)
-        setAttachments((list) => [...list, attachment])
+        setAttachments((list) => (video ? list.map((a) => (a.id === placeholder ? attachment : a)) : [...list, attachment]))
         if (attachment.kind === 'audio') void transcribeAttachment(attachment)
+        if (attachment.kind === 'video') void transcribeAttachment(attachment, file)
       } catch (err) {
-        setAttachError(err instanceof Error ? err.message : String(err))
+        if (video) setAttachments((list) => list.filter((a) => a.id !== placeholder))
+        setAttachError(
+          video
+            ? t('Não foi possível ler o vídeo "{name}": {error}', { name: file.name, error: err instanceof Error ? err.message : String(err) })
+            : err instanceof Error
+              ? err.message
+              : String(err),
+        )
+      } finally {
+        if (video) setTranscribing((list) => list.filter((id) => id !== placeholder))
       }
     }
   }
@@ -2136,12 +2154,16 @@ export default function App() {
   // The model reads what an attached audio file says: chat APIs take no audio.
   // Without a provider that transcribes, the file still goes along (the motion
   // preview can use it as a soundtrack) and the model is told it cannot hear it.
-  async function transcribeAttachment(attachment: Attachment) {
+  async function transcribeAttachment(attachment: Attachment, video?: File) {
     const providerId = fileTranscriber(settings, locked)
     if (!providerId) return
     setTranscribing((list) => [...list, attachment.id])
     try {
-      const text = await transcribeWith(settings, providerId, trackBlob(attachment), undefined, trackFileName(attachment), '')
+      // A video's sound, taken out of it; none means nothing is said.
+      const sound = video ? await (await import('./videoFrames')).videoSound(video) : trackBlob(attachment)
+      const text = sound
+        ? await transcribeWith(settings, providerId, sound, undefined, video ? 'video-audio.wav' : trackFileName(attachment), '')
+        : ''
       setAttachments((list) => list.map((a) => (a.id === attachment.id ? { ...a, transcript: text } : a)))
     } catch (err) {
       setAttachError(
