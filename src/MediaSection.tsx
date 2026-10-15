@@ -12,11 +12,12 @@ import {
   MEDIA_SERVICES,
   mediaService,
   mediaSources,
+  PIPER,
   READER_SOURCES,
   sourceName,
   type MediaService,
 } from './media'
-import { BrowserVoiceField, ElevenModelField, ElevenVoiceField } from './VoiceFields'
+import { BrowserVoiceField, ElevenModelField, ElevenVoiceField, PiperVoiceField } from './VoiceFields'
 import type { MediaChoice, MediaKind, Settings } from './types'
 
 interface Props {
@@ -242,7 +243,9 @@ function ReaderChoice(props: Props) {
             </option>
           ))}
         </select>
-        {service === 'elevenlabs' ? (
+        {service === PIPER ? (
+          <PiperVoiceField value={choice.model} fallback={fallback} lang={locale()} onChange={(model) => set({ model })} />
+        ) : service === 'elevenlabs' ? (
           <>
             <ElevenVoiceField
               apiKey={settings.mediaKeys.elevenlabs ?? ''}
@@ -269,7 +272,14 @@ function ReaderChoice(props: Props) {
           <BrowserVoiceField value={choice.model} lang={locale()} onChange={(model) => set({ model })} />
         )}
       </div>
-      {service && (
+      {service === PIPER && (
+        <p className={hint}>
+          {t(
+            'O Piper fala neste computador, de graça e sem chave. Cada voz é baixada uma vez (de 20 a 120 MB) e guardada na pasta modelos/ do TSRS; depois funciona sem internet. Precisa do TSRS aberto pelo npm run dev.',
+          )}
+        </p>
+      )}
+      {service && service !== PIPER && (
         <details className={hint} open={!!choice.options}>
           <summary className="cursor-pointer">{t('Opções da voz (JSON)')}</summary>
           <Textarea

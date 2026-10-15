@@ -1,4 +1,5 @@
-import { t } from './i18n'
+import { locale, t } from './i18n'
+import { defaultPiperVoice } from './localVoiceInfo'
 import { PROVIDERS } from './providers'
 import type { MediaChoice, MediaKind, Provider, Settings } from './types'
 
@@ -160,12 +161,15 @@ export function mediaSources(kind: MediaKind): { id: string; name: string }[] {
 
 // The default model of a source for a kind ('' when there is none).
 export function defaultModel(source: string, kind: MediaKind): string {
+  if (source === PIPER) return kind === 'audio' ? defaultPiperVoice(locale()) : ''
   const service = mediaService(source)
   if (service) return service.models[kind] ?? ''
   return providerModel(PROVIDERS.find((p) => p.id === source), kind)
 }
 
 function hasKey(settings: Settings, source: string): boolean {
+  // Piper runs on this computer and needs no key.
+  if (source === PIPER) return true
   if (mediaService(source)) return !!settings.mediaKeys[source]?.trim()
   const provider = PROVIDERS.find((p) => p.id === source)
   const conn = settings.providers[source]
@@ -217,7 +221,10 @@ export function mediaProblem(settings: Settings, kind: MediaKind): string {
 }
 
 // Sources that read text aloud, for replies; music and sound models do not.
-export const READER_SOURCES = ['elevenlabs', 'openai', 'gemini', 'minimax', 'cartesia']
+// Piper's voices run in the browser, with files kept by the TSRS server.
+export const PIPER = 'piper'
+
+export const READER_SOURCES = [PIPER, 'elevenlabs', 'openai', 'gemini', 'minimax', 'cartesia']
 
 // Who reads replies aloud now, or null for the browser's own voices (also
 // when the chosen source has no key, or the keys are locked).
@@ -230,5 +237,6 @@ export function readerSource(settings: Settings, locked: boolean): MediaTarget |
 }
 
 export function sourceName(source: string): string {
+  if (source === PIPER) return t('Piper (local, grátis)')
   return mediaService(source)?.name ?? PROVIDERS.find((p) => p.id === source)?.name ?? source
 }

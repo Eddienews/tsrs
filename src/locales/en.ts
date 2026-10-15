@@ -999,4 +999,26 @@ export const en: Record<string, string> = {
   'O navegador não garante guardar os dados deste site; ele pode apagá-los numa limpeza.':
     "The browser doesn't promise to keep this site's data; it may delete it in a cleanup.",
   'Restaurar do backup automático': 'Restore from the automatic backup',
+
+  // Local voices (Whisper and Piper)
+  'O Piper fala neste computador, de graça e sem chave. Cada voz é baixada uma vez (de 20 a 120 MB) e guardada na pasta modelos/ do TSRS; depois funciona sem internet. Precisa do TSRS aberto pelo npm run dev.':
+    'Piper speaks on this computer, free and with no key. Each voice is downloaded once (20 to 120 MB) and kept in the TSRS modelos/ folder; after that it works offline. Needs TSRS opened through npm run dev.',
+  'Whisper local (neste computador, grátis)': 'Local Whisper (on this computer, free)',
+  'Mínimo': 'Tiny',
+  'Básico': 'Base',
+  'Pequeno, mais preciso': 'Small, more accurate',
+  'Tamanho do Whisper local': 'Local Whisper size',
+  '{name} (~{mb} MB)': '{name} (~{mb} MB)',
+  'O áudio não sai deste computador. O modelo é baixado uma vez na primeira transcrição e guardado na pasta modelos/ do TSRS; depois funciona sem internet. Precisa do TSRS aberto pelo npm run dev. O Pequeno erra menos em português, mas demora mais.':
+    'The audio never leaves this computer. The model is downloaded once, on the first transcription, and kept in the TSRS modelos/ folder; after that it works offline. Needs TSRS opened through npm run dev. Small makes fewer mistakes, but takes longer.',
+  'Baixado: {mb} MB.': 'Downloaded: {mb} MB.',
+  'Ainda não baixado.': 'Not downloaded yet.',
+  'Baixando a voz: {loaded} de {total} MB': 'Downloading the voice: {loaded} of {total} MB',
+  'Voz do Piper': 'Piper voice',
+  'A lista de vozes do Piper não carregou ({error}). Ela vem pelo servidor do TSRS (npm run dev).':
+    "Piper's voice list didn't load ({error}). It comes through the TSRS server (npm run dev).",
+  'Baixando o Whisper local: {loaded} de {total} MB':
+    'Downloading local Whisper: {loaded} of {total} MB',
+  'Piper (local, grátis)': 'Piper (local, free)',
+  'O Piper só faz voz.': 'Piper only makes speech.',
 }

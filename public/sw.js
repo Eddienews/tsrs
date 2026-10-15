@@ -41,7 +41,10 @@ async function respond(request) {
 
 self.addEventListener('fetch', (event) => {
   const { request } = event
-  // Requests to AI providers are never intercepted.
-  if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return
+  const url = new URL(request.url)
+  // Requests to AI providers are never intercepted, nor the TSRS server's own
+  // services (backups, project files, local models), which answer afresh and
+  // keep their large files on disk already.
+  if (request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/__tsrs/')) return
   event.respondWith(respond(request))
 })

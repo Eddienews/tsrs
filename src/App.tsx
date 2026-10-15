@@ -5,7 +5,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useIsMobile } from '@/lib/use-mobile'
 import { applyAppearance } from './appearance'
-import { fileTranscriber, useDictation } from './dictation'
+import { fileTranscriber, transcribeWith, useDictation } from './dictation'
 import { branchAt, patchMessage, switchVersion, versions, type Branch } from './branches'
 import ChatTopBar from './ChatTopBar'
 import type { PaletteAction } from './CommandPalette'
@@ -118,7 +118,6 @@ import {
   streamChat,
   type Connection,
   type RequestMessage,
-  transcribe,
 } from './stream'
 import { SUMMARY_PROMPT, contextResetMark, sinceSummary, withSummary } from './summary'
 import { agentParams, agentPlugins, agentSkills, findMention, withReply } from './agents'
@@ -2142,12 +2141,7 @@ export default function App() {
     if (!providerId) return
     setTranscribing((list) => [...list, attachment.id])
     try {
-      const text = await transcribe(
-        connection(settings, providerId),
-        trackBlob(attachment),
-        '',
-        trackFileName(attachment),
-      )
+      const text = await transcribeWith(settings, providerId, trackBlob(attachment), undefined, trackFileName(attachment), '')
       setAttachments((list) => list.map((a) => (a.id === attachment.id ? { ...a, transcript: text } : a)))
     } catch (err) {
       setAttachError(
@@ -2585,6 +2579,11 @@ export default function App() {
                 })}
               </>
             )}
+          </p>
+        )}
+        {dictation.progress && (
+          <p role="status" className="px-1 text-xs text-muted-foreground">
+            {dictation.progress}
           </p>
         )}
         {[...toolProblems, ...[attachError, dictation.error].filter(Boolean)].map((problem) => (

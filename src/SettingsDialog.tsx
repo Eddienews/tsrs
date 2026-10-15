@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
 import type { AutoBackupState } from './autoBackup'
+import { DEFAULT_WHISPER, downloadedBytes, WHISPER_MB, WHISPER_SIZES, whisperRepo, type WhisperSize } from './localVoiceInfo'
 import { LANGUAGES, locale, t, type Language } from './i18n'
 import { EyeButton } from './EyeButton'
 import { connection, PROVIDERS, usesProxy } from './providers'
@@ -372,17 +373,25 @@ export default function SettingsDialog(props: Props) {
                   >
                     <option value="auto">{t('Automático')}</option>
                     <option value="browser">{t('Reconhecimento do navegador')}</option>
+                    <option value="local">{t('Whisper local (neste computador, grátis)')}</option>
                     {PROVIDERS.filter((p) => p.transcription).map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name}
                       </option>
                     ))}
                   </select>
-                  <p className="text-xs text-muted-foreground">
+                  {settings.dictation === 'local' ? (
+                    <LocalWhisperFields
+                      size={settings.localWhisper ?? DEFAULT_WHISPER}
+                      onSize={(localWhisper) => onChange((s) => ({ ...s, localWhisper }))}
+                    />
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
                     {t(
                       'O áudio vai para o provedor escolhido, que cobra pela transcrição. No automático, usa a OpenAI ou o Groq se houver chave e, senão, o navegador (no Chrome, o áudio vai para o Google).',
                     )}
-                  </p>
+                    </p>
+                  )}
                 </div>
                 <label className="flex items-center justify-between gap-4 rounded-md border p-3 text-sm">
                   {t('Abrir o preview sozinho quando a resposta trouxer uma página, imagem SVG, componente React ou diagrama')}
@@ -766,6 +775,47 @@ function AutoBackupBox(props: {
         </Button>
       )}
       {status && <p className="text-xs text-muted-foreground">{status}</p>}
+    </div>
+  )
+}
+
+// Whisper running here: which size, and whether it is downloaded yet.
+function LocalWhisperFields(props: { size: WhisperSize; onSize: (size: WhisperSize) => void }) {
+  const [bytes, setBytes] = useState<number | null>(null)
+  useEffect(() => {
+    let stale = false
+    downloadedBytes(whisperRepo(props.size)).then((n) => !stale && setBytes(n))
+    return () => {
+      stale = true
+    }
+  }, [props.size])
+  const names: Record<WhisperSize, string> = { tiny: t('Mínimo'), base: t('Básico'), small: t('Pequeno, mais preciso') }
+  return (
+    <div className="space-y-1.5">
+      <select
+        aria-label={t('Tamanho do Whisper local')}
+        className="select-native w-full"
+        value={props.size}
+        onChange={(e) => props.onSize(e.target.value as WhisperSize)}
+      >
+        {WHISPER_SIZES.map((size) => (
+          <option key={size} value={size}>
+            {t('{name} (~{mb} MB)', { name: names[size], mb: WHISPER_MB[size] })}
+          </option>
+        ))}
+      </select>
+      <p className="text-xs text-muted-foreground">
+        {t(
+          'O áudio não sai deste computador. O modelo é baixado uma vez na primeira transcrição e guardado na pasta modelos/ do TSRS; depois funciona sem internet. Precisa do TSRS aberto pelo npm run dev. O Pequeno erra menos em português, mas demora mais.',
+        )}
+      </p>
+      {bytes !== null && (
+        <p className="text-xs text-muted-foreground" data-testid="whisper-downloaded">
+          {bytes > 0
+            ? t('Baixado: {mb} MB.', { mb: Math.round(bytes / 1e6) })
+            : t('Ainda não baixado.')}
+        </p>
+      )}
     </div>
   )
 }
