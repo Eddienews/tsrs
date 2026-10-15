@@ -1064,4 +1064,15 @@ export const en: Record<string, string> = {
     "The voice is mine, or I have the person's permission to clone it.",
   'Clonar voz': 'Clone voice',
   'A ElevenLabs não devolveu a voz criada.': "ElevenLabs didn't return the new voice.",
+
+  // Videos in the conversation
+  'Não foi possível ler o vídeo "{name}": {error}': `Couldn't read the video "{name}": {error}`,
+  'lendo o vídeo…': 'reading the video…',
+  '{count} quadros': '{count} frames',
+  '{count} quadros · {length}': '{count} frames · {length}',
+  'Quadro em {at}': 'Frame at {at}',
+  'Sem transcrição: o modelo só viu os quadros.':
+    'No transcription: the model only saw the frames.',
+  'O navegador não conseguiu abrir este vídeo; tente em MP4 ou WebM.':
+    "The browser couldn't open this video; try MP4 or WebM.",
 }

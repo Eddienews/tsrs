@@ -17,6 +17,10 @@ export interface Attachment {
   // What an attached audio file says, transcribed when it was attached; the
   // model gets this text, since chat APIs take no audio files.
   transcript?: string
+  // A video attached by the user: frames taken from it (the video itself is
+  // not kept) and its length in seconds. Its sound goes in `transcript`.
+  frames?: { at: number; data: string }[]
+  duration?: number
 }
 
 // What a media generation produces.

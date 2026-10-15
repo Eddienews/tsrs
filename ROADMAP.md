@@ -97,6 +97,7 @@ each section, the order is the suggested order.
 - [x] Automatic backup on disk, with the keys sealed by the password, and a restore offer when the browser was wiped
 - [x] Local voices with no key: Piper reads aloud and Whisper transcribes, in the browser, with the models kept on disk
 - [x] Make ElevenLabs voices from the app: designed from a description or cloned from recordings
+- [x] Talk about videos: frames and the transcription of their sound, for any model with vision
 
 ## Next
 

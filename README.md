@@ -84,7 +84,9 @@ manager) and Chrome, Edge or Playwright's Chromium.
 ### Files and knowledge
 - Attach images, PDFs, text files, Word and PowerPoint files (read as Markdown,
   slide by slide with the notes), Excel spreadsheets (read as CSV, one per
-  sheet) and audio (transcribed by OpenAI or Groq so any model can use it).
+  sheet), audio (transcribed by OpenAI, Groq or local Whisper so any model can
+  use it) and video: up to 16 frames spread over it go as images, with the
+  transcription of what is said, so any model with vision can talk about it.
 - Local knowledge bases: PDFs, text, Markdown and HTML split into passages and
   searched by words (BM25, no API) and optionally by meaning (embeddings), per
   conversation or per agent; the model can search again with `knowledge_search`.

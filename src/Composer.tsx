@@ -1,19 +1,4 @@
-import {
-  ArrowUp,
-  AudioLines,
-  BookMarked,
-  Clapperboard,
-  FileText,
-  FileType2,
-  ImageIcon,
-  Loader2,
-  Mic,
-  Paperclip,
-  Square,
-  Telescope,
-  Upload,
-  X,
-} from 'lucide-react'
+import { ArrowUp, AudioLines, BookMarked, Clapperboard, FileText, FileType2, Film, ImageIcon, Loader2, Mic, Paperclip, Square, Telescope, Upload, X } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -193,10 +178,39 @@ export default function Composer(p: Props) {
                   <FileType2 className="size-4 text-destructive" />
                 ) : a.kind === 'audio' ? (
                   <AudioLines className="size-4 text-primary" />
+                ) : a.kind === 'video' && a.frames?.[0] ? (
+                  <img src={`data:image/jpeg;base64,${a.frames[0].data}`} alt="" className="h-8 w-12 rounded object-cover" />
+                ) : a.kind === 'video' ? (
+                  <Film className="size-4 text-primary" />
                 ) : (
                   <FileText className="size-4 text-muted-foreground" />
                 )}
                 <span className="max-w-32 truncate">{a.name}</span>
+                {a.kind === 'video' && (
+                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                    {!a.frames ? (
+                      <>
+                        <Loader2 className="size-3 animate-spin" />
+                        {t('lendo o vídeo…')}
+                      </>
+                    ) : (
+                      <>
+                        {t('{count} quadros', { count: a.frames.length })}
+                        {' · '}
+                        {p.transcribing.includes(a.id) ? (
+                          <>
+                            <Loader2 className="size-3 animate-spin" />
+                            {t('transcrevendo…')}
+                          </>
+                        ) : a.transcript !== undefined ? (
+                          t('transcrito')
+                        ) : (
+                          t('sem transcrição')
+                        )}
+                      </>
+                    )}
+                  </span>
+                )}
                 {a.kind === 'audio' && (
                   <span
                     className="flex items-center gap-1 text-[10px] text-muted-foreground"

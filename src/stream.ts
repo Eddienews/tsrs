@@ -167,6 +167,8 @@ export function textOf(message: RequestMessage): string {
   const files = (message.attachments ?? []).flatMap((a) =>
     a.kind === 'text'
       ? [`<file name="${a.name}">\n${a.data}\n</file>`]
+      : a.kind === 'video' && a.frames?.length
+        ? [videoText(a)]
       : a.kind === 'audio'
         ? [
             a.transcript
@@ -178,9 +180,35 @@ export function textOf(message: RequestMessage): string {
   return [message.content, ...files].filter(Boolean).join('\n\n')
 }
 
-// Images and PDFs; chat APIs take no video or audio files.
+// What the model is told about an attached video, whose frames go along as
+// images in its place.
+function videoText(a: Attachment): string {
+  const frames = a.frames ?? []
+  const times = frames.map((f) => `${f.at}s`).join(', ')
+  const sound =
+    a.transcript === undefined
+      ? 'Its audio was not transcribed, so its sound is not available to you.'
+      : a.transcript.trim()
+        ? `What is said in it (automatic transcription):\n${a.transcript.trim()}`
+        : 'No speech was found in its audio.'
+  return [
+    `<video name="${a.name}" duration="${Math.round(a.duration ?? 0)}s">`,
+    `${frames.length} of the attached images are frames of this video, in order, taken at ${times}.`,
+    sound,
+    '</video>',
+  ].join('\n')
+}
+
+// Images and PDFs, and the frames of attached videos as images; chat APIs
+// take no video or audio files.
 function binaries(message: RequestMessage): Attachment[] {
-  return (message.attachments ?? []).filter((a) => a.kind === 'image' || a.kind === 'pdf')
+  return (message.attachments ?? []).flatMap((a) =>
+    a.kind === 'image' || a.kind === 'pdf'
+      ? [a]
+      : a.kind === 'video' && a.frames?.length
+        ? a.frames.map((f, i) => ({ ...a, id: `${a.id}-${i}`, kind: 'image' as const, mime: 'image/jpeg', data: f.data }))
+        : [],
+  )
 }
 
 function replayable(part: Part): part is ToolPart {

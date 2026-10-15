@@ -49,8 +49,18 @@ export async function base64(file: Blob): Promise<string> {
   return btoa(binary)
 }
 
+// Videos are read for frames, whatever their size: the file is not kept.
+export function isVideo(file: File): boolean {
+  return file.type.startsWith('video/') || /\.(mp4|m4v|webm|mov|mkv|ogv)$/i.test(file.name)
+}
+
 export async function readAttachment(file: File): Promise<Attachment> {
   const base = { id: crypto.randomUUID(), name: file.name || t('colado') }
+  if (isVideo(file)) {
+    const { videoFrames } = await import('./videoFrames')
+    const { duration, frames } = await videoFrames(file)
+    return { ...base, mime: file.type || 'video/mp4', kind: 'video', data: '', frames, duration }
+  }
   const audio = audioType(file)
   if (audio) {
     if (file.size > MAX_AUDIO_BYTES) throw new Error(t('"{name}" passa de 25 MB.', { name: file.name }))
