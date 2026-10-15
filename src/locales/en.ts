@@ -621,8 +621,6 @@ export const en: Record<string, string> = {
   'Criar chave': 'Create a key',
   'Chave de {name}': '{name} key',
   'id:segredo': 'id:secret',
-  'Escreva o id e o segredo da chave separados por dois-pontos. A API da Higgsfield não aceita chamadas do navegador: ela só funciona com o proxy local rodando (npm run proxy).':
-    'Write the key\'s id and secret separated by a colon. Higgsfield\'s API refuses calls from browsers: it only works with the local proxy running (npm run proxy).',
   'Carregar vozes': 'Load voices',
   'Modelo de {kind}': '{kind} model',
   'ex.: {example}': 'e.g. {example}',
@@ -641,8 +639,8 @@ export const en: Record<string, string> = {
     'Services that generate images, video and audio. The Image, Video and Audio buttons, next to Prompts, turn the next message into a request; the generated file stays in the chat. Keys stay in this browser, like the providers\' keys, and each service charges for what it generates.',
   'Chaves': 'Keys',
   'Quem gera cada tipo': 'Who generates each kind',
-  'No automático, usa o primeiro com chave que tenha modelo padrão: para imagem, a OpenAI ou o Gemini antes dos serviços de mídia; para vídeo e áudio, os serviços de mídia antes do Veo (chave do Gemini) e da voz da OpenAI. Na ElevenLabs, o modelo é o id de uma voz, sound-effects ou music.':
-    'On automatic, the first with a key and a default model is used: for images, OpenAI or Gemini before the media services; for video and audio, the media services before Veo (Gemini key) and OpenAI\'s voice. On ElevenLabs, the model is a voice id, sound-effects or music.',
+  'No automático, usa o primeiro com chave que tenha modelo padrão: para imagem, os provedores antes dos serviços de mídia; para vídeo e áudio, os serviços de mídia antes dos provedores. No áudio da ElevenLabs, da MiniMax e da Cartesia, o modelo é o id de uma voz (na ElevenLabs, também sound-effects ou music).':
+    'On automatic, the first with a key and a default model is used: for images, the providers before the media services; for video and audio, the media services before the providers. For ElevenLabs, MiniMax and Cartesia audio, the model is a voice id (on ElevenLabs, also sound-effects or music).',
   'O arquivo não pôde ser baixado para o app; fica no link do serviço, que pode expirar.':
     'The file could not be downloaded into the app; it stays at the service\'s link, which may expire.',
   'Gerando vídeo…': 'Generating video…',
@@ -651,12 +649,6 @@ export const en: Record<string, string> = {
   'Informe a chave de {name} em Configurações → Mídia.':
     'Enter the {name} key in Settings → Media.',
   'Informe o modelo em Configurações → Mídia.': 'Enter the model in Settings → Media.',
-  'Configure uma chave da OpenAI, do Gemini ou de um serviço de mídia para gerar imagens.':
-    'Set up an OpenAI, Gemini or media service key to generate images.',
-  'Configure a chave do Gemini (Veo), do fal.ai, do Replicate ou da WaveSpeedAI, ou escolha o serviço e o modelo de vídeo em Configurações → Mídia.':
-    'Set up a Gemini (Veo), fal.ai, Replicate or WaveSpeedAI key, or choose the video service and model in Settings → Media.',
-  'Configure a chave da OpenAI, da ElevenLabs, do fal.ai ou do Replicate, ou escolha o serviço de áudio em Configurações → Mídia.':
-    'Set up an OpenAI, ElevenLabs, fal.ai or Replicate key, or choose the audio service in Settings → Media.',
   'As opções do modelo não são um objeto JSON válido.':
     'The model options are not a valid JSON object.',
   'Não foi possível conectar a {name}.': 'Could not connect to {name}.',
@@ -671,4 +663,36 @@ export const en: Record<string, string> = {
   'Informe a chave de {name} em Configurações → Provedores.': 'Enter the {name} key in Settings → Providers.',
   'O vídeo foi gerado, mas não pôde ser baixado do Gemini.':
     'The video was generated, but could not be downloaded from Gemini.',
+  // Reading aloud with a voice service
+  'Leitura em voz alta': 'Reading aloud',
+  '{name} não leu esta resposta ({error}); usei a voz do navegador.':
+    '{name} did not read this reply ({error}); the browser\'s voice read it.',
+  'O áudio não pôde ser tocado.': 'The audio could not be played.',
+  'O botão Ler em voz alta de cada resposta usa esta voz. A do navegador é grátis e funciona sem internet; um serviço soa mais natural e cobra pelo texto lido (cada trecho é gerado uma vez por sessão). Sem a chave do serviço, volta para a do navegador.':
+    'Each reply\'s Read aloud button uses this voice. The browser\'s is free and works offline; a service sounds more natural and charges for the text read (each part is made once per session). Without the service\'s key, the browser\'s voice is used.',
+  'Opções da voz (JSON)': 'Voice options (JSON)',
+  'Voz do navegador': 'Browser voice',
+  'Voz ou modelo da leitura': 'Reading voice or model',
+  // Cost estimates
+  'cerca de {total} ({seconds} s a {rate} por segundo)': 'about {total} ({seconds} s at {rate} per second)',
+  'cerca de {total} ({seconds} s em {resolution}, a {rate} por segundo)':
+    'about {total} ({seconds} s at {resolution}, {rate} per second)',
+  'Custo estimado: {estimate}. Fonte: {source}.': 'Estimated cost: {estimate}. Source: {source}.',
+  'imagem': 'image',
+  '{name} só informa o custo depois de gerar.': '{name} only reports the cost after generating.',
+  'pedido': 'request',
+  '{price} em {configuration}': '{price} for {configuration}',
+  '{rate} por {unit}': '{rate} per {unit}',
+  'segundo': 'second',
+  'tabela de preços do Gemini, outubro de 2026': 'Gemini price list, October 2026',
+  'vídeo': 'video',
+  'Configure em Configurações → Mídia um serviço que gere imagens.':
+    'Set up a service that generates images in Settings → Media.',
+  'Configure em Configurações → Mídia um serviço que gere vídeos.':
+    'Set up a service that generates videos in Settings → Media.',
+  'Configure em Configurações → Mídia um serviço que gere áudio.':
+    'Set up a service that generates audio in Settings → Media.',
+  'Escreva o id e o segredo da chave separados por dois-pontos.': 'Write the key\'s id and secret separated by a colon.',
+  'A API de {name} não aceita chamadas do navegador: ela só funciona com o proxy local rodando (npm run proxy).':
+    '{name}\'s API refuses calls from browsers: it only works with the local proxy running (npm run proxy).',
 }

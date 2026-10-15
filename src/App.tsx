@@ -27,7 +27,14 @@ import { forget } from './mcp'
 import { artifactName, lastPreviewable, withPreviewHint, type Artifact } from './preview'
 import { CANVAS_NOTE, CANVAS_TOOLS, newCanvas, runCanvasTool, undo, withCanvas } from './canvas'
 import { extractText } from './extract'
-import { MEDIA_KINDS, mediaProblem, mediaSource, type MediaTarget } from './media'
+import {
+  MEDIA_KINDS,
+  mediaProblem,
+  mediaSource,
+  readerSource,
+  sourceName,
+  type MediaTarget,
+} from './media'
 import { embedSource, indexDoc, meaningOf } from './embeddings'
 import {
   chunk,
@@ -42,6 +49,8 @@ import { MEMORY_TOOLS, runMemoryTool, withMemories } from './memory'
 import { connection, getProvider } from './providers'
 import Sidebar from './Sidebar'
 import { comboOf, SHORTCUT_ACTIONS, shortcutsOf } from './shortcuts'
+import { setReader } from './speech'
+import type { PriceEstimate } from './mediaPrice'
 import { chime } from './sound'
 import {
   SETTINGS_KEY,
@@ -481,6 +490,28 @@ export default function App() {
     audio: mediaSource(settings, 'audio', locked),
   }
   const maker = mediaMode ? mediaTargets[mediaMode] : null
+  // What the next generation will cost, when the service says beforehand.
+  const [price, setPrice] = useState<PriceEstimate | null | 'unknown'>(null)
+  // The mode and the target, as text, so that the estimate is asked for again
+  // only when one of them changes.
+  const priceKey = mediaMode && maker ? JSON.stringify([mediaMode, maker]) : ''
+  useEffect(() => {
+    setPrice(null)
+    if (!mediaMode || !maker) return
+    let stale = false
+    import('./mediaPrice')
+      .then(({ estimateCost }) => estimateCost(settingsRef.current, maker, mediaMode))
+      .then((estimate) => !stale && setPrice(estimate ?? 'unknown'))
+    return () => {
+      stale = true
+    }
+  }, [priceKey])
+
+  // Replies are read aloud by the voice service chosen, or by the browser.
+  useEffect(() => {
+    const target = readerSource(settings, locked)
+    setReader(target && { settings, target, name: sourceName(target.source) })
+  }, [settings, locked])
   const blocked = mediaMode
     ? maker
       ? null
@@ -2033,6 +2064,16 @@ export default function App() {
             >
               {t('Resumir a conversa')}
             </button>
+          </p>
+        )}
+        {mediaMode && maker && price && (
+          <p className="media-price rounded-md border px-3 py-2 text-xs text-muted-foreground">
+            {price === 'unknown'
+              ? t('{name} só informa o custo depois de gerar.', { name: sourceName(maker.source) })
+              : t('Custo estimado: {estimate}. Fonte: {source}.', {
+                  estimate: price.text,
+                  source: price.source,
+                })}
           </p>
         )}
         {[...toolProblems, ...[attachError, dictation.error].filter(Boolean)].map((problem) => (

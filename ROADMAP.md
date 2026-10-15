@@ -58,12 +58,18 @@ cada seção é a ordem sugerida.
 - [x] Sincronização sem pasta (WebDAV ou armazenamento S3 do próprio usuário),
       para navegadores sem acesso a pastas, como Firefox e Safari
 - [x] Vídeo pelo Veo (chave do Gemini) e voz pela OpenAI (`gpt-4o-mini-tts`)
-- [ ] Vídeo pelo Sora (chave da OpenAI) e voz pelo Gemini TTS
-- [ ] Leitura em voz alta das respostas com uma voz da ElevenLabs
-- [ ] Mostrar o custo estimado de um vídeo antes de gerar
-- [ ] Mais serviços com API oficial, cada um testado quanto a CORS: Black Forest
-      Labs, Stability, Ideogram, Recraft, Luma, Runway, Kling, MiniMax, Cartesia,
-      Hume, Deepgram (sem Midjourney, Suno e Udio, que não têm API oficial)
+- [x] Voz pelo Gemini TTS (`gemini-3.8-flash-tts`). O Sora ficou de fora: a
+      OpenAI encerrou o Sora 2 e a API de vídeos em 24/09/2026
+- [x] Leitura em voz alta das respostas com uma voz da ElevenLabs, da OpenAI ou
+      do Gemini
+- [x] Mostrar o custo estimado antes de gerar (Veo, fal.ai e Runware; os outros
+      serviços só informam depois)
+- [x] Mais serviços com API oficial: Stability, Black Forest Labs (pelo proxy),
+      MiniMax (vídeo e voz), Cartesia e o Grok Imagine da xAI (imagem e vídeo)
+- [ ] Ainda de fora: Luma (a API está mudando para a "Agents API"), Runway (só
+      documenta vídeo a partir de imagem), Ideogram, Recraft, Kling oficial e
+      Hume (não aceitam o navegador; precisariam do proxy), Deepgram (sem vozes em
+      português). Midjourney, Suno e Udio não têm API oficial
 
 ## A confirmar com provedor real
 
@@ -81,7 +87,8 @@ cada seção é a ordem sugerida.
 - [ ] Veo com uma chave do Gemini (o acesso aos modelos preview pode ser
       limitado) e a voz da OpenAI em português
 - [ ] Serviços de mídia com chaves reais (testados só com respostas simuladas):
-      ElevenLabs, Runware, fal.ai, Replicate e Higgsfield pelo proxy, WaveSpeedAI;
+      ElevenLabs, Runware, fal.ai, Replicate e Higgsfield pelo proxy, WaveSpeedAI,
+      Stability, Black Forest Labs, MiniMax, Cartesia e o Grok Imagine da xAI;
       conferir os modelos padrão, se o armazenamento do Runware deixa baixar os
       arquivos e o formato exato das respostas
 - [ ] Memória com um modelo real: se ele salva fatos úteis sem exagerar

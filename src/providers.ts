@@ -57,6 +57,7 @@ export const PROVIDERS: Provider[] = [
     keyRequired: true,
     image: 'imagen-4.0-generate-001',
     video: 'veo-3.1-fast-generate-preview',
+    speech: 'gemini-3.8-flash-tts',
     embedding: 'gemini-embedding-001',
   },
   {
@@ -94,6 +95,8 @@ export const PROVIDERS: Provider[] = [
     baseUrl: 'https://api.x.ai/v1',
     keyRequired: true,
     efforts: [],
+    image: 'grok-imagine-image-2.0',
+    video: 'grok-imagine-video-1.5',
   },
   {
     ...openaiCompatible,

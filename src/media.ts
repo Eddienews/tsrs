@@ -7,7 +7,17 @@ import type { MediaChoice, MediaKind, Provider, Settings } from './types'
 // chat provider that draws them (OpenAI, Gemini): which services there are,
 // and who makes each kind. Making it is in mediaJobs.ts, loaded when needed.
 
-export type MediaServiceId = 'elevenlabs' | 'runware' | 'fal' | 'replicate' | 'wavespeed' | 'higgsfield'
+export type MediaServiceId =
+  | 'elevenlabs'
+  | 'runware'
+  | 'fal'
+  | 'replicate'
+  | 'wavespeed'
+  | 'higgsfield'
+  | 'stability'
+  | 'bfl'
+  | 'minimax'
+  | 'cartesia'
 
 export const MEDIA_KINDS: MediaKind[] = ['image', 'video', 'audio']
 
@@ -89,6 +99,42 @@ export const MEDIA_SERVICES: MediaService[] = [
     catalogUrl: 'https://console.higgsfield.ai',
     needsProxy: true,
   },
+  {
+    id: 'stability',
+    name: 'Stability AI',
+    // The model is the endpoint: core, ultra or sd3.
+    models: { image: 'core' },
+    examples: { image: 'ultra' },
+    keyUrl: 'https://platform.stability.ai/account/keys',
+    catalogUrl: 'https://platform.stability.ai/docs/api-reference',
+  },
+  {
+    id: 'bfl',
+    name: 'Black Forest Labs',
+    models: { image: 'flux-2-pro' },
+    examples: { image: 'flux-2-max' },
+    keyUrl: 'https://dashboard.bfl.ai',
+    catalogUrl: 'https://docs.bfl.ai',
+    needsProxy: true,
+  },
+  {
+    id: 'minimax',
+    name: 'MiniMax',
+    // For audio, the model is a voice.
+    models: { video: 'MiniMax-H3', audio: 'Portuguese_Wiselady' },
+    examples: { video: 'MiniMax-H3-Max' },
+    keyUrl: 'https://platform.minimax.io/user-center/basic-information/interface-key',
+    catalogUrl: 'https://platform.minimax.io/docs/faq/system-voice-id',
+  },
+  {
+    id: 'cartesia',
+    name: 'Cartesia',
+    // The model is a voice; Sonic speaks it in the app's language.
+    models: { audio: 'db6b0ed5-d5d3-463d-ae85-518a07d3c2b4' },
+    examples: {},
+    keyUrl: 'https://play.cartesia.ai/keys',
+    catalogUrl: 'https://play.cartesia.ai/voices',
+  },
 ]
 
 export function mediaService(id: string): MediaService | undefined {
@@ -164,12 +210,25 @@ export function mediaProblem(settings: Settings, kind: MediaKind): string {
   }
   if (choice.source !== 'auto') return t('Informe o modelo em Configurações → Mídia.')
   return kind === 'image'
-    ? t('Configure uma chave da OpenAI, do Gemini ou de um serviço de mídia para gerar imagens.')
+    ? t('Configure em Configurações → Mídia um serviço que gere imagens.')
     : kind === 'video'
-      ? t(
-          'Configure a chave do Gemini (Veo), do fal.ai, do Replicate ou da WaveSpeedAI, ou escolha o serviço e o modelo de vídeo em Configurações → Mídia.',
-        )
-      : t(
-          'Configure a chave da OpenAI, da ElevenLabs, do fal.ai ou do Replicate, ou escolha o serviço de áudio em Configurações → Mídia.',
-        )
+      ? t('Configure em Configurações → Mídia um serviço que gere vídeos.')
+      : t('Configure em Configurações → Mídia um serviço que gere áudio.')
+}
+
+// Sources that read text aloud, for replies; music and sound models do not.
+export const READER_SOURCES = ['elevenlabs', 'openai', 'gemini', 'minimax', 'cartesia']
+
+// Who reads replies aloud now, or null for the browser's own voices (also
+// when the chosen source has no key, or the keys are locked).
+export function readerSource(settings: Settings, locked: boolean): MediaTarget | null {
+  const choice = settings.readAloud
+  if (locked || choice.source === 'browser' || !READER_SOURCES.includes(choice.source)) return null
+  if (!hasKey(settings, choice.source)) return null
+  const model = choice.model.trim() || defaultModel(choice.source, 'audio')
+  return model ? { source: choice.source, model, options: choice.options } : null
+}
+
+export function sourceName(source: string): string {
+  return mediaService(source)?.name ?? PROVIDERS.find((p) => p.id === source)?.name ?? source
 }

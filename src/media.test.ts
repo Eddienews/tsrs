@@ -309,6 +309,109 @@ describe('generateMedia', () => {
     })
   })
 
+  it('reads text aloud with Gemini, in a voice and style of choice', async () => {
+    routes.push([
+      /\/interactions$/,
+      () =>
+        json({
+          steps: [
+            { type: 'user_input' },
+            { type: 'model_output', content: [{ type: 'audio', data: 'UklGRg==' }] },
+          ],
+        }),
+    ])
+    const settings = defaultSettings()
+    settings.providers.gemini = { ...settings.providers.gemini, apiKey: 'gk' }
+    const target = { source: 'gemini', model: 'gemini-3.8-flash-tts', options: '{"voice":"Puck","style":"alegre"}' }
+    expect(await run(settings, target, 'audio')).toEqual({ mime: 'audio/wav', data: 'UklGRg==' })
+    expect(calls[0].url).toBe('https://generativelanguage.googleapis.com/v1beta/interactions')
+    expect(calls[0].headers['x-goog-api-key']).toBe('gk')
+    expect(calls[0].body).toEqual({
+      model: 'gemini-3.8-flash-tts',
+      input: [
+        {
+          type: 'user_input',
+          content: [{ type: 'text', text: 'um gato', annotations: [{ type: 'speech_metadata', style: 'alegre' }] }],
+        },
+      ],
+      response_format: { type: 'audio' },
+      generation_config: { speech_config: [{ voice: 'Puck' }] },
+    })
+  })
+
+  it('sends Stability a form and reads the image it answers with', async () => {
+    routes.push([/api\.stability\.ai/, () => file('image/png')])
+    const settings = settingsWith({ stability: 'sk' })
+    const target = { source: 'stability', model: 'core', options: '{"aspect_ratio":"16:9"}' }
+    expect(await run(settings, target, 'image')).toEqual({ mime: 'image/png', data: 'AQID' })
+    expect(calls[0].url).toBe('https://api.stability.ai/v2beta/stable-image/generate/core')
+    expect(calls[0].headers).toEqual({ Authorization: 'Bearer sk', Accept: 'image/*' })
+    const form = calls[0].body as FormData
+    expect([...form.entries()]).toEqual([
+      ['prompt', 'um gato'],
+      ['output_format', 'png'],
+      ['aspect_ratio', '16:9'],
+    ])
+  })
+
+  it('polls Black Forest Labs and downloads the image through the proxy', async () => {
+    routes.push([/\/get_result/, () => json({ status: 'Ready', result: { sample: 'https://delivery-eu1.bfl.ai/r/s.png' } })])
+    routes.push([/api\.bfl\.ai\/v1\/flux-2-pro$/, () => json({ id: 'b1', polling_url: 'https://api.bfl.ai/v1/get_result?id=b1' })])
+    // The delivery link refuses the browser, so only the proxy reaches it.
+    routes.push([/^http:\/\/localhost:8787\/https:\/\/delivery/, () => file('image/png')])
+    const settings = settingsWith({ bfl: 'bk' }, { proxyUrl: 'http://localhost:8787' })
+    const made = await run(settings, { source: 'bfl', model: 'flux-2-pro', options: '' }, 'image')
+    expect(made.data).toBe('AQID')
+    expect(calls[0].url).toBe('http://localhost:8787/https://api.bfl.ai/v1/flux-2-pro')
+    expect(calls[0].headers['x-key']).toBe('bk')
+    routes[0] = [/\/get_result/, () => json({ status: 'Content Moderated' })]
+    await expect(run(settings, { source: 'bfl', model: 'flux-2-pro', options: '' }, 'image')).rejects.toThrow(
+      'Black Forest Labs: o conteúdo foi barrado pela moderação',
+    )
+  })
+
+  it('makes MiniMax videos and speech', async () => {
+    routes.push([/query\/video_generation\/t1$/, () => json({ status: 'succeeded', content: { url: 'https://cdn.minimax.io/v.mp4' } })])
+    routes.push([/v2\/video_generation$/, () => json({ task_id: 't1' })])
+    routes.push([/cdn\.minimax\.io/, () => file('video/mp4')])
+    routes.push([/t2a_v2$/, () => json({ data: { audio: '010203' }, base_resp: { status_code: 0 } })])
+    const settings = settingsWith({ minimax: 'mm' })
+    await run(settings, { source: 'minimax', model: 'MiniMax-H3', options: '{"duration":6}' }, 'video')
+    expect(calls[0].body).toEqual({ model: 'MiniMax-H3', content: [{ type: 'text', text: 'um gato' }], duration: 6 })
+    expect(calls[0].headers.Authorization).toBe('Bearer mm')
+    const voice = await run(settings, { source: 'minimax', model: 'Portuguese_Wiselady', options: '' }, 'audio')
+    expect(voice).toEqual({ mime: 'audio/mpeg', data: 'AQID' })
+    expect(calls.at(-1)!.body).toMatchObject({ text: 'um gato', voice_setting: { voice_id: 'Portuguese_Wiselady' } })
+
+    routes[3] = [/t2a_v2$/, () => json({ base_resp: { status_code: 1004, status_msg: 'insufficient balance' } })]
+    await expect(run(settings, { source: 'minimax', model: 'v', options: '' }, 'audio')).rejects.toThrow(
+      'MiniMax: insufficient balance',
+    )
+  })
+
+  it('reads text aloud with a Cartesia voice in the app language', async () => {
+    routes.push([/api\.cartesia\.ai/, () => file('audio/mpeg')])
+    await run(settingsWith({ cartesia: 'ck' }), { source: 'cartesia', model: 'voz1', options: '' }, 'audio')
+    expect(calls[0].headers).toMatchObject({ Authorization: 'Bearer ck', 'Cartesia-Version': '2026-08-14' })
+    expect(calls[0].body).toMatchObject({ model_id: 'sonic-3.6', transcript: 'um gato', voice: { id: 'voz1' }, language: 'pt' })
+  })
+
+  it('makes Grok Imagine videos with the xAI key', async () => {
+    routes.push([/videos\/x1$/, () => json({ status: 'done', video: { url: 'https://vidgen.x.ai/v.mp4' } })])
+    routes.push([/videos\/generations$/, () => json({ request_id: 'x1' })])
+    routes.push([/vidgen\.x\.ai/, () => file('video/mp4')])
+    const settings = defaultSettings()
+    settings.providers.xai = { ...settings.providers.xai, apiKey: 'xk' }
+    expect(mediaSource(settings, 'video', false)).toMatchObject({ source: 'xai', model: 'grok-imagine-video-1.5' })
+    const made = await run(settings, { source: 'xai', model: 'grok-imagine-video-1.5', options: '' }, 'video')
+    expect(made.data).toBe('AQID')
+    expect(calls[0]).toMatchObject({
+      url: 'https://api.x.ai/v1/videos/generations',
+      body: { model: 'grok-imagine-video-1.5', prompt: 'um gato' },
+      headers: { Authorization: 'Bearer xk' },
+    })
+  })
+
   it('says when a key is refused or the options are not JSON', async () => {
     routes.push([/elevenlabs/, () => json({ detail: { message: 'bad key' } }, 401)])
     const settings = settingsWith({ elevenlabs: 'xi' })

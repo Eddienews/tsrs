@@ -12,9 +12,17 @@
 import { createServer } from 'node:http'
 import { Readable } from 'node:stream'
 
-// OpenCode's gateways and the Higgsfield and Replicate APIs refuse browsers;
-// they are reached through here.
-const DEFAULT_HOSTS = ['opencode.ai', 'api.higgsfield.ai', 'api.replicate.com']
+// OpenCode's gateways and the Higgsfield, Replicate and Black Forest Labs APIs
+// refuse browsers; they are reached through here. A host starting with a dot
+// also covers its subdomains: BFL delivers images from servers such as
+// delivery-eu1.bfl.ai.
+const DEFAULT_HOSTS = ['opencode.ai', 'api.higgsfield.ai', 'api.replicate.com', '.bfl.ai']
+
+function allowed(hostname) {
+  return config.hosts.some((host) =>
+    host.startsWith('.') ? hostname.endsWith(host) : hostname === host,
+  )
+}
 const DEFAULT_ORIGINS = ['http://localhost:5173', 'http://localhost:4173']
 // Hop-by-hop and browser-only headers that must not be forwarded.
 const DROPPED = new Set([
@@ -78,7 +86,7 @@ const server = createServer(async (req, res) => {
   } catch {
     return fail(res, 400, 'Expected /<full provider URL>.', origin)
   }
-  if (target.protocol !== 'https:' || !config.hosts.includes(target.hostname)) {
+  if (target.protocol !== 'https:' || !allowed(target.hostname)) {
     return fail(res, 403, `${target.host} is not allowed; start the proxy with --allow ${target.hostname}.`, origin)
   }
 
