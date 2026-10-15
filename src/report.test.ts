@@ -64,3 +64,19 @@ test('includes earlier versions and dates old replies by their conversation', ()
   expect(report.undated).toBe(1)
   expect(report.daily.find((d) => d.day === dayKey(daysAgo(2)))!.replies).toBe(1)
 })
+
+test('replies saved before their price was known are priced when it is', () => {
+  const chat = {
+    id: 'c',
+    title: 'x',
+    createdAt: 0,
+    updatedAt: Date.now(),
+    providerId: 'deepseek',
+    model: 'deepseek-v5',
+    messages: [{ id: 'r', role: 'assistant', content: 'oi', createdAt: Date.now(), usage: { input: 1_000_000, output: 0 } }],
+  } as Chat
+  expect(usageReport([chat], 7).unpriced).toBe(1)
+  const priced = usageReport([chat], 7, Date.now(), () => ({ inputPrice: 0.5, outputPrice: 2 }))
+  expect(priced.total.cost).toBeCloseTo(0.5)
+  expect(priced.unpriced).toBe(0)
+})

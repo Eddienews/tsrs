@@ -5,7 +5,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { locale, t } from './i18n'
 import { PROVIDERS } from './providers'
 import { usageReport, type DayUsage } from './report'
-import type { Chat } from './types'
+import type { Chat, ModelInfo } from './types'
 import { formatCost, formatTokens } from './usage'
 
 const RANGES = [7, 30, 90] as const
@@ -13,6 +13,8 @@ const RANGES = [7, 30, 90] as const
 interface Props {
   // Reads every conversation, messages included.
   load: () => Promise<Chat[]>
+  // The price of a model now, for replies saved before it was known.
+  price?: (providerId: string, model: string) => ModelInfo
   onBack: () => void
   showMenu: boolean
   onMenu: () => void
@@ -37,15 +39,15 @@ function dayTitle(day: DayUsage): string {
 
 function Card({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
-    <div className="rounded-md border bg-card p-3">
+    <div className="min-w-0 rounded-md border bg-card p-3">
       <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className="mt-1 font-mono text-xl">{value}</div>
+      <div className="mt-1 break-words font-mono text-lg leading-tight @lg:text-xl">{value}</div>
       {note && <div className="mt-0.5 text-xs text-muted-foreground">{note}</div>}
     </div>
   )
 }
 
-export default function UsageView({ load, onBack, showMenu, onMenu }: Props) {
+export default function UsageView({ load, price, onBack, showMenu, onMenu }: Props) {
   const [chats, setChats] = useState<Chat[] | null>(null)
   const [days, setDays] = useState<(typeof RANGES)[number]>(30)
 
@@ -53,7 +55,7 @@ export default function UsageView({ load, onBack, showMenu, onMenu }: Props) {
     load().then(setChats)
   }, [load])
 
-  const report = useMemo(() => chats && usageReport(chats, days), [chats, days])
+  const report = useMemo(() => chats && usageReport(chats, days, Date.now(), price), [chats, days, price])
   const tokens = (row: { input: number; output: number }) => row.input + row.output
   const peak = report ? Math.max(1, ...report.daily.map(tokens)) : 1
   const top = report ? Math.max(1, ...report.byModel.map(tokens)) : 1
@@ -99,8 +101,9 @@ export default function UsageView({ load, onBack, showMenu, onMenu }: Props) {
       {!report ? (
         <p className="p-4 text-sm text-muted-foreground">{t('Carregando…')}</p>
       ) : (
-        <div className="flex-1 space-y-4 overflow-y-auto p-4">
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+        <div className="@container flex-1 space-y-4 overflow-y-auto p-4">
+          {/* Columns follow the width of the view, which the preview panel narrows. */}
+          <div className="grid grid-cols-1 gap-2 @xs:grid-cols-2 @3xl:grid-cols-4">
             <Card
               label={t('Tokens')}
               value={formatTokens(tokens(report.total))}
@@ -182,10 +185,10 @@ export default function UsageView({ load, onBack, showMenu, onMenu }: Props) {
                   <thead>
                     <tr className="text-left text-muted-foreground">
                       <th className="py-1 font-normal">{t('Modelo')}</th>
-                      <th className="hidden py-1 font-normal sm:table-cell" />
-                      <th className="py-1 text-right font-normal">{t('Tokens')}</th>
-                      <th className="py-1 text-right font-normal">{t('Respostas')}</th>
-                      <th className="py-1 text-right font-normal">{t('Custo')}</th>
+                      <th className="hidden py-1 font-normal @lg:table-cell" />
+                      <th className="py-1 pl-3 text-right font-normal">{t('Tokens')}</th>
+                      <th className="py-1 pl-3 text-right font-normal">{t('Respostas')}</th>
+                      <th className="py-1 pl-3 text-right font-normal">{t('Custo')}</th>
                     </tr>
                   </thead>
                   <tbody className="font-mono">
@@ -197,7 +200,7 @@ export default function UsageView({ load, onBack, showMenu, onMenu }: Props) {
                             {PROVIDERS.find((p) => p.id === row.providerId)?.name ?? row.providerId}
                           </div>
                         </td>
-                        <td className="hidden w-1/3 py-1.5 pr-3 sm:table-cell">
+                        <td className="hidden w-1/3 py-1.5 pr-3 @lg:table-cell">
                           <div className="h-2 rounded-full bg-muted">
                             <div
                               className="h-2 rounded-full bg-chart-2"
@@ -205,9 +208,9 @@ export default function UsageView({ load, onBack, showMenu, onMenu }: Props) {
                             />
                           </div>
                         </td>
-                        <td className="py-1.5 text-right">{formatTokens(tokens(row))}</td>
-                        <td className="py-1.5 text-right">{formatTokens(row.replies)}</td>
-                        <td className="py-1.5 text-right">
+                        <td className="py-1.5 pl-3 text-right">{formatTokens(tokens(row))}</td>
+                        <td className="py-1.5 pl-3 text-right">{formatTokens(row.replies)}</td>
+                        <td className="whitespace-nowrap py-1.5 pl-3 text-right">
                           {row.cost !== undefined ? formatCost(row.cost) : '—'}
                         </td>
                       </tr>

@@ -2178,6 +2178,7 @@ export default function App() {
     <Suspense fallback={null}>
       <UsageView
         load={loadChats}
+        price={(id, model) => modelInfo(settings, id, model)}
         onBack={() => setShowUsage(false)}
         showMenu={isMobile}
         onMenu={() => setShowDrawer(true)}
