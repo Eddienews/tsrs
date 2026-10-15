@@ -388,7 +388,15 @@ o **custo estimado antes** de gerar.
   Edge** existem vozes neurais grátis em português muito boas ("Natural");
   vale usar o Edge para isso.
 - **ElevenLabs:** escolha uma das **suas vozes** (as que você criou ou salvou),
-  com amostra e preço por caractere.
+  com amostra e preço por caractere. O botão **Criar voz…** faz uma voz nova na
+  sua conta, de dois jeitos:
+  - **Descrever:** escreva como é a voz ("locutor brasileiro de uns 40 anos,
+    voz grave e calma…"); a ElevenLabs gera três versões, você ouve, escolhe uma,
+    dá um nome e salva.
+  - **Clonar de um áudio:** grave ali mesmo ou envie arquivos com 1 a 5 minutos
+    de fala limpa da mesma pessoa. Só clone a sua voz ou a de quem autorizou.
+  A voz criada já fica escolhida para a leitura. A ElevenLabs cobra créditos
+  pela criação, conforme o seu plano.
 - **OpenAI** ou **Gemini:** com a chave desses provedores.
 - **Piper (local, grátis):** vozes neurais que rodam no seu computador, sem
   chave. Em **Configurações → Mídia → Leitura em voz alta**, escolha **Piper** e

@@ -23,13 +23,19 @@ function cached<T>(lists: Map<string, Promise<T>>, key: string, load: () => Prom
   return list
 }
 
-function useList<T>(lists: Map<string, Promise<T[]>>, apiKey: string, load: (key: string) => Promise<T[]>) {
+function useList<T>(lists: Map<string, Promise<T[]>>, apiKey: string, load: (key: string) => Promise<T[]>, version = 0) {
   const [state, setState] = useState<{ items: T[]; loading: boolean; error: string }>({
     items: [],
     loading: false,
     error: '',
   })
   const [attempt, setAttempt] = useState(0)
+  // A new version (a voice was just made) asks the account again.
+  const seen = useRef(version)
+  if (seen.current !== version) {
+    seen.current = version
+    lists.delete(apiKey)
+  }
   useEffect(() => {
     if (!apiKey) return setState({ items: [], loading: false, error: '' })
     let stale = false
@@ -40,7 +46,7 @@ function useList<T>(lists: Map<string, Promise<T[]>>, apiKey: string, load: (key
     return () => {
       stale = true
     }
-  }, [apiKey, attempt])
+  }, [apiKey, attempt, version])
   const retry = () => {
     lists.delete(apiKey)
     setAttempt((n) => n + 1)
@@ -59,11 +65,13 @@ interface VoiceProps {
   // The voice used when none is chosen.
   fallback: string
   label: string
+  // Changes when a voice was made, so the list is loaded again.
+  version?: number
 }
 
 // A list of the account's voices, its own first, with a sample to listen to.
 export function ElevenVoiceField(p: VoiceProps) {
-  const { items: voices, loading, error, retry } = useList(voiceLists, p.apiKey, listVoices)
+  const { items: voices, loading, error, retry } = useList(voiceLists, p.apiKey, listVoices, p.version)
   const [typing, setTyping] = useState(false)
   const [sampling, setSampling] = useState(false)
   const sample = useRef<HTMLAudioElement | null>(null)

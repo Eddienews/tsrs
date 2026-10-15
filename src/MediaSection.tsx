@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { ExternalLink } from 'lucide-react'
+import { lazy, Suspense, useState } from 'react'
+import { ExternalLink, Sparkles } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -19,6 +20,8 @@ import {
 } from './media'
 import { BrowserVoiceField, ElevenModelField, ElevenVoiceField, PiperVoiceField } from './VoiceFields'
 import type { MediaChoice, MediaKind, Settings } from './types'
+
+const VoiceMaker = lazy(() => import('./VoiceMaker'))
 
 interface Props {
   settings: Settings
@@ -224,6 +227,9 @@ function ReaderChoice(props: Props) {
   const fallback = service ? defaultModel(service, 'audio') : ''
   const set = (fields: Partial<MediaChoice>) =>
     onChange((s) => ({ ...s, readAloud: { ...s.readAloud, ...fields } }))
+  const [making, setMaking] = useState(false)
+  const [made, setMade] = useState(0)
+  const [madeNote, setMadeNote] = useState('')
   return (
     <section className="reader space-y-1.5">
       <Label htmlFor="read-aloud" className="text-sm font-medium">
@@ -252,6 +258,7 @@ function ReaderChoice(props: Props) {
               label={t('Voz da leitura')}
               value={choice.model}
               fallback={fallback}
+              version={made}
               onChange={(model) => set({ model })}
             />
             <ElevenModelField
@@ -272,6 +279,35 @@ function ReaderChoice(props: Props) {
           <BrowserVoiceField value={choice.model} lang={locale()} onChange={(model) => set({ model })} />
         )}
       </div>
+      {service === 'elevenlabs' && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            disabled={!settings.mediaKeys.elevenlabs?.trim() || props.locked}
+            onClick={() => setMaking(true)}
+          >
+            <Sparkles className="size-3.5" />
+            {t('Criar voz…')}
+          </Button>
+          {madeNote && <span className={hint}>{madeNote}</span>}
+        </div>
+      )}
+      {making && (
+        <Suspense fallback={null}>
+          <VoiceMaker
+            apiKey={settings.mediaKeys.elevenlabs ?? ''}
+            onClose={() => setMaking(false)}
+            onCreated={(voiceId, note) => {
+              setMaking(false)
+              setMade((n) => n + 1)
+              set({ model: voiceId })
+              setMadeNote(note ?? t('Voz criada e escolhida para a leitura.'))
+            }}
+          />
+        </Suspense>
+      )}
       {service === PIPER && (
         <p className={hint}>
           {t(

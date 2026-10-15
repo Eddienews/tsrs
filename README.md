@@ -117,7 +117,9 @@ manager) and Chrome, Edge or Playwright's Chromium.
   Cartesia), with the estimated cost before sending when the service publishes it.
 - Read replies aloud with the browser's most natural voice (Microsoft Edge's
   free neural voices) or an ElevenLabs, OpenAI or Gemini voice; pick your own
-  ElevenLabs voices with samples and prices.
+  ElevenLabs voices with samples and prices, or make a new one from the app:
+  designed from a description (three versions to choose from) or cloned from
+  recordings, with the speaker's consent.
 - Free local voices with no key and no internet after the first download:
   Piper reads replies aloud (and narrates short videos), and Whisper transcribes
   dictation and attached audio, both running in the browser. The TSRS server

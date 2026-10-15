@@ -789,3 +789,86 @@ export async function listElevenModels(key: string): Promise<ElevenModel[]> {
     .filter((m) => m.can_do_text_to_speech !== false)
     .map((m) => ({ id: m.model_id, name: m.name }))
 }
+
+// Voices made in the account, from the settings: designed from a description
+// (Voice Design) or cloned from recordings (Instant Voice Cloning).
+
+export interface DesignedPreview {
+  // Kept to save the preview as a voice.
+  id: string
+  // A data URL to listen to.
+  audio: string
+  seconds: number
+}
+
+const ELEVEN = 'https://api.elevenlabs.io/v1'
+
+// Three versions of a described voice, saying `text` (100 to 1,000
+// characters) or a text ElevenLabs writes to suit the description.
+export async function designVoice(
+  key: string,
+  request: { description: string; text?: string },
+  signal?: AbortSignal,
+): Promise<{ previews: DesignedPreview[]; text: string }> {
+  const text = request.text?.trim() ?? ''
+  const res = await call(mediaService('elevenlabs')!, `${ELEVEN}/text-to-voice/design?output_format=mp3_44100_128`, {
+    method: 'POST',
+    headers: { 'xi-api-key': key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      voice_description: request.description.trim(),
+      model_id: 'eleven_ttv_v3',
+      ...(text.length >= 100 ? { text } : { auto_generate_text: true }),
+    }),
+    signal,
+  })
+  const json = await res.json()
+  const previews: { generated_voice_id: string; audio_base_64: string; media_type?: string; duration_secs?: number }[] =
+    json.previews ?? []
+  return {
+    text: String(json.text ?? text),
+    previews: previews.map((p) => ({
+      id: p.generated_voice_id,
+      audio: `data:${p.media_type || 'audio/mpeg'};base64,${p.audio_base_64}`,
+      seconds: p.duration_secs ?? 0,
+    })),
+  }
+}
+
+// Saves a designed preview in the account; resolves to the new voice's id.
+export async function saveDesignedVoice(
+  key: string,
+  voice: { name: string; description: string; previewId: string },
+): Promise<string> {
+  const res = await call(mediaService('elevenlabs')!, `${ELEVEN}/text-to-voice`, {
+    method: 'POST',
+    headers: { 'xi-api-key': key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      voice_name: voice.name.trim(),
+      voice_description: voice.description.trim(),
+      generated_voice_id: voice.previewId,
+    }),
+  })
+  const json = await res.json()
+  if (!json.voice_id) throw new Error(t('A ElevenLabs não devolveu a voz criada.'))
+  return String(json.voice_id)
+}
+
+// A voice cloned from one or more recordings of the same person.
+export async function cloneVoice(
+  key: string,
+  voice: { name: string; description?: string; files: File[]; removeNoise: boolean },
+): Promise<{ id: string; verify: boolean }> {
+  const form = new FormData()
+  form.append('name', voice.name.trim())
+  if (voice.description?.trim()) form.append('description', voice.description.trim())
+  form.append('remove_background_noise', String(voice.removeNoise))
+  voice.files.forEach((file) => form.append('files', file, file.name))
+  const res = await call(mediaService('elevenlabs')!, `${ELEVEN}/voices/add`, {
+    method: 'POST',
+    headers: { 'xi-api-key': key },
+    body: form,
+  })
+  const json = await res.json()
+  if (!json.voice_id) throw new Error(t('A ElevenLabs não devolveu a voz criada.'))
+  return { id: String(json.voice_id), verify: !!json.requires_verification }
+}
