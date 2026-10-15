@@ -127,7 +127,12 @@ de pacotes) e do Chrome, do Edge ou do Chromium do Playwright.
 - Leitura das respostas em voz alta com a voz mais natural do navegador (as
   vozes neurais grátis do Microsoft Edge) ou com uma voz da ElevenLabs, da
   OpenAI ou do Gemini; escolha as suas vozes da ElevenLabs, com amostra e preço.
-- Ditado pela OpenAI, pelo Groq ou pelo reconhecimento de voz do navegador.
+- Vozes locais grátis, sem chave e sem internet depois do primeiro download: o
+  Piper lê as respostas em voz alta (e narra os vídeos curtos) e o Whisper
+  transcreve o ditado e os áudios anexados, os dois rodando no navegador. O
+  servidor do TSRS baixa cada modelo uma vez para `modelos/` e serve de lá.
+- Ditado pela OpenAI, pelo Groq, pelo Whisper local ou pelo reconhecimento de
+  voz do navegador.
 
 ### Ferramentas, agentes e extensões
 - Servidores MCP remotos, com permissão antes de cada chamada.
@@ -286,4 +291,7 @@ O que já existe e o que vem a seguir: [ROADMAP.pt-BR.md](ROADMAP.pt-BR.md).
 ## Licença
 
 [MIT](LICENSE). O anime.js e o lottie-web, incluídos em `public/motion/`, também
-são MIT.
+são MIT. As vozes locais usam o Transformers.js e o ONNX Runtime Web
+(Apache-2.0/MIT) e o piper_phonemize, feito sobre o espeak-ng (GPL-3.0),
+carregado só quando uma voz do Piper é usada; as vozes do Piper e os modelos
+Whisper têm licenças próprias, nas suas páginas do Hugging Face.

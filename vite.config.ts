@@ -20,7 +20,16 @@ export default defineConfig({
   plugins: [react(), tailwindcss(), tsrsRenderer(), tsrsVersion(), tsrsProjects(), tsrsBackups(), tsrsModels(), tsrsExtensions(process.env.VITEST ? undefined : (server) => agendaForServer(server).handle)],
   // Imported only when a chat is exported as HTML; listed so the dev server
   // does not discover it mid-session and reload the page.
-  optimizeDeps: { include: ['react-dom/server'] },
+  // The local voices' libraries, listed for the same reason: found only when
+  // their workers first start, they would reload the page mid-session.
+  optimizeDeps: {
+    include: [
+      'react-dom/server',
+      '@huggingface/transformers',
+      'onnxruntime-web/wasm',
+      '@diffusionstudio/piper-wasm/build/piper_phonemize.js',
+    ],
+  },
   build: {
     rolldownOptions: {
       output: {

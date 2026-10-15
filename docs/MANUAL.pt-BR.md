@@ -390,11 +390,24 @@ o **custo estimado antes** de gerar.
 - **ElevenLabs:** escolha uma das **suas vozes** (as que você criou ou salvou),
   com amostra e preço por caractere.
 - **OpenAI** ou **Gemini:** com a chave desses provedores.
+- **Piper (local, grátis):** vozes neurais que rodam no seu computador, sem
+  chave. Em **Configurações → Mídia → Leitura em voz alta**, escolha **Piper** e
+  a voz (em português: faber, cadu, jeff, edresson). A primeira amostra baixa a
+  voz (uns 60 MB) para a pasta `modelos/` do TSRS; depois funciona sem
+  internet. A mesma voz narra os vídeos curtos.
 
 ### Ditado
 
 O botão **Ditar** transcreve a sua fala pela OpenAI, pelo Groq (rápido e
-barato) ou pelo reconhecimento de voz do navegador (grátis).
+barato), pelo **Whisper local** ou pelo reconhecimento de voz do navegador
+(grátis).
+
+O **Whisper local** (Configurações → Geral → Ditado) roda no seu computador: o
+áudio não sai dele e não há custo. Escolha o tamanho: **Mínimo** (~45 MB),
+**Básico** (~80 MB) ou **Pequeno** (~250 MB, erra menos em português e demora
+mais). O modelo é baixado na primeira transcrição para `modelos/` e, depois,
+funciona sem internet. Ele também transcreve os áudios anexados. As vozes e o
+Whisper locais precisam do TSRS aberto pelo `npm run dev`.
 
 ## 9. Busca na web e pesquisa profunda
 
