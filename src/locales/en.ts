@@ -612,4 +612,7 @@ export const en: Record<string, string> = {
   '"{name}" não tem nenhuma célula preenchida.': '"{name}" has no filled-in cells.',
   '"{name}" é uma planilha num formato que o TSRS não lê. Salve como .xlsx ou CSV.':
     '"{name}" is a spreadsheet in a format TSRS cannot read. Save it as .xlsx or CSV.',
+  // Starter library
+  'Adicionar as personas prontas ({count})': 'Add the starter personas ({count})',
+  'Adicionar os prompts prontos ({count})': 'Add the starter prompts ({count})',
 }

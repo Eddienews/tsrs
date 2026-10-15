@@ -1,6 +1,7 @@
 import { defaultAppearance } from './appearance'
 import { detectLanguage } from './i18n'
 import { PROVIDERS } from './providers'
+import { starterPersonas, starterPrompts } from './starters'
 import type { Chat, ChatMeta, KnowledgeDoc, Message, Settings } from './types'
 
 // Settings are small and read synchronously at startup: localStorage.
@@ -24,9 +25,11 @@ interface Thread {
   messages: Message[]
 }
 
+// A first run starts with the starter personas and prompts, in its language.
 export function defaultSettings(): Settings {
+  const language = detectLanguage()
   return {
-    language: detectLanguage(),
+    language,
     appearance: defaultAppearance(),
     providers: Object.fromEntries(
       PROVIDERS.map((p) => [
@@ -38,8 +41,8 @@ export function defaultSettings(): Settings {
     model: PROVIDERS[0].defaultModels[0] ?? '',
     systemPrompt: '',
     folders: [],
-    personas: [],
-    prompts: [],
+    personas: starterPersonas(language),
+    prompts: starterPrompts(language),
     mcpServers: [],
     webSearch: false,
     webFetch: false,
