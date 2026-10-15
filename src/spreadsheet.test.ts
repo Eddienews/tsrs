@@ -1,7 +1,7 @@
 import { strToU8, zipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
 import vendas from '../e2e/fixtures/vendas.xlsx?inline'
-import { MAX_ROWS, readWorkbook, workbookText } from './spreadsheet'
+import { MAX_ROWS, MAX_UNZIPPED, readWorkbook, workbookText } from './spreadsheet'
 
 // The sample workbook's bytes, imported by Vite as a data URL.
 function fixture(): Uint8Array<ArrayBuffer> {
@@ -76,6 +76,38 @@ describe('readWorkbook', () => {
 
   it('refuses files that are not workbooks', async () => {
     await expect(readWorkbook(new Uint8Array([1, 2, 3]))).rejects.toThrow('planilha .xlsx válida')
+  })
+
+  it("stops at Excel's last column instead of building a huge row", async () => {
+    const start = Date.now()
+    await expect(readWorkbook(workbook('<row r="1"><c r="ZZZZZZ1"><v>1</v></c></row>'))).rejects.toThrow(
+      'planilha .xlsx válida',
+    )
+    expect(Date.now() - start).toBeLessThan(1000)
+    await expect(readWorkbook(workbook('<row r="1"><c r="XFE1"><v>1</v></c></row>'))).rejects.toThrow()
+    const [sheet] = await readWorkbook(workbook('<row r="1"><c r="XFD1"><v>1</v></c></row>'))
+    expect(sheet.rows[0]).toHaveLength(16384)
+    await expect(readWorkbook(workbook('<row r="0"><c r="A1"><v>1</v></c></row>'))).rejects.toThrow()
+  })
+
+  it('refuses a workbook that would unzip to too much', async () => {
+    // A small zip whose parts claim to unzip to more than the cap.
+    const bytes = workbook('<row r="1"><c r="A1"><v>1</v></c></row>')
+    const view = new DataView(bytes.buffer)
+    const claim = Math.ceil(MAX_UNZIPPED / 2)
+    for (let i = 0; i < bytes.length - 4; i++) {
+      const signature = view.getUint32(i, true)
+      if (signature === 0x04034b50) view.setUint32(i + 22, claim, true)
+      if (signature === 0x02014b50) view.setUint32(i + 24, claim, true)
+    }
+    await expect(readWorkbook(bytes)).rejects.toThrow('planilha .xlsx válida')
+  })
+
+  it('turns character codes outside Unicode into the replacement character', async () => {
+    const [sheet] = await readWorkbook(
+      workbook('<row r="1"><c r="A1" t="inlineStr"><is><t>a&#x110000;b&#65;</t></is></c></row>'),
+    )
+    expect(sheet.rows).toEqual([['a\ufffdbA']])
   })
 })
 
