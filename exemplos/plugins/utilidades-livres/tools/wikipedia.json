@@ -1,0 +1,10 @@
+{
+  "name": "wikipedia",
+  "description": "Resumo de um verbete da Wikipédia em português, pelo título exato (ex.: Curitiba, Machado_de_Assis).",
+  "parameters": {
+    "type": "object",
+    "properties": { "titulo": { "type": "string", "description": "Título do verbete, com _ no lugar dos espaços" } },
+    "required": ["titulo"]
+  },
+  "http": { "url": "https://pt.wikipedia.org/api/rest_v1/page/summary/{titulo}", "method": "GET" }
+}

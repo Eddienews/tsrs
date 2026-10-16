@@ -419,3 +419,38 @@ export async function runHttpTool(root, pluginId, toolName, input) {
   const body = text.length > 50_000 ? `${text.slice(0, 50_000)}\n[cut at 50,000 characters]` : text
   return { status: res.status, ok: res.ok, body }
 }
+
+// --- Examples ----------------------------------------------------------------
+
+// Skills and plugins that come with TSRS, in exemplos/, installed as copies.
+export function examplesRoot() {
+  return process.env.TSRS_EXAMPLES ? resolve(process.env.TSRS_EXAMPLES) : resolve(HERE, '..', 'exemplos')
+}
+
+export async function listExamples(root = extensionsRoot(), examples = examplesRoot()) {
+  const installedSkills = new Set((await listSkills(root)).filter((s) => s.source === 'user').map((s) => s.name))
+  const installedPlugins = new Set((await listPlugins(root)).map((p) => p.name))
+  const skills = []
+  for (const folder of await subfolders(join(examples, 'skills'))) {
+    const skill = await skillAt(folder, 'user')
+    if (skill) skills.push({ id: folder.split(sep).pop(), name: skill.name, description: skill.description, installed: installedSkills.has(skill.name) })
+  }
+  const plugins = []
+  for (const folder of await subfolders(join(examples, 'plugins'))) {
+    const manifest = await pluginManifest(folder)
+    plugins.push({ id: folder.split(sep).pop(), name: manifest.name, description: manifest.description ?? '', installed: installedPlugins.has(manifest.name) })
+  }
+  return { skills, plugins }
+}
+
+export async function installExample(root, examples, kind, id) {
+  if (kind !== 'skill' && kind !== 'plugin') throw new Error('Unknown kind of example.')
+  if (!/^[\w-]+$/.test(String(id))) throw new Error('Unknown example.')
+  const folder = join(examples, `${kind}s`, id)
+  if (!existsSync(folder)) throw new Error('Unknown example.')
+  const files = []
+  for (const name of await filesIn(folder)) {
+    files.push({ name: `${id}/${name}`, data: (await readFile(join(folder, name))).toString('base64') })
+  }
+  return kind === 'skill' ? installSkill(root, files) : installPlugin(root, files)
+}

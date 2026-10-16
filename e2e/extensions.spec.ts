@@ -236,3 +236,27 @@ test('agenda: the server sends a task to the model and the answer lands in a con
   await page.locator('.chat-item', { hasText: 'Agenda: Com skill' }).click()
   await expect(reply(page)).toContainText('Use o modelo.md.')
 })
+
+test('installs the skills and plugins that come with TSRS', async ({ page, request }) => {
+  const root = (await (await request.get('/__tsrs/ext/health')).json()).root as string
+  await page.goto('/')
+  await openExtensions(page, 'Exemplos')
+  const skill = page.locator('[data-example="escrita-clara"]')
+  await expect(skill).toContainText('Guia para escrever e revisar textos claros')
+  await skill.getByRole('button', { name: 'Instalar escrita-clara' }).click()
+  await expect(page.getByRole('status')).toContainText('"escrita-clara" instalado')
+  await expect(skill.getByRole('button', { name: 'Reinstalar escrita-clara' })).toBeVisible()
+  // A copy, with the files it mentions.
+  expect(await readFile(join(root, 'skills', 'ata-de-reuniao', 'modelo.md'), 'utf8').catch(() => 'missing')).toBe('missing')
+  await page.locator('[data-example="ata-de-reuniao"]').getByRole('button', { name: 'Instalar ata-de-reuniao' }).click()
+  await expect(page.locator('[data-example="ata-de-reuniao"]').getByRole('button', { name: /Reinstalar/ })).toBeVisible()
+  expect(await readFile(join(root, 'skills', 'ata-de-reuniao', 'modelo.md'), 'utf8')).toContain('## Pendências')
+
+  await page.locator('[data-example="utilidades-livres"]').getByRole('button', { name: 'Instalar utilidades-livres' }).click()
+  await expect(page.locator('[data-example="utilidades-livres"]').getByRole('button', { name: /Reinstalar/ })).toBeVisible()
+  await page.getByRole('tab', { name: 'Plugins' }).click()
+  const card = page.locator('[data-plugin="utilidades-livres"]')
+  await expect(card).toContainText('/resumo')
+  await expect(card).toContainText('revisor-tecnico')
+  for (const tool of ['cambio', 'clima', 'contar_palavras', 'feriados', 'wikipedia']) await expect(card).toContainText(tool)
+})

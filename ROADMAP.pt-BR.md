@@ -100,6 +100,7 @@ cada seção é a ordem sugerida.
 - [x] Listas de modelos que se atualizam uma vez por dia e marcam os modelos novos, inclusive os de fine-tuning
 - [x] Azure OpenAI, pelo endpoint v1 do recurso e as suas implantações
 - [x] Perfis: pessoal e trabalho separados no mesmo navegador, cada um com as suas chaves, conversas e backup
+- [x] Galeria da comunidade com mais de 50 prompts, e skills e plugins de exemplo que se instalam com um clique
 
 ## Próximos
 

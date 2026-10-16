@@ -2188,3 +2188,23 @@ test('keeps a work profile apart from the personal one', async ({ page }) => {
   await expect(page.getByRole('list', { name: 'Perfis' })).toContainText('Pessoal')
   expect(await page.evaluate((id) => localStorage.getItem(`tsrs:settings:${id}`), work.active)).toBeNull()
 })
+
+test('adds prompts from the community gallery to the library', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Biblioteca' }).first().click()
+  await page.getByRole('tab', { name: 'Prompts salvos' }).click()
+  await page.getByRole('button', { name: /Galeria da comunidade \(\d+ prompts\)/ }).click()
+  const gallery = page.getByRole('region', { name: 'Galeria da comunidade' })
+  await gallery.getByLabel('Buscar na galeria').fill('fórmula')
+  await gallery.getByRole('button', { name: 'Adicionar "Fórmula de planilha"' }).click()
+  await expect(gallery.locator('[data-community="community-formula"]')).toContainText('na biblioteca')
+  // A whole category at once.
+  await gallery.getByLabel('Buscar na galeria').fill('')
+  await gallery.getByLabel('Categoria').selectOption('estudo')
+  await gallery.getByRole('button', { name: /Adicionar os \d+ mostrados/ }).click()
+  await expect(gallery.getByRole('button', { name: 'Adicionar os 0 mostrados' })).toBeDisabled()
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('tsrs:settings')!).prompts.map((p: any) => p.id))
+  expect(saved).toContain('community-formula')
+  expect(saved).toContain('community-quiz')
+  expect(saved.filter((id: string) => id === 'community-formula')).toHaveLength(1)
+})

@@ -76,6 +76,17 @@ conversa nas Discussions) e conte o que pretende antes de escrever o código.
 O [ROADMAP](ROADMAP.pt-BR.md) tem o que já foi feito e o que ainda precisa ser
 confirmado com provedores reais; confirmar um desses itens também ajuda.
 
+### Sem programar: prompts, skills e plugins
+
+- **Um prompt para a galeria da comunidade:** acrescente uma entrada em
+  `src/communityPrompts.ts`, na categoria certa, em português e em inglês, com
+  os mesmos `{{campos}}` nos dois. Curto, útil para muita gente e com um id novo.
+  O `npm test` confere a entrada.
+- **Uma skill ou um plugin de exemplo:** acrescente uma pasta em
+  `exemplos/skills/` ou `exemplos/plugins/`, nos formatos descritos em
+  `server/extensions.mjs`, e uma linha no `exemplos/README.md`. Ferramentas que
+  chamam uma API devem usar uma grátis, sem chave e que permita esse uso.
+
 ## Onde fica cada coisa
 
 - `src/`: o app (React). O [README](README.pt-BR.md#estrutura-do-projeto) tem o

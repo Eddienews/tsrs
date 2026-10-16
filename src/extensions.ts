@@ -89,6 +89,22 @@ export async function listPlugins(): Promise<Plugin[]> {
   return (await get<{ plugins: Plugin[] }>('/plugins')).plugins
 }
 
+// The skills and plugins that come with TSRS (exemplos/), to install as copies.
+export interface Example {
+  id: string
+  name: string
+  description: string
+  installed: boolean
+}
+
+export function listExamples() {
+  return get<{ skills: Example[]; plugins: Example[] }>('/examples')
+}
+
+export function installExample(kind: 'skill' | 'plugin', id: string) {
+  return post<unknown>('/examples/install', { kind, id })
+}
+
 export function readSkill(id: string) {
   return get<Skill & { text: string; body: string }>(`/skill?${new URLSearchParams({ id })}`)
 }

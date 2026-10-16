@@ -9,17 +9,20 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   extensionsRoot,
   filesToUpload,
+  installExample,
+  listExamples,
   listPlugins,
   listSkills,
   post,
   readSkill,
+  type Example,
   type Plugin,
   type Skill,
 } from './extensions'
 import { t } from './i18n'
 import type { McpServer, Persona, Settings } from './types'
 
-export type ExtensionsTab = 'skills' | 'plugins' | 'agenda'
+export type ExtensionsTab = 'skills' | 'plugins' | 'examples' | 'agenda'
 
 interface Props {
   settings: Settings
@@ -505,6 +508,7 @@ export default function ExtensionsDialog(p: Props) {
               <TabsList>
                 <TabsTrigger value="skills">{t('Skills')}</TabsTrigger>
                 <TabsTrigger value="plugins">{t('Plugins')}</TabsTrigger>
+                <TabsTrigger value="examples">{t('Exemplos')}</TabsTrigger>
                 <TabsTrigger value="agenda">{t('Agenda')}</TabsTrigger>
               </TabsList>
             </Tabs>
@@ -515,10 +519,75 @@ export default function ExtensionsDialog(p: Props) {
             )}
             {tab === 'skills' && <SkillsTab {...p} skills={skills} reload={reload} setNote={setNote} />}
             {tab === 'plugins' && <PluginsTab {...p} plugins={plugins} reload={reload} setNote={setNote} />}
+            {tab === 'examples' && <ExamplesTab version={version} reload={reload} setNote={setNote} />}
             {tab === 'agenda' && p.agenda}
           </>
         )}
       </DialogContent>
     </Dialog>
+  )
+}
+
+// The skills and plugins that come with TSRS, installed with one click.
+function ExamplesTab(props: { version: number; reload: () => void; setNote: (note: string) => void }) {
+  const [examples, setExamples] = useState<{ skills: Example[]; plugins: Example[] } | null>(null)
+  const [busy, setBusy] = useState('')
+  useEffect(() => {
+    let stale = false
+    listExamples()
+      .then((list) => !stale && setExamples(list))
+      .catch((err) => !stale && props.setNote(t('Falhou: {message}', { message: err instanceof Error ? err.message : String(err) })))
+    return () => {
+      stale = true
+    }
+  }, [props.version])
+
+  async function install(kind: 'skill' | 'plugin', example: Example) {
+    setBusy(example.id)
+    try {
+      await installExample(kind, example.id)
+      props.setNote(t('"{name}" instalado. Você pode editar a cópia na aba {tab}.', { name: example.name, tab: kind === 'skill' ? t('Skills') : t('Plugins') }))
+      props.reload()
+    } catch (err) {
+      props.setNote(t('Falhou: {message}', { message: err instanceof Error ? err.message : String(err) }))
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const row = (kind: 'skill' | 'plugin', example: Example) => (
+    <li key={example.id} className="flex items-start gap-2 rounded-md border p-2" data-example={example.id}>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium">{example.name}</p>
+        <p className="text-xs text-muted-foreground">{example.description}</p>
+      </div>
+      <Button
+        variant={example.installed ? 'ghost' : 'outline'}
+        size="sm"
+        className="h-7 shrink-0 text-xs"
+        disabled={busy === example.id}
+        aria-label={example.installed ? t('Reinstalar {name}', { name: example.name }) : t('Instalar {name}', { name: example.name })}
+        onClick={() => install(kind, example)}
+      >
+        {example.installed ? t('Reinstalar') : t('Instalar')}
+      </Button>
+    </li>
+  )
+
+  if (!examples) return <p className="text-xs text-muted-foreground">{t('Carregando…')}</p>
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">
+        {t('Extensões de exemplo que vêm com o TSRS, para usar e para copiar. Instalar põe uma cópia em extensoes/; reinstalar guarda a versão anterior em extensoes/_removidas/.')}
+      </p>
+      <section className="space-y-2">
+        <h3 className="text-sm font-medium">{t('Skills')}</h3>
+        <ul className="space-y-1.5">{examples.skills.map((e) => row('skill', e))}</ul>
+      </section>
+      <section className="space-y-2">
+        <h3 className="text-sm font-medium">{t('Plugins')}</h3>
+        <ul className="space-y-1.5">{examples.plugins.map((e) => row('plugin', e))}</ul>
+      </section>
+    </div>
   )
 }

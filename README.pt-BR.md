@@ -151,6 +151,11 @@ de pacotes) e do Chrome, do Edge ou do Chromium do Playwright.
   raciocínio), ferramentas, skills e plugins, arquivos, conhecimento e
   sugestões iniciais; chame um para uma mensagem com **@nome**. Quatro já vêm
   no app, junto com prompts prontos com `{{campos}}`.
+- Galeria da comunidade com mais de 50 prompts, por categoria, para adicionar
+  à biblioteca.
+- Skills e plugins de exemplo que se instalam com um clique (Extensões →
+  Exemplos), com ferramentas grátis e sem chave: câmbio, feriados, clima e
+  Wikipédia.
 - **Prompts encadeados**: prompts salvos com etapas, cada uma enviada quando a
   resposta anterior termina, com `{{resposta}}` para essa resposta.
 - Memória (opcional): fatos que o modelo guarda sobre você, numa lista editável.

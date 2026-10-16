@@ -1102,4 +1102,36 @@ export const en: Record<string, string> = {
   'Um perfil novo começa vazio, como uma instalação nova: cole as chaves dele nas configurações.':
     'A new profile starts empty, like a fresh install: paste its keys in the settings.',
   'Usar este': 'Use this one',
+
+  // Community gallery and examples
+  'Adicionar "{title}"': 'Add "{title}"',
+  'Adicionar os {count} mostrados': 'Add the {count} shown',
+  'Adicionar': 'Add',
+  'Buscar na galeria': 'Search the gallery',
+  'Buscar na galeria…': 'Search the gallery…',
+  'Categoria': 'Category',
+  'Dados e planilhas': 'Data and spreadsheets',
+  'Dia a dia': 'Everyday life',
+  'Escrita': 'Writing',
+  'Estudo': 'Learning',
+  'Exemplos': 'Examples',
+  'Extensões de exemplo que vêm com o TSRS, para usar e para copiar. Instalar põe uma cópia em extensoes/; reinstalar guarda a versão anterior em extensoes/_removidas/.':
+    'Example extensions that come with TSRS, to use and to copy. Installing puts a copy in extensoes/; reinstalling keeps the previous version in extensoes/_removidas/.',
+  'Galeria da comunidade ({count} prompts)': 'Community gallery ({count} prompts)',
+  'Galeria da comunidade': 'Community gallery',
+  'Instalar {name}': 'Install {name}',
+  'Instalar': 'Install',
+  'Marketing e redes': 'Marketing and social media',
+  'Nenhum prompt encontrado.': 'No prompts found.',
+  'Programação': 'Programming',
+  'Reinstalar {name}': 'Reinstall {name}',
+  'Reinstalar': 'Reinstall',
+  'Tem um prompt bom? Mande para a galeria por um pull request no GitHub; o CONTRIBUTING.md explica como.':
+    'Have a good prompt? Send it to the gallery with a pull request on GitHub; CONTRIBUTING.md explains how.',
+  'Todas as categorias': 'All categories',
+  'Trabalho': 'Work',
+  'Vídeo, imagem e páginas': 'Video, images and pages',
+  '"{name}" instalado. Você pode editar a cópia na aba {tab}.':
+    '"{name}" installed. You can edit the copy in the {tab} tab.',
+  'na biblioteca': 'in the library',
 }

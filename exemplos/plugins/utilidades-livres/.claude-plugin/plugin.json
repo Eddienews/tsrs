@@ -1,0 +1,6 @@
+{
+  "name": "utilidades-livres",
+  "description": "Câmbio, feriados, clima e Wikipédia por APIs grátis e sem chave, contagem de palavras, dois comandos e um agente revisor.",
+  "version": "1.0.0",
+  "author": { "name": "TSRS" }
+}

@@ -76,6 +76,17 @@ thread) and describe what you have in mind before writing the code.
 The [ROADMAP](ROADMAP.md) lists what's done and what still needs confirming with
 real providers; confirming one of those also helps.
 
+### No code needed: prompts, skills and plugins
+
+- **A prompt for the community gallery:** add an entry to
+  `src/communityPrompts.ts`, in the right category, in Portuguese and English,
+  with the same `{{fields}}` in both. Keep it short, useful to many people, and
+  give it a new id. `npm test` checks the entry.
+- **An example skill or plugin:** add a folder to `exemplos/skills/` or
+  `exemplos/plugins/` in the formats described in `server/extensions.mjs`, and a
+  line to `exemplos/README.md`. Tools that call an API must use one that is
+  free, needs no key and allows this use.
+
 ## Where things live
 
 - `src/`: the app (React). The [README](README.md#project-layout) has a map of
