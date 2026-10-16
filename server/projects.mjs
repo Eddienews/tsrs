@@ -15,12 +15,15 @@
 //   GET  /list?path=                    {"files":[{"name","size","modified"}]}
 //   GET  /read?path=&file=              {"content"}
 //   GET  /raw/<base64url path>/<file>   the file itself, for the preview
+//   POST /design/...                    open images, looking at a page, the
+//                                       art direction draw (design.mjs)
 
 import { existsSync } from 'node:fs'
 import { copyFile, mkdir, readFile, readdir, stat, writeFile, appendFile } from 'node:fs/promises'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { downloadStock, searchStock } from './stock.mjs'
+import { drawDirection, getImage, inspectPage, searchImages } from './design.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const REGISTRY = '.tsrs-projects.json'
@@ -266,6 +269,15 @@ export function projectsHandler(root = projectsRoot()) {
         if (existsSync(file)) return send(res, 200, { name, size: (await stat(file)).size, cached: true }), true
         const { size } = await downloadStock(String(job.url ?? ''), file)
         return send(res, 200, { name, size }), true
+      }
+      if (path === '/design/images/search') return send(res, 200, await searchImages(job)), true
+      if (path.startsWith('/design/')) {
+        if (!(await allowed(root, job.path))) return send(res, 403, { error: 'Not a project folder.' }), true
+        if (path === '/design/images/get') return send(res, 200, await getImage(job.path, job)), true
+        if (path === '/design/inspect') return send(res, 200, await inspectPage(job.path, job)), true
+        if (path === '/design/draw') {
+          return send(res, 200, await drawDirection(job.path, job.args ?? {}, join(root, '.taste-skill-history.json'))), true
+        }
       }
       if (path === '/copy') {
         if (!(await allowed(root, job.from)) || !(await allowed(root, job.to)))

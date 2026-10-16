@@ -356,6 +356,50 @@ describe('tools', () => {
     ])
   })
 
+  it('shows the model the pictures a tool returns', async () => {
+    const shot = { content: 'looked', isError: false, images: [{ mime: 'image/jpeg', data: 'AAAA' }] }
+    const anthropic = stubRounds(
+      data(
+        { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 't1', name: 'clock', input: {} } },
+        { type: 'content_block_stop', index: 0 },
+        { type: 'message_delta', delta: { stop_reason: 'tool_use' } },
+      ),
+      data({ type: 'message_delta', delta: { stop_reason: 'end_turn' } }),
+    )
+    await collect(request('anthropic', { tools, runTool: vi.fn(async () => shot) }))
+    expect(anthropic()[1].messages.at(-1)).toEqual({
+      role: 'user',
+      content: [
+        {
+          type: 'tool_result',
+          tool_use_id: 't1',
+          content: [
+            { type: 'text', text: 'looked' },
+            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: 'AAAA' } },
+          ],
+        },
+      ],
+    })
+
+    const call = { choices: [{ delta: { tool_calls: [{ index: 0, id: 'c1', function: { name: 'clock', arguments: '{}' } }] } }] }
+    const openai = stubRounds(
+      data(call, { choices: [{ delta: {}, finish_reason: 'tool_calls' }] }),
+      data({ choices: [{ delta: { content: 'ok' } }] }),
+    )
+    await collect(request('openai', { tools, runTool: vi.fn(async () => shot) }))
+    // Tool messages take text only, so the pictures follow in a user message.
+    expect(openai()[1].messages.slice(-2)).toEqual([
+      { role: 'tool', tool_call_id: 'c1', content: 'looked' },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Pictures returned by the tools above:' },
+          { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,AAAA' } },
+        ],
+      },
+    ])
+  })
+
   it('continues a turn the provider paused and shows provider-side tools', async () => {
     const search = { type: 'server_tool_use', id: 's1', name: 'web_search', input: {} }
     const found = {

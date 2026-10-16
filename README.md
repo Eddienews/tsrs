@@ -113,6 +113,16 @@ manager) and Chrome, Edge or Playwright's Chromium.
   scenes with word timings, finds free stock clips (Pexels, Pixabay) for each,
   cuts them to the voice, adds word-by-word captions, title, end card and music
   under the voice, and saves the MP4 with a `CREDITOS.md` in the project folder.
+- **Design tools** for the pages a conversation makes: the model finds real,
+  openly licensed pictures of the subject (Openverse, Wikimedia Commons, the Art
+  Institute of Chicago, the Met; no key), saves them in `imagens/` with their
+  credits in `CREDITOS.md`, and **looks at its page**: rendered in your Chrome or
+  Edge at desktop, tablet and phone widths, measured (overflow, broken images,
+  contrast, cut-off or covered text) and photographed, so it can fix what it
+  sees. With the **taste-skill** example skill on (by
+  [Leonxlnx](https://github.com/Leonxlnx/taste-skill), MIT), it also draws an
+  art direction from a library studied from 247 sites and checks the page
+  against its house style. Needs Node 22.
 
 ### Media and voice
 - Images, video, speech, music and sound effects with the providers' keys

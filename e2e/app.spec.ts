@@ -434,6 +434,8 @@ test('attaches audio, sends its transcription and offers it as a soundtrack', as
 })
 
 test('saves the files of a conversation into its own folder, and carries on from it', async ({ page }) => {
+  // Looking at the page starts a real browser.
+  test.setTimeout(120_000)
   await connect(page)
   await send(page, 'crie o site do NWLab')
 
@@ -475,6 +477,14 @@ test('saves the files of a conversation into its own folder, and carries on from
   await expect(reply(page).last()).toContainText('Suas chaves')
   await send(page, 'chame project_read_file {"file":"proposta.docx"}')
   await expect(reply(page).last()).toContainText('Site novo')
+  // The model looks at its page: measured in a real browser, with a screenshot per width.
+  // (It takes a while, so the reply is awaited by itself.)
+  await composer(page).fill('chame inspect_page {"file":"index.html","widths":[1440,390]}')
+  await composer(page).press('Enter')
+  await expect(reply(page).last()).toContainText('(com 2 imagens)', { timeout: 90_000 })
+  await expect(reply(page).last()).toContainText('.taste-skill/inspect/mobile-fold.jpg')
+  // Without the taste-skill example, no draw is offered.
+  expect(provider.chats.at(-1)!.body.tools.map((t: any) => t.function.name)).not.toContain('design_draw')
 
   // The conversation can move to another folder; its files go along.
   const other = await mkdtemp(join(tmpdir(), 'tsrs-other-'))

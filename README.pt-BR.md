@@ -122,6 +122,16 @@ de pacotes) e do Chrome, do Edge ou do Chromium do Playwright.
   com o tempo de cada palavra, busca trechos de vídeo gratuitos (Pexels, Pixabay)
   para cada uma, corta na voz, põe legendas palavra a palavra, título, cartão final
   e música por baixo da voz, e salva o MP4 com um `CREDITOS.md` na pasta do projeto.
+- **Ferramentas de design** para as páginas que a conversa faz: o modelo busca
+  imagens reais e de licença aberta do assunto (Openverse, Wikimedia Commons, Art
+  Institute of Chicago, Met; sem chave), salva em `imagens/` com os créditos em
+  `CREDITOS.md`, e **olha a própria página**: renderizada no seu Chrome ou Edge
+  em largura de computador, tablet e celular, medida (estouro de largura, imagem
+  quebrada, contraste, texto cortado ou coberto) e fotografada, para corrigir o
+  que vê. Com a skill de exemplo **taste-skill** ligada (de
+  [Leonxlnx](https://github.com/Leonxlnx/taste-skill), MIT), também sorteia uma
+  direção de arte de uma biblioteca estudada em 247 sites e confere a página
+  contra o estilo dela. Precisa do Node 22.
 
 ### Mídia e voz
 - Imagens, vídeo, voz, música e efeitos sonoros com as chaves dos provedores
