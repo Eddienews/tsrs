@@ -22,6 +22,8 @@ const items: Record<string, unknown> = {
   },
   'cult/dock-demo.json': {
     name: 'dock-demo',
+    // A bare name: cult/ui's own component, not shadcn's.
+    registryDependencies: ['dock'],
     files: [{ path: 'registry/default/example/dock-demo.tsx', type: 'registry:example', content: 'export default function DockDemo() {}\n' }],
   },
   'shadcn/button.json': {

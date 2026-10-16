@@ -93,11 +93,13 @@ export function placeFile(file, isExample) {
   }
 }
 
-// The registry item a dependency names: a URL, or a bare name in shadcn's registry.
-function dependencyUrl(dep) {
-  if (/^https?:\/\//.test(dep)) return dep
-  if (NAME.test(dep)) return `${shadcnBase()}/${dep}.json`
-  return null
+// The registry items a dependency may name: a URL, or a bare name, which is
+// one of cult/ui's own components (a demo needs its component) or else one of
+// shadcn's base components.
+function dependencyUrls(dep) {
+  if (/^https?:\/\//.test(dep)) return [dep]
+  if (NAME.test(dep)) return [`${cultBase()}/${dep}.json`, `${shadcnBase()}/${dep}.json`]
+  return []
 }
 
 const UTILS = `import { clsx, type ClassValue } from 'clsx'
@@ -110,23 +112,34 @@ export function cn(...inputs: ClassValue[]) {
 
 export async function addComponent(project, { name, example, overwrite }, fetchImpl = fetch) {
   if (!NAME.test(String(name ?? ''))) throw new Error('Use a component name as ui_components_search lists it, such as dock.')
-  const queue = [{ url: `${cultBase()}/${name}.json`, example: false }]
-  if (example) queue.push({ url: `${cultBase()}/${name}-demo.json`, example: true })
+  const queue = [{ urls: [`${cultBase()}/${name}.json`], example: false }]
+  if (example) queue.push({ urls: [`${cultBase()}/${name}-demo.json`], example: true })
   const seen = new Set()
   const files = []
   const dependencies = new Set()
   const credits = []
   while (queue.length) {
     const next = queue.shift()
-    if (seen.has(next.url)) continue
+    if (next.urls.some((url) => seen.has(url))) continue
     if (seen.size >= MAX_ITEMS) throw new Error(`${name} needs more than ${MAX_ITEMS} components.`)
-    seen.add(next.url)
-    const item = await fetchJson(next.url, fetchImpl)
-    const fromShadcn = next.url.startsWith(`${shadcnBase()}/`)
+    let item = null
+    let from = ''
+    for (const [i, url] of next.urls.entries()) {
+      try {
+        item = await fetchJson(url, fetchImpl)
+        from = url
+        break
+      } catch (error) {
+        // A bare name not in cult/ui is one of shadcn's.
+        if (i === next.urls.length - 1 || !/^No component/.test(error.message)) throw error
+      }
+    }
+    seen.add(from)
+    const fromShadcn = from.startsWith(`${shadcnBase()}/`)
     for (const dep of item.dependencies ?? []) dependencies.add(dep)
     for (const dep of item.registryDependencies ?? []) {
-      const url = dependencyUrl(dep)
-      if (url) queue.push({ url, example: false })
+      const urls = dependencyUrls(dep)
+      if (urls.length) queue.push({ urls, example: false })
     }
     for (const file of item.files ?? []) {
       if (typeof file.content !== 'string') continue
