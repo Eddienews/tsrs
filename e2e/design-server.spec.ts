@@ -14,10 +14,11 @@ import {
   searchItems,
   STRUCTURAL,
 } from '../server/design.mjs'
+import { findChrome } from '../vendor/taste-skill/scripts/lib/cdp.mjs'
 
-// The inspector finds Chrome or Edge by itself; where neither is installed,
-// Playwright's own Chromium stands in.
-if (!process.env.CHROME_PATH && existsSync(chromium.executablePath())) process.env.CHROME_PATH = chromium.executablePath()
+// The inspector finds Chrome or Edge by itself; only where neither is
+// installed does Playwright's own Chromium stand in.
+if (!findChrome() && existsSync(chromium.executablePath())) process.env.CHROME_PATH = chromium.executablePath()
 
 const project = () => mkdtemp(join(tmpdir(), 'tsrs-design-'))
 
