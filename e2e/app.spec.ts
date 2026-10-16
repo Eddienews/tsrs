@@ -2208,3 +2208,72 @@ test('adds prompts from the community gallery to the library', async ({ page }) 
   expect(saved).toContain('community-quiz')
   expect(saved.filter((id: string) => id === 'community-formula')).toHaveLength(1)
 })
+
+test('runs JavaScript in an isolated sandbox, on the attached spreadsheet, and draws a chart', async ({ page }) => {
+  await connect(page)
+  await toolsButton(page).click()
+  await page.getByRole('switch', { name: 'Interpretador de JavaScript e gráficos' }).click()
+  await page.keyboard.press('Escape')
+  await page.locator('footer input[type=file]').setInputFiles({ name: 'vendas.xlsx', mimeType: '', buffer: await readFile('e2e/fixtures/vendas.xlsx') })
+  await send(page, 'aqui está a planilha')
+  await expect(reply(page).last()).toContainText('Resposta')
+
+  const code = [
+    "const text = files['vendas.xlsx'].split('\\n').slice(1).join('\\n').split('\\n\\n')[0]",
+    'const rows = csv(text)',
+    "console.log(rows.length + ' linhas')",
+    "chart({ type: 'bar', title: 'Total por produto', labels: rows.map((r) => r.Produto), series: [{ name: 'Total', values: rows.map((r) => r.Total) }] })",
+    'return 6 * 7',
+  ].join('\n')
+  await send(page, `chame run_javascript ${JSON.stringify({ code })}`)
+  const result = provider.chats.at(-1)!.body.messages.at(-1)
+  await expect.poll(() => provider.chats.at(-1)!.body.messages.at(-1).role).toBe('tool')
+  const content = provider.chats.at(-1)!.body.messages.at(-1).content
+  expect(content).toContain('Output:\n2 linhas')
+  expect(content).toContain('Returned:\n42')
+  expect(content).toContain('1 chart(s) drawn')
+  expect(result).toBeTruthy()
+  // The chart is in the reply, as an image made by TSRS.
+  const chart = reply(page).last().locator('img[alt="Total por produto.svg"]')
+  await expect(chart).toBeVisible()
+  expect(await chart.getAttribute('src')).toMatch(/^data:image\/svg\+xml;base64,/)
+})
+
+test('keeps interpreted code away from the network, the app and the page', async ({ page }) => {
+  await page.goto('/')
+  const run = (code: string, timeout?: number) =>
+    page.evaluate(
+      async ([code, timeout]) => {
+        const { runInterpreter } = await import('/src/interpreter.ts')
+        return runInterpreter(code as string, { 'a.csv': 'x,y\n1,2' }, (timeout as number) ?? 5000)
+      },
+      [code, timeout],
+    )
+  await page.evaluate(() => localStorage.setItem('segredo', 'chave'))
+  // No network: the frame's policy refuses every request.
+  const network = await run("return await fetch('http://127.0.0.1:9/').then(() => 'reached', (e) => 'blocked: ' + e.message)")
+  expect(network.value).not.toContain('reached')
+  expect(network.ok).toBe(false)
+  const apis = await run("return [typeof fetch, typeof XMLHttpRequest, typeof WebSocket, typeof importScripts, typeof Worker, typeof postMessage].join(' ')")
+  expect(apis.value).toBe('undefined undefined undefined undefined undefined undefined')
+  // Nor can it answer in place of the interpreter.
+  const forged = await run("try { self.postMessage({ ok: true, value: 'forjado', output: '', charts: [] }) } catch {} ; return 'real'")
+  expect(forged.value).toBe('real')
+  // No storage, no page: the code runs in a worker of a frame with no origin.
+  const storage = await run("return typeof localStorage + ' ' + typeof document + ' ' + typeof indexedDB")
+  expect(storage.value).not.toContain('object object')
+  const idb = await run("try { await new Promise((ok, no) => { const r = indexedDB.open('tsrs'); r.onsuccess = ok; r.onerror = () => no(r.error) }); return 'opened' } catch (e) { return 'refused' }")
+  expect(idb.value).not.toContain('opened')
+  // A loop that never ends is stopped, and the page goes on.
+  const started = Date.now()
+  const loop = await run('while (true) {}', 1000)
+  expect(loop.ok).toBe(false)
+  expect(loop.error).toContain('Stopped after 1 seconds')
+  expect(Date.now() - started).toBeLessThan(5000)
+  expect(await page.evaluate(() => 1 + 1)).toBe(2)
+  // The helpers and the files are there.
+  const helpers = await run("console.log('oi'); return csv(files['a.csv'])")
+  expect(helpers).toMatchObject({ ok: true, output: 'oi' })
+  expect(JSON.parse(helpers.value)).toEqual([{ x: 1, y: 2 }])
+  expect(await page.evaluate(() => localStorage.getItem('segredo'))).toBe('chave')
+})

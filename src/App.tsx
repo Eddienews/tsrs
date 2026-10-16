@@ -140,6 +140,7 @@ import { bucketUrl, s3Store, webdavStore } from './syncRemote'
 import type { RemoteTarget, SyncKind } from './SyncSection'
 import { gatherTools, localTools, mergeTools, type ToolSet } from './tools'
 import { keysOf, withKeys, withoutKeys } from './secrets'
+import { conversationFiles, INTERPRETER_TOOL, resultText, runInterpreter } from './interpreter'
 import type {
   Attachment,
   Canvas,
@@ -1553,6 +1554,7 @@ export default function App() {
           ...(project ? [projectTools(meta.id, usings[0].model)] : []),
           ...(project ? [stockTools(meta.id, usings[0].model)].filter((set): set is ToolSet => !!set) : []),
           ...(project ? [shortTools(meta.id, first.id, usings[0].model)].filter((set): set is ToolSet => !!set) : []),
+          ...(settings.interpreter ? [interpreterTools(meta.id, first.id)] : []),
           ...(remember ? [memoryTools()] : []),
           ...(bases.length ? [knowledgeTools(bases)] : []),
           ...(skillsOn.length ? [skillTools()] : []),
@@ -1725,6 +1727,31 @@ export default function App() {
           ],
         }))
       },
+    })
+  }
+
+  // The JavaScript interpreter: code runs isolated, with the conversation's
+  // text files; the charts it draws are added to the reply as images.
+  function interpreterTools(chatId: string, replyId: string): ToolSet {
+    return localTools([INTERPRETER_TOOL], 'JavaScript', async (call) => {
+      const code = String((call.input as { code?: unknown } | undefined)?.code ?? '')
+      if (!code.trim()) return { content: 'There is no code to run.', isError: true }
+      const thread = threadsRef.current[chatId] ?? []
+      const result = await runInterpreter(code, conversationFiles(thread))
+      if (result.charts.length) {
+        const { chartSvg } = await import('./charts')
+        const images = result.charts.map((spec, i) => ({
+          id: crypto.randomUUID(),
+          name: `${String(spec?.title ?? '').slice(0, 40) || t('Gráfico {n}', { n: i + 1 })}.svg`,
+          mime: 'image/svg+xml',
+          kind: 'image' as const,
+          data: btoa(unescape(encodeURIComponent(chartSvg(spec)))),
+        }))
+        patchThread(chatId, (messages) =>
+          patchMessage(messages, replyId, (m) => ({ ...m, attachments: [...(m.attachments ?? []), ...images] })),
+        )
+      }
+      return { content: resultText(result), isError: !result.ok }
     })
   }
 
@@ -2335,6 +2362,7 @@ export default function App() {
     (tools.webFetch && provider.webTools === 'anthropic' ? 1 : 0) +
     settings.mcpServers.filter((s) => s.url && tools.mcpServers.includes(s.id)).length +
     (settings.memory && !temporary ? 1 : 0) +
+    (settings.interpreter ? 1 : 0) +
     basesFor(settings, params, persona).length
   const starters = persona?.starters?.filter((s) => s.trim()).length
     ? persona.starters.filter((s) => s.trim())

@@ -533,6 +533,22 @@ modelo acesso a outros sistemas (agenda, tarefas, bancos de dados,
 ferramentas da sua empresa). Antes de cada uso, o TSRS pede permissão; marque
 como confiáveis só os servidores que você conhece.
 
+### Interpretador de JavaScript e gráficos
+
+Em **Ferramentas → Código**, ligue o **Interpretador de JavaScript e gráficos**.
+O modelo passa a poder rodar código para:
+
+- **contas exatas** (juros, médias, datas), em vez de calcular "de cabeça";
+- **analisar dados**: as planilhas (.xlsx) e os CSVs anexados à conversa chegam
+  ao código como texto, prontos para ler;
+- **desenhar gráficos** de barras, linhas, pizza ou dispersão, que aparecem na
+  resposta como imagens.
+
+Peça, por exemplo: "anexei as vendas do ano; mostre o total por mês num gráfico
+de barras e diga qual mês cresceu mais". O código roda **no seu navegador,
+isolado**: sem internet, sem acesso às suas chaves, conversas ou ao resto do
+TSRS, e é interrompido depois de 15 segundos.
+
 ## 12. Extensões: skills, plugins e agenda
 
 O botão **Extensões** tem três abas. Tudo fica em `extensoes/`, na pasta do
