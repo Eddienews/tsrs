@@ -87,7 +87,8 @@ export function addedText(name: string, added: AddedComponent): string {
   return lines.join('\n')
 }
 
-export function uiToolSet(project: () => ChatProject | undefined, onAdded?: (files: string[]) => void): ToolSet {
+export function uiToolSet(
+  project: () => ChatProject | null | undefined | Promise<ChatProject | null | undefined>, onAdded?: (files: string[]) => void): ToolSet {
   return localTools(UI_TOOLS, 'cult/ui', async (call: ToolCall, signal): Promise<ToolResult> => {
     const input = (call.input ?? {}) as { query?: string; name?: string; example?: boolean; overwrite?: boolean }
     try {
@@ -95,7 +96,7 @@ export function uiToolSet(project: () => ChatProject | undefined, onAdded?: (fil
         const { items } = await post<{ items: RegistryItem[] }>('/search', { query: input.query }, signal)
         return { content: foundComponents(items, input.query), isError: false }
       }
-      const where = project()
+      const where = await project()
       if (!where) return { content: 'This conversation has no project folder.', isError: true }
       const added = await post<AddedComponent>(
         '/add',

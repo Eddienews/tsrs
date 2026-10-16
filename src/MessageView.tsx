@@ -286,6 +286,16 @@ function MessageView(props: Props) {
                 aria-label={a.name}
                 className="made-video max-h-[32rem] max-w-full rounded-md border bg-black"
               />
+            ) : a.kind === 'image' && !isUser ? (
+              // A picture the reply made (a chart from the interpreter): shown at its size.
+              <figure key={a.id} className="made-image flex max-w-full flex-col gap-1">
+                <img
+                  src={`data:${a.mime};base64,${a.data}`}
+                  alt={a.name}
+                  className="w-[45rem] max-w-full rounded-md border bg-white"
+                />
+                <figcaption className="text-[11px] text-muted-foreground">{a.name}</figcaption>
+              </figure>
             ) : a.kind === 'audio' ? (
               <div
                 key={a.id}

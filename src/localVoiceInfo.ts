@@ -64,11 +64,23 @@ export function parseVoices(catalog: Record<string, any>): PiperVoice[] {
   })
 }
 
-// The voices for a language (its region first), then the rest.
+// Every voice, the language's own first (its region before the others),
+// then the rest by language: reading aloud may be in another language than
+// the interface.
 export function voicesFor(voices: PiperVoice[], language: string): PiperVoice[] {
   const base = language.split('-')[0].toLowerCase()
-  const fits = voices.filter((v) => v.locale.toLowerCase().startsWith(base))
-  return fits.sort((a, b) => a.locale.localeCompare(b.locale) || a.name.localeCompare(b.name) || a.quality.localeCompare(b.quality))
+  const region = language.replace('-', '_').toLowerCase()
+  const rank = (v: PiperVoice) => {
+    const locale = v.locale.toLowerCase()
+    return locale === region ? 0 : locale.startsWith(`${base}_`) || locale === base ? 1 : 2
+  }
+  return [...voices].sort(
+    (a, b) =>
+      rank(a) - rank(b) ||
+      a.locale.localeCompare(b.locale) ||
+      a.name.localeCompare(b.name) ||
+      a.quality.localeCompare(b.quality),
+  )
 }
 
 let catalog: Promise<PiperVoice[]> | null = null

@@ -117,12 +117,12 @@ export const STOCK_TOOL: ToolDef = {
 // The tool, for a conversation with a project folder.
 export function stockToolSet(
   settings: Settings,
-  project: () => ChatProject | undefined,
+  project: () => ChatProject | null | undefined | Promise<ChatProject | null | undefined>,
   onSaved: (files: string[], credits: string[]) => void,
 ): ToolSet | null {
   if (!stockServices(settings).length) return null
   return localTools([STOCK_TOOL], 'Pexels / Pixabay', async (call: ToolCall, signal): Promise<ToolResult> => {
-    const where = project()
+    const where = await project()
     if (!where) return { content: 'This conversation has no project folder.', isError: true }
     const input = (call.input ?? {}) as { query?: string; orientation?: Orientation; count?: number; min_seconds?: number }
     try {

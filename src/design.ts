@@ -176,7 +176,8 @@ export function savedText(saved: SavedImage[], text: string): string {
 }
 
 export interface DesignOptions {
-  project: () => ChatProject | undefined
+  // The folder, made the first time a tool needs one.
+  project: () => ChatProject | null | undefined | Promise<ChatProject | null | undefined>
   // Whether taste-skill's example skill is on, which brings the draw.
   taste: boolean
   // A picture was saved in the project, with its credit line.
@@ -186,7 +187,7 @@ export interface DesignOptions {
 export function designToolSet({ project, taste, onSaved }: DesignOptions): ToolSet {
   const defs = taste ? [...DESIGN_TOOLS, DRAW_TOOL] : DESIGN_TOOLS
   return localTools(defs, 'Design', async (call: ToolCall, signal): Promise<ToolResult> => {
-    const where = project()
+    const where = await project()
     if (!where) return { content: 'This conversation has no project folder.', isError: true }
     const input = (call.input ?? {}) as Record<string, any>
     try {

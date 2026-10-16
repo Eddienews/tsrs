@@ -501,6 +501,16 @@ test('saves the files of a conversation into its own folder, and carries on from
   expect(await readFile(join(other, 'styles.css'), 'utf8')).toContain('rgb(220, 80, 0)')
 })
 
+test('the folder tools are there from the first message, and make the folder when used', async ({ page }) => {
+  await connect(page)
+  await send(page, 'chame inspect_page {"file":"index.html"}')
+  // Offered before the conversation had a folder.
+  const names = provider.chats.at(-2)!.body.tools.map((t: any) => t.function.name)
+  expect(names).toEqual(expect.arrayContaining(['find_images', 'get_image', 'inspect_page', 'ui_component_add']))
+  await expect(reply(page).last()).toContainText('No page named index.html')
+  await expect(page.locator('.toolbar .project')).toBeVisible()
+})
+
 test('a snippet in an explanation does not make a project folder', async ({ page }) => {
   await connect(page)
   await send(page, 'primeira')
@@ -930,7 +940,7 @@ test('remembers facts through the memory tool and lists them in the library', as
   await expect(reply(page)).toContainText('A ferramenta respondeu: Saved.')
   await expect(reply(page)).toContainText('Memória')
   const first = provider.chats[0].body
-  expect(first.tools.map((t: any) => t.function.name)).toEqual(['memory_save', 'memory_delete'])
+  expect(first.tools.map((t: any) => t.function.name).slice(0, 2)).toEqual(['memory_save', 'memory_delete'])
   expect(first.messages[0].content).toContain('(none yet)')
 
   await page.getByRole('button', { name: 'Nova conversa' }).click()
@@ -1709,7 +1719,7 @@ test('searches a knowledge base by meaning and with a tool', async ({ page }) =>
   // The model searches the base again with words of its own.
   await send(page, 'use a ferramenta de busca')
   const offered = provider.chats[1].body.tools.map((tool: any) => tool.function.name)
-  expect(offered).toEqual(['knowledge_search'])
+  expect(offered[0]).toBe('knowledge_search')
   const answer = provider.chats[2].body.messages.at(-1)
   expect(answer.role).toBe('tool')
   expect(answer.content).toContain('<passage index="1" document="ferias.md">')
@@ -1990,7 +2000,13 @@ test('offers Piper voices and local Whisper, which need no key', async ({ page }
   await openSettings(page, 'Mídia')
   await page.locator('#read-aloud').selectOption('piper')
   const voices = page.getByLabel('Voz do Piper')
-  await expect(voices.locator('option')).toHaveText(['cadu · pt_BR · medium · 63 MB', 'faber · pt_BR · medium · 63 MB'])
+  // Every language is offered, the interface's own first and grouped by language.
+  await expect(voices.locator('option')).toHaveText([
+    'cadu · pt_BR · medium · 63 MB',
+    'faber · pt_BR · medium · 63 MB',
+    'lessac · en_US · medium · 63 MB',
+  ])
+  await expect(voices.locator('optgroup')).toHaveCount(2)
   await expect(voices).toHaveValue('pt_BR-faber-medium')
   await voices.selectOption('pt_BR-cadu-medium')
   await expect(page.getByText('O Piper fala neste computador')).toBeVisible()
@@ -2252,6 +2268,8 @@ test('runs JavaScript in an isolated sandbox, on the attached spreadsheet, and d
   const chart = reply(page).last().locator('img[alt="Total por produto.svg"]')
   await expect(chart).toBeVisible()
   expect(await chart.getAttribute('src')).toMatch(/^data:image\/svg\+xml;base64,/)
+  // Shown at a size that can be read, not as a thumbnail.
+  expect((await chart.boundingBox())!.width).toBeGreaterThan(400)
 })
 
 test('keeps interpreted code away from the network, the app and the page', async ({ page }) => {

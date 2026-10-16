@@ -53,7 +53,7 @@ export const SHORT_TOOL: ToolDef = {
 // The tool, when the conversation has a project folder, stock keys and a voice.
 export function shortToolSet(opts: {
   settings: Settings
-  project: () => ChatProject | undefined
+  project: () => ChatProject | null | undefined | Promise<ChatProject | null | undefined>
   voice: MediaTarget | null
   musicTarget: MediaTarget | null
   onStep: (callId: string, text: string) => void
@@ -61,7 +61,7 @@ export function shortToolSet(opts: {
 }): ToolSet | null {
   if (!opts.voice || !stockServices(opts.settings).length) return null
   return localTools([SHORT_TOOL], 'Vídeo curto', async (call: ToolCall, signal): Promise<ToolResult> => {
-    const project = opts.project()
+    const project = await opts.project()
     if (!project) return { content: 'This conversation has no project folder.', isError: true }
     const input = (call.input ?? {}) as Record<string, any>
     const format: ShortFormat = ['9:16', '16:9', '1:1'].includes(input.format) ? input.format : '9:16'
