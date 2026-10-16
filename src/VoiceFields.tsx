@@ -2,7 +2,7 @@ import { Loader2, Play, RotateCw, Square } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { t } from './i18n'
+import { locale as currentLocale, t } from './i18n'
 import { piperVoices, voicesFor, type PiperVoice } from './localVoiceInfo'
 import { listElevenModels, listVoices, type ElevenModel, type ElevenVoice } from './mediaJobs'
 import { elevenSpeechPrice } from './mediaPrice'
@@ -329,6 +329,21 @@ export function BrowserVoiceField(p: { value: string; onChange: (name: string) =
 
 // Piper's voices for the interface language, from its catalog, with a sample
 // made here. The first sample downloads the voice (tens of MB), once.
+// Voices kept in their order, grouped by language and region.
+function groupByLocale(voices: PiperVoice[]): [string, PiperVoice[]][] {
+  const groups = new Map<string, PiperVoice[]>()
+  for (const v of voices) groups.set(v.locale, [...(groups.get(v.locale) ?? []), v])
+  return [...groups]
+}
+
+function localeName(locale: string): string {
+  try {
+    return new Intl.DisplayNames([currentLocale()], { type: 'language' }).of(locale.replace('_', '-')) ?? locale
+  } catch {
+    return locale
+  }
+}
+
 export function PiperVoiceField(p: { value: string; onChange: (key: string) => void; lang: string; fallback: string }) {
   const [voices, setVoices] = useState<PiperVoice[]>([])
   const [error, setError] = useState('')
@@ -382,10 +397,14 @@ export function PiperVoiceField(p: { value: string; onChange: (key: string) => v
           onChange={(e) => p.onChange(e.target.value === p.fallback ? '' : e.target.value)}
         >
           {!voice && <option value={chosen}>{chosen}</option>}
-          {voices.map((v) => (
-            <option key={v.key} value={v.key}>
-              {`${v.name} · ${v.locale} · ${v.quality}${v.bytes ? ` · ${Math.round(v.bytes / 1e6)} MB` : ''}`}
-            </option>
+          {groupByLocale(voices).map(([locale, group]) => (
+            <optgroup key={locale} label={localeName(locale)}>
+              {group.map((v) => (
+                <option key={v.key} value={v.key}>
+                  {`${v.name} · ${v.locale} · ${v.quality}${v.bytes ? ` · ${Math.round(v.bytes / 1e6)} MB` : ''}`}
+                </option>
+              ))}
+            </optgroup>
           ))}
         </select>
         <Button

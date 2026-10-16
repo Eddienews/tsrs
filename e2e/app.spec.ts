@@ -1990,7 +1990,13 @@ test('offers Piper voices and local Whisper, which need no key', async ({ page }
   await openSettings(page, 'Mídia')
   await page.locator('#read-aloud').selectOption('piper')
   const voices = page.getByLabel('Voz do Piper')
-  await expect(voices.locator('option')).toHaveText(['cadu · pt_BR · medium · 63 MB', 'faber · pt_BR · medium · 63 MB'])
+  // Every language is offered, the interface's own first and grouped by language.
+  await expect(voices.locator('option')).toHaveText([
+    'cadu · pt_BR · medium · 63 MB',
+    'faber · pt_BR · medium · 63 MB',
+    'lessac · en_US · medium · 63 MB',
+  ])
+  await expect(voices.locator('optgroup')).toHaveCount(2)
   await expect(voices).toHaveValue('pt_BR-faber-medium')
   await voices.selectOption('pt_BR-cadu-medium')
   await expect(page.getByText('O Piper fala neste computador')).toBeVisible()
@@ -2252,6 +2258,8 @@ test('runs JavaScript in an isolated sandbox, on the attached spreadsheet, and d
   const chart = reply(page).last().locator('img[alt="Total por produto.svg"]')
   await expect(chart).toBeVisible()
   expect(await chart.getAttribute('src')).toMatch(/^data:image\/svg\+xml;base64,/)
+  // Shown at a size that can be read, not as a thumbnail.
+  expect((await chart.boundingBox())!.width).toBeGreaterThan(400)
 })
 
 test('keeps interpreted code away from the network, the app and the page', async ({ page }) => {

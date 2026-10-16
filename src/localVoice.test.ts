@@ -29,7 +29,9 @@ describe('local voices', () => {
       broken: { files: {} },
     })
     expect(voices).toHaveLength(3)
-    expect(voicesFor(voices, 'pt-BR').map((v) => v.key)).toEqual(['pt_BR-faber-medium', 'pt_PT-tugao-medium'])
+    // All of them, the language's own first: reading aloud may be in another language.
+    expect(voicesFor(voices, 'pt-BR').map((v) => v.key).slice(0, 2)).toEqual(['pt_BR-faber-medium', 'pt_PT-tugao-medium'])
+    expect(voicesFor(voices, 'pt-BR')).toHaveLength(voices.length)
     expect(voices[0]).toMatchObject({ locale: 'pt_BR', bytes: 63_000_000 })
   })
 
