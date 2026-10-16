@@ -123,6 +123,12 @@ manager) and Chrome, Edge or Playwright's Chromium.
   [Leonxlnx](https://github.com/Leonxlnx/taste-skill), MIT), it also draws an
   art direction from a library studied from 247 sites and checks the page
   against its house style. Needs Node 22.
+- **React components** for projects built with React or Next.js: the model
+  searches [cult/ui](https://github.com/nolly-studio/cult-ui) (about 150
+  components, MIT) and copies the one it needs into `components/ui/`, with the
+  shadcn components it builds on, the npm packages to install and the credit in
+  `CREDITOS.md`; files already in the project are kept. A `DESIGN.md` in the
+  project folder goes with every request and wins over any skill's defaults.
 
 ### Media and voice
 - Images, video, speech, music and sound effects with the providers' keys

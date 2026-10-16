@@ -104,6 +104,7 @@ each section, the order is the suggested order.
 - [x] Community gallery with over 50 prompts, and example skills and plugins that install with one click
 - [x] JavaScript interpreter and charts, isolated with no network
 - [x] Design tools: open images with their credits, the model looking at its page in a real browser, and taste-skill as an example skill
+- [x] React components from cult/ui copied into projects with their credits, and the project's DESIGN.md sent with every request
 
 ## Next
 

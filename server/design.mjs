@@ -294,5 +294,8 @@ export async function drawDirection(project, input, historyFile) {
     timeout: 30_000,
     env: { TASTE_SKILL_HISTORY: historyFile },
   })
-  return { text: asTools(stdout).trim() }
+  const own = existsSync(join(project, 'DESIGN.md'))
+    ? "This project has a DESIGN.md: its fonts, colours and rules win over the draw. Take only the composition from the sheet (draw with keep: ['palette', 'type']).\n\n"
+    : ''
+  return { text: own + asTools(stdout).trim() }
 }

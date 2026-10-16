@@ -168,6 +168,30 @@ export function projectNote(project: ChatProject): string {
   )
 }
 
+// The project's own design language, when it has a DESIGN.md: sent with every
+// request, since it overrides any skill's defaults.
+export const DESIGN_FILE = 'DESIGN.md'
+const MAX_DESIGN = 24_000
+
+export function designNote(content: string): string {
+  const text = content.trim()
+  if (!text) return ''
+  const cut = text.length > MAX_DESIGN ? `${text.slice(0, MAX_DESIGN)}\n\n[… DESIGN.md continues; read the rest with project_read_file.]` : text
+  return (
+    `The project has a ${DESIGN_FILE}: its design language. Its fonts, colours, tokens and rules ` +
+    'override the defaults of any skill or tool (taste-skill\'s draw included); follow it in ' +
+    `every page and component, and keep it up to date when the user changes the design.\n\n<design_md>\n${cut}\n</design_md>`
+  )
+}
+
+export async function readDesign(project: ChatProject): Promise<string> {
+  try {
+    return designNote(await readFile(project.path, DESIGN_FILE))
+  } catch {
+    return ''
+  }
+}
+
 export const PROJECT_TOOLS: ToolDef[] = [
   {
     name: 'project_list_files',

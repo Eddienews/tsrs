@@ -103,6 +103,7 @@ cada seção é a ordem sugerida.
 - [x] Galeria da comunidade com mais de 50 prompts, e skills e plugins de exemplo que se instalam com um clique
 - [x] Interpretador de JavaScript e gráficos, isolado e sem rede
 - [x] Ferramentas de design: imagens abertas com crédito, o modelo olhando a própria página num navegador de verdade, e a taste-skill como skill de exemplo
+- [x] Componentes React do cult/ui copiados para os projetos com os créditos, e o DESIGN.md do projeto enviado em todo pedido
 
 ## Próximos
 
