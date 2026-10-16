@@ -20,6 +20,11 @@ describe('charts from the interpreter', () => {
     expect(ticks(0, 97)).toEqual([0, 20, 40, 60, 80, 100])
     expect(ticks(-3, 3)).toEqual([-4, -2, 0, 2, 4])
     expect(ticks(5, 5)).toEqual([4, 4.5, 5, 5.5, 6])
+    // Values too large and too close for floating point: just the ends, at once.
+    expect(ticks(1e17, 1e17 + 16)).toEqual([1e17, 1e17 + 16])
+    expect(ticks(0, Infinity)).toEqual([0, 1])
+    expect(chartSvg({ type: 'scatter', series: [{ points: [[0, 1e17], [1, 1e17 + 16]] }] })).toMatch(/<circle/)
+    expect(chartSvg(null as never)).toMatch(/^<svg/)
   })
 
   it("gives the code the conversation's text files, by name, and reads back the result", () => {

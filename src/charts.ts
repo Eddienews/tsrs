@@ -31,15 +31,18 @@ const num = (value: unknown) => (typeof value === 'number' && Number.isFinite(va
 const finite = (value: unknown) => Number.isFinite(num(value))
 
 // Round steps for an axis from lo to hi.
+// At most a couple dozen steps, whatever the numbers: values too large and
+// too close together for floating point give just their ends.
 export function ticks(lo: number, hi: number, count = 5): number[] {
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) return [0, 1]
   if (lo === hi) [lo, hi] = [lo - 1, hi + 1]
   const raw = (hi - lo) / count
   const power = 10 ** Math.floor(Math.log10(raw))
   const step = [1, 2, 2.5, 5, 10].map((m) => m * power).find((s) => s >= raw) ?? raw
-  const out: number[] = []
-  const end = Math.ceil(hi / step - 1e-9) * step
-  for (let v = Math.floor(lo / step) * step; v <= end + step * 1e-9; v += step) out.push(Number(v.toPrecision(12)))
-  return out
+  const start = Math.floor(lo / step)
+  const steps = Math.ceil(hi / step - 1e-9) - start
+  if (!(step > 0) || !Number.isFinite(steps) || steps < 1 || steps > 24 || start * step + step === start * step) return [lo, hi]
+  return Array.from({ length: steps + 1 }, (_, i) => Number(((start + i) * step).toPrecision(12)))
 }
 
 function short(value: number): string {
@@ -81,7 +84,8 @@ function axes(lo: number, hi: number, y: (v: number) => number): string {
     .join('')
 }
 
-export function chartSvg(spec: ChartSpec): string {
+export function chartSvg(input: ChartSpec): string {
+  const spec: ChartSpec = input && typeof input === 'object' ? input : {}
   const type = ['bar', 'line', 'pie', 'scatter'].includes(String(spec.type)) ? String(spec.type) : 'bar'
   const series = (Array.isArray(spec.series) ? spec.series : []).slice(0, MAX_SERIES)
   const names = series.map((s, i) => String(s?.name ?? `#${i + 1}`))

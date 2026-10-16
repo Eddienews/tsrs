@@ -2252,7 +2252,13 @@ test('keeps interpreted code away from the network, the app and the page', async
   await page.evaluate(() => localStorage.setItem('segredo', 'chave'))
   // No network: the frame's policy refuses every request.
   const network = await run("return await fetch('http://127.0.0.1:9/').then(() => 'reached', (e) => 'blocked: ' + e.message)")
-  expect(network.value).toContain('blocked')
+  expect(network.value).not.toContain('reached')
+  expect(network.ok).toBe(false)
+  const apis = await run("return [typeof fetch, typeof XMLHttpRequest, typeof WebSocket, typeof importScripts, typeof Worker, typeof postMessage].join(' ')")
+  expect(apis.value).toBe('undefined undefined undefined undefined undefined undefined')
+  // Nor can it answer in place of the interpreter.
+  const forged = await run("try { self.postMessage({ ok: true, value: 'forjado', output: '', charts: [] }) } catch {} ; return 'real'")
+  expect(forged.value).toBe('real')
   // No storage, no page: the code runs in a worker of a frame with no origin.
   const storage = await run("return typeof localStorage + ' ' + typeof document + ' ' + typeof indexedDB")
   expect(storage.value).not.toContain('object object')

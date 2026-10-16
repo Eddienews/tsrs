@@ -10,6 +10,8 @@ import type { ChartSpec } from './charts'
 export const TIMEOUT = 15_000
 const MAX_OUTPUT = 20_000
 const MAX_CHARTS = 6
+// The most a run may send back, all told.
+const MAX_MESSAGE = 2_000_000
 
 export interface RunResult {
   ok: boolean
@@ -66,16 +68,31 @@ function chart(spec) {
   charts.push(JSON.parse(JSON.stringify(spec)))
   return 'chart ' + charts.length + ' drawn'
 }
-self.onmessage = async (event) => {
+// Only this script answers; the code gets no way to post, to reach the network
+// or to start other workers (the frame's policy forbids the network too).
+const post = self.postMessage.bind(self)
+const onMessage = async (event) => {
   const { code, files } = event.data
+  const send = (result) => {
+    let size = 0
+    try { size = JSON.stringify(result).length } catch {}
+    post(size > ${MAX_MESSAGE} ? { ok: false, output: '', value: '', error: 'The result was too large.', charts: [] } : result)
+  }
   try {
     const run = new (Object.getPrototypeOf(async function () {}).constructor)('files', 'csv', 'chart', code)
     const value = await run(files, csv, chart)
-    self.postMessage({ ok: true, output: lines.join('\n'), value: value === undefined ? '' : show(value), charts })
+    send({ ok: true, output: lines.join('\n').slice(0, ${MAX_OUTPUT * 2}), value: value === undefined ? '' : show(value).slice(0, ${MAX_OUTPUT * 2}), charts })
   } catch (error) {
-    self.postMessage({ ok: false, output: lines.join('\n'), value: '', error: String(error && error.stack || error), charts })
+    send({ ok: false, output: lines.join('\n').slice(0, ${MAX_OUTPUT * 2}), value: '', error: String(error && error.stack || error).slice(0, 4000), charts })
   }
 }
+for (const name of ['postMessage', 'fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'WebTransport', 'importScripts', 'Worker', 'SharedWorker', 'BroadcastChannel', 'onmessage']) {
+  for (const target of [self, Object.getPrototypeOf(self), DedicatedWorkerGlobalScope.prototype, WorkerGlobalScope.prototype]) {
+    try { delete target[name] } catch {}
+    try { Object.defineProperty(target, name, { value: undefined, configurable: false, writable: false }) } catch {}
+  }
+}
+addEventListener('message', onMessage, { once: true })
 `
 
 // The frame: no origin, no network; it makes the worker and relays messages.
@@ -86,7 +103,7 @@ function frameHtml(): string {
     `<script>addEventListener('message', (e) => {` +
     `const { id, code, files, worker } = e.data;` +
     `const w = new Worker(URL.createObjectURL(new Blob([worker], { type: 'text/javascript' })));` +
-    `w.onmessage = (m) => parent.postMessage({ tsrsRun: id, ...m.data }, '*');` +
+    `w.onmessage = (m) => parent.postMessage({ ...m.data, tsrsRun: id }, '*');` +
     `w.onerror = (err) => parent.postMessage({ tsrsRun: id, ok: false, output: '', value: '', error: String(err.message || err), charts: [] }, '*');` +
     `w.postMessage({ code, files }) })<\/script>`
   )
@@ -120,7 +137,7 @@ export function runInterpreter(code: string, files: Record<string, string>, time
         output: String(data.output ?? ''),
         value: String(data.value ?? ''),
         ...(data.error ? { error: String(data.error) } : {}),
-        charts: Array.isArray(data.charts) ? data.charts : [],
+        charts: Array.isArray(data.charts) ? data.charts.filter((c) => c && typeof c === 'object') : [],
       })
     }
     window.addEventListener('message', receive)
