@@ -501,6 +501,16 @@ test('saves the files of a conversation into its own folder, and carries on from
   expect(await readFile(join(other, 'styles.css'), 'utf8')).toContain('rgb(220, 80, 0)')
 })
 
+test('the folder tools are there from the first message, and make the folder when used', async ({ page }) => {
+  await connect(page)
+  await send(page, 'chame inspect_page {"file":"index.html"}')
+  // Offered before the conversation had a folder.
+  const names = provider.chats.at(-2)!.body.tools.map((t: any) => t.function.name)
+  expect(names).toEqual(expect.arrayContaining(['find_images', 'get_image', 'inspect_page', 'ui_component_add']))
+  await expect(reply(page).last()).toContainText('No page named index.html')
+  await expect(page.locator('.toolbar .project')).toBeVisible()
+})
+
 test('a snippet in an explanation does not make a project folder', async ({ page }) => {
   await connect(page)
   await send(page, 'primeira')

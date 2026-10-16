@@ -145,6 +145,7 @@ import { gatherTools, localTools, mergeTools, type ToolSet } from './tools'
 import { keysOf, withKeys, withoutKeys } from './secrets'
 import { conversationFiles, INTERPRETER_TOOL, resultText, runInterpreter } from './interpreter'
 import type {
+  ChatProject,
   Attachment,
   Canvas,
   ChatMeta,
@@ -1551,16 +1552,20 @@ export default function App() {
         const skillsOn = agentSkills(enabledSkills(skills, settings), agent)
         if (skillsOn.length) system = `${system ? `${system}\n\n` : ''}${skillsNote(skillsOn)}`
         const pluginSet = pluginToolSet(agentPlugins(enabledPlugins(plugins, settings), agent))
+        // Tools that work in the project folder are there from the first message: the
+        // folder is made when one of them first needs it, as for a reply's files.
+        const canProject =
+          !!project || (settings.projects !== false && !targets && !meta.temporary && !!(await projectsRoot()))
         const servers = settings.mcpServers.filter(
           (s) => s.url && tools.mcpServers.includes(s.id),
         )
         toolset = mergeTools([
           ...(sharedCanvas ? [canvasTools(meta.id)] : []),
           ...(project ? [projectTools(meta.id, usings[0].model)] : []),
-          ...(project ? [stockTools(meta.id, usings[0].model)].filter((set): set is ToolSet => !!set) : []),
-          ...(project ? [designTools(meta.id, usings[0].model, skillsOn.some(isTasteSkill))] : []),
-          ...(project ? [uiToolSet(() => findMeta(meta.id)?.project, (files) => projectHistory(meta.id, files, usings[0].model))] : []),
-          ...(project ? [shortTools(meta.id, first.id, usings[0].model)].filter((set): set is ToolSet => !!set) : []),
+          ...(canProject ? [stockTools(meta.id, usings[0].model)].filter((set): set is ToolSet => !!set) : []),
+          ...(canProject ? [designTools(meta.id, usings[0].model, skillsOn.some(isTasteSkill))] : []),
+          ...(canProject ? [uiToolSet(() => ensureProject(meta.id), (files) => projectHistory(meta.id, files, usings[0].model))] : []),
+          ...(canProject ? [shortTools(meta.id, first.id, usings[0].model)].filter((set): set is ToolSet => !!set) : []),
           ...(settings.interpreter ? [interpreterTools(meta.id, first.id)] : []),
           ...(remember ? [memoryTools()] : []),
           ...(bases.length ? [knowledgeTools(bases)] : []),
@@ -1639,7 +1644,17 @@ export default function App() {
   }
 
   // The folder a conversation saves into, made the first time it has files.
-  async function ensureProject(chatId: string) {
+  // Made once even when two things ask at the same time.
+  const openingProject = useRef(new Map<string, Promise<ChatProject | null>>())
+  function ensureProject(chatId: string): Promise<ChatProject | null> {
+    const pending = openingProject.current.get(chatId)
+    if (pending) return pending
+    const opening = openProjectFor(chatId).finally(() => openingProject.current.delete(chatId))
+    openingProject.current.set(chatId, opening)
+    return opening
+  }
+
+  async function openProjectFor(chatId: string): Promise<ChatProject | null> {
     const meta = findMeta(chatId)
     if (!meta) return null
     if (meta.project) return meta.project
@@ -1697,7 +1712,7 @@ export default function App() {
   function stockTools(chatId: string, who: string): ToolSet | null {
     return stockToolSet(
       settingsRef.current,
-      () => findMeta(chatId)?.project,
+      () => ensureProject(chatId),
       (files, credits) => {
         const project = findMeta(chatId)?.project
         if (!project) return
@@ -1718,7 +1733,7 @@ export default function App() {
   // Open images and a look at the page; taste-skill's draw when its skill is on.
   function designTools(chatId: string, who: string, taste: boolean): ToolSet {
     return designToolSet({
-      project: () => findMeta(chatId)?.project,
+      project: () => ensureProject(chatId),
       taste,
       onSaved: (files) => {
         const project = findMeta(chatId)?.project
@@ -1733,7 +1748,7 @@ export default function App() {
     const patchReply = (patch: (m: Message) => Message) => patchThread(chatId, (thread) => patchMessage(thread, replyId, patch))
     return shortToolSet({
       settings: current,
-      project: () => findMeta(chatId)?.project,
+      project: () => ensureProject(chatId),
       voice: narrator(current, locked, mediaTargets.audio),
       musicTarget: current.mediaKeys.elevenlabs?.trim() ? { source: 'elevenlabs', model: 'music', options: '' } : null,
       onStep: (callId, progress) =>
