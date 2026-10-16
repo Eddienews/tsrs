@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -509,6 +509,29 @@ test('the folder tools are there from the first message, and make the folder whe
   expect(names).toEqual(expect.arrayContaining(['find_images', 'get_image', 'inspect_page', 'ui_component_add']))
   await expect(reply(page).last()).toContainText('No page named index.html')
   await expect(page.locator('.toolbar .project')).toBeVisible()
+})
+
+test('a reply\'s page in the preview finds its pictures in the project folder', async ({ page }) => {
+  await connect(page)
+  await send(page, 'crie o site do NWLab')
+  const button = page.locator('.toolbar .project')
+  await expect(button).toBeVisible()
+  const folder = (await button.getAttribute('title'))!.replace(/^Pasta do projeto: /, '')
+  await mkdir(join(folder, 'imagens'), { recursive: true })
+  // A 1×1 PNG.
+  await writeFile(join(folder, 'imagens', 'p.png'), Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==', 'base64'))
+  await reply(page).getByRole('button', { name: 'Abrir preview' }).first().click()
+  const frame = page.locator('.preview iframe')
+  await expect(frame).toHaveAttribute('srcdoc', /<base href="[^"]*\/__tsrs\/projects\/raw\//)
+  const width = await (await frame.elementHandle())!.contentFrame().then((f) =>
+    f!.evaluate(() => new Promise<number>((done) => {
+      const img = new Image()
+      img.onload = () => done(img.naturalWidth)
+      img.onerror = () => done(0)
+      img.src = 'imagens/p.png'
+    })),
+  )
+  expect(width).toBe(1)
 })
 
 test('a snippet in an explanation does not make a project folder', async ({ page }) => {

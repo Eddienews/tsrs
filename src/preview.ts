@@ -84,15 +84,18 @@ const BRIDGE =
 
 // The bridge goes after the doctype and <head>, where it runs first without
 // pushing the page into quirks mode.
-function withBridge(html: string): string {
+// `base`: where the page's relative addresses (imagens/foto.jpg, styles.css)
+// point, which is the project folder when the conversation has one.
+function withBridge(html: string, base?: string): string {
+  const head = (base ? `<base href="${base.replace(/"/g, '%22')}">` : '') + BRIDGE
   for (const anchor of [/<head[^>]*>/i, /<html[^>]*>/i, /<!doctype[^>]*>/i]) {
     const match = anchor.exec(html)
     if (match) {
       const end = match.index + match[0].length
-      return html.slice(0, end) + BRIDGE + html.slice(end)
+      return html.slice(0, end) + head + html.slice(end)
     }
   }
-  return BRIDGE + html
+  return head + html
 }
 
 function escapeHtml(text: string): string {
@@ -205,13 +208,14 @@ export function motionDocument(code: string, base = motionBase()): string {
 
 // The HTML document that renders a code block, or null when the language is
 // not one that runs in a frame.
-export function previewDocument(lang: string, code: string): string | null {
+export function previewDocument(lang: string, code: string, base?: string): string | null {
   switch (EXTENSIONS[lang.toLowerCase()]) {
     case 'html':
-      return withBridge(code)
+      return withBridge(code, base)
     case 'svg':
       return withBridge(
         `<!doctype html><body style="margin:0;display:grid;place-items:center;min-height:100vh">${code}</body>`,
+        base,
       )
     case 'jsx':
     case 'tsx':
