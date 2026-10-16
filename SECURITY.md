@@ -28,8 +28,9 @@ app.
 Most interesting are problems that break the promises in
 [CONTRIBUTING.md](CONTRIBUTING.md#principles), for example:
 
-- model-generated code, previews or plugin JavaScript tools reaching the API
-  keys or the app's storage;
+- model-generated code, previews, the JavaScript interpreter or plugin
+  JavaScript tools reaching the API keys or the app's storage, or the
+  interpreter reaching the network;
 - the local services (`/__tsrs/…`) accepting requests from another origin, or
   reading and writing outside their folders;
 - the page reader or HTTP tools reaching the machine or the local network;
@@ -75,8 +76,9 @@ nome, no app.
 Principalmente problemas que quebram as promessas do
 [CONTRIBUTING.pt-BR.md](CONTRIBUTING.pt-BR.md#princípios), por exemplo:
 
-- código gerado pelo modelo, previews ou ferramentas JavaScript de plugins
-  alcançando as chaves de API ou os dados do app;
+- código gerado pelo modelo, previews, o interpretador de JavaScript ou
+  ferramentas JavaScript de plugins alcançando as chaves de API ou os dados do
+  app, ou o interpretador alcançando a rede;
 - os serviços locais (`/__tsrs/…`) aceitando pedidos de outra origem, ou lendo
   e gravando fora das pastas deles;
 - o leitor de páginas ou ferramentas HTTP alcançando a máquina ou a rede local;

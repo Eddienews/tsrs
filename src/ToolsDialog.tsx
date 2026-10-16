@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, FileDown, Globe, Plus } from 'lucide-react'
+import { ChevronDown, ChevronRight, FileDown, Globe, Plus, SquareTerminal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -80,6 +80,24 @@ export default function ToolsDialog({ settings, provider, locked, onChange, onCl
           <DialogTitle>{t('Ferramentas')}</DialogTitle>
           <DialogDescription>{t('O que o modelo pode usar.')}</DialogDescription>
         </DialogHeader>
+
+        <h3 className="text-sm font-medium">{t('Código')}</h3>
+        <div className="divide-y rounded-md border">
+          <label className="flex items-center gap-3 px-3 py-2.5 text-sm">
+            <SquareTerminal className="size-4 text-muted-foreground" />
+            <span className="flex-1">{t('Interpretador de JavaScript e gráficos')}</span>
+            <Switch
+              aria-label={t('Interpretador de JavaScript e gráficos')}
+              checked={!!settings.interpreter}
+              onCheckedChange={(interpreter) => onChange((s) => ({ ...s, interpreter }))}
+            />
+          </label>
+        </div>
+        <p className={hint}>
+          {t(
+            'O modelo roda JavaScript para contas exatas, análise de dados (os CSVs e planilhas anexados à conversa) e gráficos, que aparecem na resposta. O código roda isolado, neste navegador: sem internet e sem acesso às suas chaves ou conversas.',
+          )}
+        </p>
 
         <h3 className="text-sm font-medium">Web</h3>
         <div className="divide-y rounded-md border">

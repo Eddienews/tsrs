@@ -141,6 +141,10 @@ de pacotes) e do Chrome, do Edge ou do Chromium do Playwright.
   voz do navegador.
 
 ### Ferramentas, agentes e extensões
+- Interpretador de JavaScript (opcional, em Ferramentas): o modelo roda código
+  para contas exatas, análise dos CSVs e planilhas anexados e gráficos que
+  aparecem na resposta. O código roda num worker dentro de um frame isolado, sem
+  internet e sem acesso ao app nem às chaves.
 - Servidores MCP remotos, com permissão antes de cada chamada.
 - Busca na web e leitura de páginas pelo provedor (Anthropic, OpenRouter) ou com
   **a sua própria chave** (Brave, Tavily, Google, Kagi) para qualquer modelo,
