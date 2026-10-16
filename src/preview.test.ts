@@ -80,3 +80,10 @@ test('pages of the app\'s own origin lose their origin in the preview', () => {
   expect(urlSandbox('https://example.com/', app)).toContain('allow-same-origin')
   expect(urlSandbox('nope', app)).not.toContain('allow-same-origin')
 })
+
+test('a page from a project folder finds its pictures there', () => {
+  const doc = previewDocument('html', '<!doctype html><html><head><title>x</title></head><body><img src="imagens/a.jpg"></body></html>', 'http://localhost:5173/__tsrs/projects/raw/abc/')!
+  expect(doc).toMatch(/<head><base href="http:\/\/localhost:5173\/__tsrs\/projects\/raw\/abc\/">/)
+  // Without a folder, nothing changes.
+  expect(previewDocument('html', '<p>oi</p>')).not.toContain('<base')
+})

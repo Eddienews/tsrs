@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { download } from './files'
+import { fileUrl } from './projects'
 import { t } from './i18n'
 import Markdown from './Markdown'
 import MotionStage from './MotionStage'
@@ -70,6 +71,13 @@ function openSandboxed(title: string, html: string) {
   tab.document.body.append(frame)
 }
 
+// The folder a file of the project sits in, as the address its relative links start from.
+export function projectBase(project: string, name: string): string {
+  const clean = name.replace(/\\/g, '/').replace(/^\/+/, '')
+  const inside = /^[\w.-]+(\/[\w.-]+)*$/.test(clean) && !clean.split('/').includes('..') ? clean : 'index.html'
+  return fileUrl(project, inside).replace(/[^/]*$/, '')
+}
+
 export default function PreviewPanel(p: Props) {
   const artifact = p.artifacts.find((a) => a.id === p.activeId)
   const [tab, setTab] = useState<Tab>('preview')
@@ -88,7 +96,9 @@ export default function PreviewPanel(p: Props) {
   const isUrl = artifact?.lang === 'url'
   const markdown = !!artifact && isMarkdown(artifact.lang)
   const motion = !!artifact && isMotion(artifact.lang)
-  const html = artifact && !isUrl ? previewDocument(artifact.lang, artifact.code) : null
+  // A page from a conversation with a folder finds its pictures and styles there.
+  const base = artifact && p.project ? projectBase(p.project, artifact.name) : undefined
+  const html = artifact && !isUrl ? previewDocument(artifact.lang, artifact.code, base) : null
 
   useEffect(() => {
     setTab(artifact && isScript(artifact.lang) ? 'console' : 'preview')
