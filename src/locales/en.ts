@@ -1134,4 +1134,10 @@ export const en: Record<string, string> = {
   '"{name}" instalado. Você pode editar a cópia na aba {tab}.':
     '"{name}" installed. You can edit the copy in the {tab} tab.',
   'na biblioteca': 'in the library',
+
+  // JavaScript interpreter
+  'Gráfico {n}': 'Chart {n}',
+  'Interpretador de JavaScript e gráficos': 'JavaScript interpreter and charts',
+  'O modelo roda JavaScript para contas exatas, análise de dados (os CSVs e planilhas anexados à conversa) e gráficos, que aparecem na resposta. O código roda isolado, neste navegador: sem internet e sem acesso às suas chaves ou conversas.':
+    'The model runs JavaScript for exact math, data analysis (the CSVs and spreadsheets attached to the conversation) and charts, which show in the reply. The code runs isolated, in this browser: no internet and no access to your keys or conversations.',
 }

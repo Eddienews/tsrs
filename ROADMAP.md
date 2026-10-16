@@ -102,6 +102,7 @@ each section, the order is the suggested order.
 - [x] Azure OpenAI, through the resource's v1 endpoint and its deployments
 - [x] Profiles: personal and work apart in the same browser, each with its own keys, conversations and backup
 - [x] Community gallery with over 50 prompts, and example skills and plugins that install with one click
+- [x] JavaScript interpreter and charts, isolated with no network
 - [x] Design tools: open images with their credits, the model looking at its page in a real browser, and taste-skill as an example skill
 
 ## Next

@@ -142,6 +142,10 @@ manager) and Chrome, Edge or Playwright's Chromium.
   recognition.
 
 ### Tools, agents and extensions
+- JavaScript interpreter (optional, in Tools): the model runs code for exact
+  math, analysis of the attached CSVs and spreadsheets, and charts that show in
+  the reply. The code runs in a worker inside a sandboxed frame, with no network
+  and no access to the app or its keys.
 - Remote MCP servers, with permission before each call.
 - Web search and page reading by the provider (Anthropic, OpenRouter) or with
   **your own key** (Brave, Tavily, Google, Kagi) for any model, with sources.
