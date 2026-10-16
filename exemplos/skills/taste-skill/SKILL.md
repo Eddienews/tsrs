@@ -26,6 +26,10 @@ conversa (a conversa precisa ter uma):
 | `lint.mjs` e `inspect.mjs` | `inspect_page` (`file`, `widths`, `pages`, `allow`): com uma direção sorteada, aplica todas as regras e roda o lint junto; devolve as capturas para você olhar |
 | "open the screenshots with your Read tool" | as capturas já voltam no resultado de `inspect_page`; peça `pages: true` para ver a página inteira |
 
+Se a pasta do projeto tiver um `DESIGN.md`, ele vem junto na conversa e manda: as fontes, cores
+e regras dele valem mais que o sorteio. Nesse caso, sorteie com `keep: ["palette", "type"]` e
+use do sorteio só a composição.
+
 Escreva os arquivos da página com as ferramentas da pasta do projeto (`index.html`, `styles.css`
 etc.). O vídeo de fundo (`assets.mjs --video`) não está disponível no TSRS: use imagens, um
 desenho seu ou a ferramenta de vídeo de banco de imagens, se estiver ligada. Responda ao usuário

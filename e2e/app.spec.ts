@@ -485,6 +485,11 @@ test('saves the files of a conversation into its own folder, and carries on from
   await expect(reply(page).last()).toContainText('.taste-skill/inspect/mobile-fold.jpg')
   // Without the taste-skill example, no draw is offered.
   expect(provider.chats.at(-1)!.body.tools.map((t: any) => t.function.name)).not.toContain('design_draw')
+  expect(provider.chats.at(-1)!.body.tools.map((t: any) => t.function.name)).toContain('ui_component_add')
+  // The project's own design language goes with every request.
+  await writeFile(join(folder, 'DESIGN.md'), '# Ledger\n\nGeist Sans only.')
+  await send(page, 'primeira')
+  expect(provider.chats.at(-1)!.body.messages[0].content).toContain('<design_md>\n# Ledger\n\nGeist Sans only.\n</design_md>')
 
   // The conversation can move to another folder; its files go along.
   const other = await mkdtemp(join(tmpdir(), 'tsrs-other-'))

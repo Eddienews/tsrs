@@ -61,6 +61,7 @@ import {
   historyLine,
   openProject,
   projectNote,
+  readDesign,
   projectNotes,
   projectsRoot,
   runProjectTool,
@@ -126,6 +127,7 @@ import { SUMMARY_PROMPT, contextResetMark, sinceSummary, withSummary } from './s
 import { agentParams, agentPlugins, agentSkills, findMention, withReply } from './agents'
 import { stockToolSet } from './stock'
 import { designToolSet, isTasteSkill } from './design'
+import { uiToolSet } from './uiComponents'
 import { narrator, shortToolSet } from './shortTool'
 import {
   hashOf,
@@ -1371,6 +1373,8 @@ export default function App() {
     // The project folder, read when the request is sent: an earlier reply may have made it.
     const project = settings.projects !== false && !targets ? findMeta(meta.id)?.project : undefined
     if (project) system = `${system ? `${system}\n\n` : ''}${projectNote(project)}`
+    const design = project && !media ? await readDesign(project) : ''
+    if (design) system = `${system}\n\n${design}`
     // The conversation's own parameters, else its agent's.
     const callParams = agentParams(meta.params, agent)
     let toolset: ToolSet | null = null
@@ -1555,6 +1559,7 @@ export default function App() {
           ...(project ? [projectTools(meta.id, usings[0].model)] : []),
           ...(project ? [stockTools(meta.id, usings[0].model)].filter((set): set is ToolSet => !!set) : []),
           ...(project ? [designTools(meta.id, usings[0].model, skillsOn.some(isTasteSkill))] : []),
+          ...(project ? [uiToolSet(() => findMeta(meta.id)?.project, (files) => projectHistory(meta.id, files, usings[0].model))] : []),
           ...(project ? [shortTools(meta.id, first.id, usings[0].model)].filter((set): set is ToolSet => !!set) : []),
           ...(settings.interpreter ? [interpreterTools(meta.id, first.id)] : []),
           ...(remember ? [memoryTools()] : []),
@@ -1702,6 +1707,12 @@ export default function App() {
         ])
       },
     )
+  }
+
+  // A line in NOTAS.md for files a tool added to the project.
+  function projectHistory(chatId: string, files: string[], who: string) {
+    const project = findMeta(chatId)?.project
+    if (project) void saveFiles(project.path, [{ name: 'NOTAS.md', content: historyLine(files, who, new Date()), append: true }])
   }
 
   // Open images and a look at the page; taste-skill's draw when its skill is on.

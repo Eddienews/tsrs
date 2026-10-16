@@ -17,6 +17,7 @@
 //   GET  /raw/<base64url path>/<file>   the file itself, for the preview
 //   POST /design/...                    open images, looking at a page, the
 //                                       art direction draw (design.mjs)
+//   POST /ui/search, /ui/add            React components from cult/ui (components.mjs)
 
 import { existsSync } from 'node:fs'
 import { copyFile, mkdir, readFile, readdir, stat, writeFile, appendFile } from 'node:fs/promises'
@@ -24,6 +25,7 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } 
 import { fileURLToPath } from 'node:url'
 import { downloadStock, searchStock } from './stock.mjs'
 import { drawDirection, getImage, inspectPage, searchImages } from './design.mjs'
+import { addComponent, searchComponents } from './components.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const REGISTRY = '.tsrs-projects.json'
@@ -269,6 +271,11 @@ export function projectsHandler(root = projectsRoot()) {
         if (existsSync(file)) return send(res, 200, { name, size: (await stat(file)).size, cached: true }), true
         const { size } = await downloadStock(String(job.url ?? ''), file)
         return send(res, 200, { name, size }), true
+      }
+      if (path === '/ui/search') return send(res, 200, await searchComponents(job)), true
+      if (path === '/ui/add') {
+        if (!(await allowed(root, job.path))) return send(res, 403, { error: 'Not a project folder.' }), true
+        return send(res, 200, await addComponent(job.path, job)), true
       }
       if (path === '/design/images/search') return send(res, 200, await searchImages(job)), true
       if (path.startsWith('/design/')) {

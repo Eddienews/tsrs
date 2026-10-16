@@ -38,6 +38,8 @@ Most interesting are problems that break the promises in
   of taste-skill in `vendor/`, or its inspector serving files outside the
   project folder (it opens model-written pages in a headless Chrome or Edge with
   a throwaway profile; like any web page, they can reach the internet);
+- the component tool (`server/components.mjs`) reading from hosts other than
+  cult/ui's and shadcn's registries, or writing outside the project folder;
 - keys leaking into sync files, exports, logs or URLs;
 - weaknesses in the passphrase encryption of keys or sync files.
 
@@ -91,6 +93,9 @@ Principalmente problemas que quebram as promessas do
   fora da pasta do projeto (ele abre páginas escritas pelo modelo num Chrome ou
   Edge sem janela, com perfil descartável; como qualquer página, elas alcançam a
   internet);
+- a ferramenta de componentes (`server/components.mjs`) lendo de outros
+  endereços além dos registros do cult/ui e do shadcn, ou gravando fora da
+  pasta do projeto;
 - chaves vazando em arquivos de sincronização, exportações, logs ou URLs;
 - fraquezas na criptografia das chaves ou da sincronização.
 
