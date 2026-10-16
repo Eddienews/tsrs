@@ -102,6 +102,17 @@ function dependencyUrls(dep) {
   return []
 }
 
+// Registry files import each other by their place in the registry; in a
+// project they live where placeFile puts them (the shadcn CLI does the same).
+export function projectImports(content) {
+  return content
+    .replace(/@\/registry\/[\w-]+\/ui\//g, '@/components/ui/')
+    .replace(/@\/registry\/[\w-]+\/(?:example|examples)\//g, '@/components/examples/')
+    .replace(/@\/registry\/[\w-]+\/lib\//g, '@/lib/')
+    .replace(/@\/registry\/[\w-]+\/hooks\//g, '@/hooks/')
+    .replace(/@\/registry\/[\w-]+\/(?:components|blocks)\//g, '@/components/')
+}
+
 const UTILS = `import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
@@ -144,7 +155,7 @@ export async function addComponent(project, { name, example, overwrite }, fetchI
     for (const file of item.files ?? []) {
       if (typeof file.content !== 'string') continue
       const place = placeFile(file, next.example)
-      files.push({ name: place, content: file.content, credit: fromShadcn ? CREDITS.shadcn : CREDITS.cult, item: item.name })
+      files.push({ name: place, content: projectImports(file.content), credit: fromShadcn ? CREDITS.shadcn : CREDITS.cult, item: item.name })
     }
   }
   const written = []

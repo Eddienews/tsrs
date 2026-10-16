@@ -24,7 +24,7 @@ const items: Record<string, unknown> = {
     name: 'dock-demo',
     // A bare name: cult/ui's own component, not shadcn's.
     registryDependencies: ['dock'],
-    files: [{ path: 'registry/default/example/dock-demo.tsx', type: 'registry:example', content: 'export default function DockDemo() {}\n' }],
+    files: [{ path: 'registry/default/example/dock-demo.tsx', type: 'registry:example', content: 'import { Dock } from "@/registry/default/ui/dock"\nexport default function DockDemo() {}\n' }],
   },
   'shadcn/button.json': {
     name: 'button',
@@ -82,6 +82,8 @@ test('adds a component with what it builds on, credits it and keeps existing fil
   // What the registry did not bring is named, for the project to provide.
   expect(added.needs).toEqual(['@/hooks/use-theme'])
   expect(await readFile(join(project, 'lib', 'utils.ts'), 'utf8')).toContain('twMerge(clsx(inputs))')
+  // Imports point where the files went in the project.
+  expect(await readFile(join(project, 'components', 'examples', 'dock-demo.tsx'), 'utf8')).toContain('from "@/components/ui/dock"')
   const credits = await readFile(join(project, 'CREDITOS.md'), 'utf8')
   expect(credits).toContain('- `components/ui/dock.tsx`: componente `dock` de [cult/ui](https://www.cult-ui.com) (MIT)')
   expect(credits).toContain('- `components/ui/button.tsx`: componente `button` de [shadcn/ui](https://ui.shadcn.com) (MIT)')
