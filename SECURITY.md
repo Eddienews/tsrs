@@ -34,6 +34,10 @@ Most interesting are problems that break the promises in
 - the local services (`/__tsrs/…`) accepting requests from another origin, or
   reading and writing outside their folders;
 - the page reader or HTTP tools reaching the machine or the local network;
+- the design tools (`server/design.mjs`) running anything but the reviewed copy
+  of taste-skill in `vendor/`, or its inspector serving files outside the
+  project folder (it opens model-written pages in a headless Chrome or Edge with
+  a throwaway profile; like any web page, they can reach the internet);
 - keys leaking into sync files, exports, logs or URLs;
 - weaknesses in the passphrase encryption of keys or sync files.
 
@@ -82,6 +86,11 @@ Principalmente problemas que quebram as promessas do
 - os serviços locais (`/__tsrs/…`) aceitando pedidos de outra origem, ou lendo
   e gravando fora das pastas deles;
 - o leitor de páginas ou ferramentas HTTP alcançando a máquina ou a rede local;
+- as ferramentas de design (`server/design.mjs`) rodando qualquer coisa além da
+  cópia revisada da taste-skill em `vendor/`, ou o inspetor servindo arquivos
+  fora da pasta do projeto (ele abre páginas escritas pelo modelo num Chrome ou
+  Edge sem janela, com perfil descartável; como qualquer página, elas alcançam a
+  internet);
 - chaves vazando em arquivos de sincronização, exportações, logs ou URLs;
 - fraquezas na criptografia das chaves ou da sincronização.
 

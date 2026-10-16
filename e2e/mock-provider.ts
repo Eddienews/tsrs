@@ -201,10 +201,15 @@ export async function startMockProvider(): Promise<MockProvider> {
       const more = { choices: [{ delta: { reasoning_content: 'Depois, a resposta.' } }] }
       res.write(`data: ${JSON.stringify(thought)}\n\ndata: ${JSON.stringify(more)}\n\n`)
     }
+    // Pictures a tool returned come in a user message right after its result.
+    const pictures = Array.isArray(last.content) && body.messages.at(-2)?.role === 'tool'
+      ? last.content.filter((p: any) => p.type === 'image_url').length
+      : 0
+    const toolReply = last.role === 'tool' ? last : pictures ? body.messages.at(-2) : null
     const parts = isTitle
       ? ['"Saudação ', 'inicial".']
-      : last.role === 'tool'
-        ? [`A ferramenta respondeu: ${last.content}`]
+      : toolReply
+        ? [`A ferramenta respondeu: ${toolReply.content}${pictures ? ` (com ${pictures} imagens)` : ''}`]
         : String(last.content).includes('componente')
           ? ['Aqui:\n\n', '```tsx\n' + COMPONENT + '\n```\n\n```mermaid\ngraph TD\n  A[Início] --> B[Fim]\n```']
           : String(last.content).includes('site do NWLab')

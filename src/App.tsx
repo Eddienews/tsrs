@@ -125,6 +125,7 @@ import {
 import { SUMMARY_PROMPT, contextResetMark, sinceSummary, withSummary } from './summary'
 import { agentParams, agentPlugins, agentSkills, findMention, withReply } from './agents'
 import { stockToolSet } from './stock'
+import { designToolSet, isTasteSkill } from './design'
 import { narrator, shortToolSet } from './shortTool'
 import {
   hashOf,
@@ -1553,6 +1554,7 @@ export default function App() {
           ...(sharedCanvas ? [canvasTools(meta.id)] : []),
           ...(project ? [projectTools(meta.id, usings[0].model)] : []),
           ...(project ? [stockTools(meta.id, usings[0].model)].filter((set): set is ToolSet => !!set) : []),
+          ...(project ? [designTools(meta.id, usings[0].model, skillsOn.some(isTasteSkill))] : []),
           ...(project ? [shortTools(meta.id, first.id, usings[0].model)].filter((set): set is ToolSet => !!set) : []),
           ...(settings.interpreter ? [interpreterTools(meta.id, first.id)] : []),
           ...(remember ? [memoryTools()] : []),
@@ -1700,6 +1702,18 @@ export default function App() {
         ])
       },
     )
+  }
+
+  // Open images and a look at the page; taste-skill's draw when its skill is on.
+  function designTools(chatId: string, who: string, taste: boolean): ToolSet {
+    return designToolSet({
+      project: () => findMeta(chatId)?.project,
+      taste,
+      onSaved: (files) => {
+        const project = findMeta(chatId)?.project
+        if (project) void saveFiles(project.path, [{ name: 'NOTAS.md', content: historyLine(files, who, new Date()), append: true }])
+      },
+    })
   }
 
   // Short videos made in the project; the video shows in the reply as it is done.

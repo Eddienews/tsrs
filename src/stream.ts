@@ -42,9 +42,19 @@ export interface ToolCall {
   input: unknown
 }
 
+// A picture a tool returns for the model to see (a screenshot, say).
+export interface ToolImage {
+  mime: string
+  // Base64, without the data: prefix.
+  data: string
+}
+
 export interface ToolResult {
   content: string
   isError: boolean
+  // Pictures for the model, sent with this round's results only (the
+  // conversation keeps the text).
+  images?: ToolImage[]
   // Knowledge base passages the tool found, shown with the reply.
   references?: Reference[]
   // Web pages the tool found or read, listed under the reply.
@@ -526,7 +536,25 @@ function anthropicTurn(): Turn {
     message: () => ({ role: 'assistant', content: blocks.filter(Boolean) }),
     results: (done) =>
       done.length
-        ? [anthropicResults(done.map((d) => ({ id: d.id, result: d.content, error: d.isError })))]
+        ? [
+            {
+              role: 'user',
+              content: done.map((d) => ({
+                type: 'tool_result',
+                tool_use_id: d.id,
+                content: d.images?.length
+                  ? [
+                      { type: 'text', text: d.content || '(no text)' },
+                      ...d.images.map((image) => ({
+                        type: 'image',
+                        source: { type: 'base64', media_type: image.mime, data: image.data },
+                      })),
+                    ]
+                  : d.content,
+                ...(d.isError ? { is_error: true } : {}),
+              })),
+            },
+          ]
         : [],
   }
   return turn
@@ -610,7 +638,26 @@ function openaiTurn(): Turn {
         function: { name: c.name, arguments: JSON.stringify(c.input) },
       })),
     }),
-    results: (done) => openaiResults(done.map((d) => ({ id: d.id, result: d.content }))),
+    results: (done) => [
+      ...openaiResults(done.map((d) => ({ id: d.id, result: d.content }))),
+      // Tool messages carry text only: pictures follow in a user message.
+      ...(done.some((d) => d.images?.length)
+        ? [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: 'Pictures returned by the tools above:' },
+                ...done.flatMap((d) =>
+                  (d.images ?? []).map((image) => ({
+                    type: 'image_url',
+                    image_url: { url: `data:${image.mime};base64,${image.data}` },
+                  })),
+                ),
+              ],
+            },
+          ]
+        : []),
+    ],
   }
   return turn
 }
