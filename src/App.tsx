@@ -1562,10 +1562,6 @@ export default function App() {
         toolset = mergeTools([
           ...(sharedCanvas ? [canvasTools(meta.id)] : []),
           ...(project ? [projectTools(meta.id, usings[0].model)] : []),
-          ...(canProject ? [stockTools(meta.id, usings[0].model)].filter((set): set is ToolSet => !!set) : []),
-          ...(canProject ? [designTools(meta.id, usings[0].model, skillsOn.some(isTasteSkill))] : []),
-          ...(canProject ? [uiToolSet(() => ensureProject(meta.id), (files) => projectHistory(meta.id, files, usings[0].model))] : []),
-          ...(canProject ? [shortTools(meta.id, first.id, usings[0].model)].filter((set): set is ToolSet => !!set) : []),
           ...(settings.interpreter ? [interpreterTools(meta.id, first.id)] : []),
           ...(remember ? [memoryTools()] : []),
           ...(bases.length ? [knowledgeTools(bases)] : []),
@@ -1573,6 +1569,11 @@ export default function App() {
           ...(pluginSet ? [pluginSet] : []),
           ...(webSet ? [webSet] : []),
           ...(servers.length ? [await gatherTools(servers)] : []),
+          // The project folder's media and design tools, after the user's own.
+          ...(canProject ? [stockTools(meta.id, usings[0].model)].filter((set): set is ToolSet => !!set) : []),
+          ...(canProject ? [designTools(meta.id, usings[0].model, skillsOn.some(isTasteSkill))] : []),
+          ...(canProject ? [uiToolSet(() => ensureProject(meta.id), (files) => projectHistory(meta.id, files, usings[0].model))] : []),
+          ...(canProject ? [shortTools(meta.id, first.id, usings[0].model)].filter((set): set is ToolSet => !!set) : []),
         ])
         problems.push(...(toolset?.problems ?? []))
       }
