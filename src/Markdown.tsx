@@ -3,6 +3,13 @@ import { createContext, lazy, memo, Suspense, useState } from 'react'
 // Opens a code block in the preview panel; absent where there is no panel.
 export const PreviewContext = createContext<((code: string, lang: string) => void) | null>(null)
 
+// Opens a page or drawing of the conversation's project folder in the preview,
+// by its path there; absent when the conversation has no folder.
+export const FileContext = createContext<((file: string) => void) | null>(null)
+
+// A path inside the project that the preview shows: a page or a drawing.
+export const PREVIEW_FILE = /^(?:\.\/)?[\w-]+(?:\/[\w.-]+)*\.(?:html?|svg)$/i
+
 export function useCopy(): [boolean, (text: string) => void] {
   const [copied, setCopied] = useState(false)
   const copy = (text: string) => {

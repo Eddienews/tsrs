@@ -338,6 +338,7 @@ export const en: Record<string, string> = {
   'Acrescenta ao prompt de sistema uma nota dizendo que blocos de código HTML, SVG, JavaScript e Markdown podem ser abertos no preview.':
     'Adds a note to the system prompt saying that HTML, SVG, JavaScript and Markdown code blocks can be opened in the preview.',
   Preview: 'Preview',
+  'Abrir {name} no preview': 'Open {name} in the preview',
   'Abrir preview': 'Open preview',
   'Abrir ou fechar o preview': 'Open or close the preview',
   'Fechar o preview': 'Close the preview',

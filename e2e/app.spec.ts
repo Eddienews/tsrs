@@ -585,7 +585,8 @@ test('a conversation can start in a folder that already exists, with its DESIGN.
   const film = '<meta name=\\"nwlab:duration\\" content=\\"3\\"><meta name=\\"nwlab:size\\" content=\\"640x360\\"><h1>CTA velho</h1>'
   await send(page, `chame project_write_file {"file":"filme.html","content":"${film}"}`)
   await expect.poll(() => readFile(join(folder, 'filme.html'), 'utf8').catch(() => '')).toContain('CTA velho')
-  await page.locator('.toolbar').getByRole('button', { name: 'Preview', exact: true }).click()
+  // The call that saved it offers to open it.
+  await page.locator('.message.assistant').last().getByRole('button', { name: 'Abrir filme.html no preview' }).click()
   const panel = page.locator('.preview')
   await expect(panel.getByRole('tab', { name: 'filme.html', selected: true })).toBeVisible()
   await expect(panel).toContainText('640×360 · 30 fps')
@@ -595,6 +596,16 @@ test('a conversation can start in a folder that already exists, with its DESIGN.
   await send(page, 'chame project_edit_file {"file":"filme.html","old_text":"CTA velho","new_text":"CTA novo"}')
   await expect.poll(() => readFile(join(folder, 'filme.html'), 'utf8')).toContain('<h1>CTA novo</h1>')
   await expect(panel.getByRole('tab', { name: 'filme.html' })).toHaveCount(1)
+  await expect(panel.frameLocator('iframe').locator('h1')).toHaveText('CTA novo')
+  // A file named as code in a reply opens it too, even with the panel closed.
+  await page.getByRole('button', { name: 'Fechar o preview' }).click()
+  await send(page, 'responda: Pronto, salvei em `filme.html`; o resto em `NOTAS.md`.')
+  const reply = page.locator('.message.assistant').last()
+  await expect(reply.getByRole('button', { name: /filme\.html/ })).toHaveCount(1)
+  await expect(reply.locator('code', { hasText: 'NOTAS.md' })).toHaveCount(1)
+  await expect(reply.getByRole('button', { name: /NOTAS/ })).toHaveCount(0)
+  await reply.getByRole('button', { name: /filme\.html/ }).click()
+  await expect(panel.getByRole('tab', { name: 'filme.html', selected: true })).toBeVisible()
   await expect(panel.frameLocator('iframe').locator('h1')).toHaveText('CTA novo')
 })
 
