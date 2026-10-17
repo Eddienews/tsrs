@@ -78,6 +78,22 @@ export const PROVIDERS: Provider[] = [
     efforts: [],
   },
   {
+    // Elorian speaks the OpenAI format; its agent model thinks before answering,
+    // so it takes max_completion_tokens and low/medium/xhigh effort.
+    ...openaiCompatible,
+    id: 'elorian',
+    name: 'Elorian',
+    baseUrl: 'https://api.elorian.ai/v1',
+    // Its documentation names one model and no list endpoint.
+    modelsPath: '',
+    keyRequired: true,
+    defaultModels: ['elorian-1-agent'],
+    maxTokensField: 'max_completion_tokens',
+    efforts: ['low', 'medium', 'xhigh'],
+    temperature: false,
+    proxyOption: true,
+  },
+  {
     ...openaiCompatible,
     id: 'mistral',
     name: 'Mistral',

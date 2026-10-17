@@ -19,7 +19,7 @@ video and running scheduled tasks.
 ## Why TSRS
 
 - **Every model, one place.** Anthropic, OpenAI, Gemini, OpenRouter, DeepSeek,
-  Mistral, xAI, Groq, Perplexity, local models through Ollama or LM Studio, and
+  Elorian, Mistral, xAI, Groq, Perplexity, local models through Ollama or LM Studio, and
   any OpenAI-compatible endpoint. Compare up to four answers side by side.
 - **Pay only for what you use.** Your keys, the providers' prices, no markup.
   TSRS shows the tokens and the estimated cost of every reply and of each day.
@@ -247,7 +247,7 @@ This is the same contract as NWLab ForgeOS motion pages.
 
 ## Providers
 
-Anthropic, OpenAI, Google Gemini, OpenRouter, DeepSeek, Mistral, xAI (Grok),
+Anthropic, OpenAI, Google Gemini, OpenRouter, DeepSeek, Elorian, Mistral, xAI (Grok),
 Groq, Perplexity, Command Code, OpenCode Zen and Go (through the local proxy),
 Azure OpenAI (your resource's v1 endpoint, with deployments typed by name),
 Ollama and LM Studio (local), and any endpoint compatible with OpenAI's chat API
