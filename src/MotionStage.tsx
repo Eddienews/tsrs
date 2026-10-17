@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { t } from './i18n'
 import { PREVIEW_SOURCE, motionSettings, type MotionSettings } from './preview'
 import RenderBar from './RenderBar'
-import { fadeGain, trackBlob, type Track } from './videoRender'
+import { fadeGain, soundtrackFor, trackBlob, type Track } from './videoRender'
 
 // Tells the composition in the frame which time to show.
 export const MOTION_SOURCE = 'tsrs-motion'
@@ -43,10 +43,11 @@ export default function MotionStage(p: Props) {
   // The soundtrack: chosen here, played with the timeline, sent with the render.
   const [picked, setPicked] = useState<Track[]>([])
   const tracks = [...picked, ...p.tracks]
-  // Until the user picks one, the newest audio of the conversation is the
-  // soundtrack: a song attached to ask for the video is meant to go with it.
+  // Until the user picks one, the soundtrack is the one the composition names
+  // (nwlab:audio, or a file in its code), else the newest audio of the
+  // conversation: a song attached to ask for the video is meant to go with it.
   const [picking, setPicking] = useState<string | null>(null)
-  const trackId = picking ?? p.tracks[0]?.id ?? ''
+  const trackId = picking ?? soundtrackFor(p.code, p.tracks)?.id ?? ''
   const setTrackId = (id: string) => setPicking(id)
   const track = tracks.find((item) => item.id === trackId) ?? null
   const [muted, setMuted] = useState(false)

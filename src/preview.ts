@@ -12,6 +12,21 @@ export interface Artifact {
   lang: string
   // The code, or the page's address.
   code: string
+  // Set when it is a file of the conversation's folder (its path there): the
+  // tab follows the file as the model saves or edits it.
+  file?: string
+}
+
+// How a file of the project folder shows in the preview: a motion composition
+// (it declares nwlab: meta tags or animates with NWLab.onSeek), a page or a
+// drawing; null for files the preview does not show.
+export function fileLang(name: string, content: string): string | null {
+  const ext = name.toLowerCase().split('.').pop()
+  if (ext === 'svg') return 'svg'
+  if (ext !== 'html' && ext !== 'htm') return null
+  return /<meta\b[^>]*\bname\s*=\s*["']?nwlab:(duration|size|fps)\b/i.test(content) || /\bNWLab\.onSeek\s*\(|\bnwlabSeek\b/.test(content)
+    ? 'motion'
+    : 'html'
 }
 
 export interface ConsoleEntry {
@@ -272,7 +287,8 @@ const MOTION_HINT =
   'its "Gerar MP4" button renders it to a video frame by frame, so the page must never ' +
   'move by itself: everything it shows at a time t must come from t alone. Declare in <head> ' +
   '<meta name="nwlab:duration" content="SECONDS">, <meta name="nwlab:size" content="1080x1920"> ' +
-  '(or 1920x1080, 1080x1080) and optionally <meta name="nwlab:fps" content="30">; html and body ' +
+  '(or 1920x1080, 1080x1080) and optionally <meta name="nwlab:fps" content="30"> and, to choose ' +
+  'the soundtrack among the audio files of the folder, <meta name="nwlab:audio" content="midia/song.mp3">; html and body ' +
   'already have that size. Animate with any of: CSS animations and transitions (they are paused ' +
   'and seeked); anime.js v4, which is already loaded as the global `anime` (create timelines ' +
   'with autoplay: false and pass them to NWLab.register(tl)); NWLab.onSeek((seconds) => { ... }) ' +

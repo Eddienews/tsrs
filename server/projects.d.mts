@@ -20,6 +20,13 @@ export function writeFiles(
 ): Promise<string[]>
 export function listFiles(project: string): Promise<ProjectFile[]>
 export function readText(project: string, name: string): Promise<string>
+export function editText(
+  project: string,
+  name: string,
+  old: string,
+  next: string,
+  all?: boolean,
+): Promise<{ replaced: number; size: number }>
 export function copyProject(from: string, to: string): Promise<string[]>
 export function encodePath(path: string): string
 export function projectsHandler(root?: string): (req: IncomingMessage, res: ServerResponse) => Promise<boolean>

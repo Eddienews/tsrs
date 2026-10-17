@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import type { Message } from './types'
-import { chatTracks, fadeGain, findRenderer, jsonLines, renderVideo, trackBlob, trackFileName } from './videoRender'
+import { chatTracks, fadeGain, findRenderer, jsonLines, renderVideo, soundtrackFor, trackBlob, trackFileName } from './videoRender'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -110,4 +110,14 @@ test('the preview plays the track as the video will have it', async () => {
   expect(fadeGain(6, 6)).toBe(0)
   expect(fadeGain(1.5, 2)).toBeCloseTo(1)
   expect(fadeGain(1.75, 2)).toBeCloseTo(0.5)
+})
+
+test('the soundtrack is the one the composition names', () => {
+  const tracks = [{ name: 'launch-pulse-v01-drop12.mp3' }, { name: 'launch-pulse.mp3' }, { name: 'voz.wav' }]
+  expect(soundtrackFor('<meta name="nwlab:audio" content="midia/voz.wav">', tracks)).toBe(tracks[2])
+  expect(soundtrackFor("const TRACK = 'midia/launch-pulse.mp3'", tracks)).toBe(tracks[1])
+  // A longer name that contains it is not it.
+  expect(soundtrackFor('midia/old-launch-pulse.mp3', tracks)).toBe(tracks[0])
+  expect(soundtrackFor('<h1>sem trilha</h1>', tracks)).toBe(tracks[0])
+  expect(soundtrackFor('x', [])).toBeUndefined()
 })
