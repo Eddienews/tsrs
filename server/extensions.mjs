@@ -11,7 +11,7 @@
 // as Claude does.
 
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, readdir, rename, stat, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, readdir, rename, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { projectFile, slug } from './projects.mjs'
@@ -340,6 +340,42 @@ export async function installPlugin(root, files) {
   if (existsSync(folder)) await setAside(root, folder)
   await writeTree(folder, tree)
   return (await listPlugins(root)).find((p) => p.folder === folder)
+}
+
+// A plugin's midia/ holds its kit files (a soundtrack, a brief, fonts). When
+// one of its skills is used in a conversation with a folder, they are copied
+// into that folder's midia/, where the skill expects them; a file already
+// there is the user's and is never replaced.
+export async function copyPluginMedia(root, pluginName, project) {
+  const plugin = (await listPlugins(root)).find((p) => p.name === pluginName || p.id === pluginName)
+  if (!plugin) throw new Error(`No plugin named ${pluginName}.`)
+  const from = join(plugin.folder, 'midia')
+  const copied = []
+  const kept = []
+  if (!existsSync(from)) return { copied, kept }
+  for (const name of await filesIn(from)) {
+    const target = projectFile(join(project, 'midia'), name)
+    if (!target) continue
+    if (existsSync(target)) {
+      kept.push(`midia/${name}`)
+      continue
+    }
+    await mkdir(dirname(target), { recursive: true })
+    await copyFile(join(from, name), target)
+    copied.push(`midia/${name}`)
+  }
+  return { copied, kept }
+}
+
+// Installs what was sent as what it is, whichever button sent it: a plugin
+// zip carries skills too, and installing it as a bare skill would drop its
+// commands, agents, tools and files. `kind` says which it was.
+export async function installExtension(root, files) {
+  if (rootedAt(files, '.claude-plugin/plugin.json') ?? rootedAt(files, 'plugin.json')) {
+    return { kind: 'plugin', ...(await installPlugin(root, files)) }
+  }
+  if (rootedAt(files, 'SKILL.md')) return { kind: 'skill', ...(await installSkill(root, files)) }
+  throw new Error('There is no SKILL.md or plugin.json in what was sent.')
 }
 
 export async function removePlugin(root, id) {

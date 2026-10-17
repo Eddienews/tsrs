@@ -39,7 +39,7 @@ import MessageView, { ContextReset } from './MessageView'
 import ParamsPanel from './ParamsPanel'
 import { forget } from './mcp'
 import { artifactName, lastPreviewable, withPreviewHint, type Artifact } from './preview'
-import { chatTracks, trackBlob, trackFileName } from './videoRender'
+import { chatTracks, trackBlob, trackFileName, type Track } from './videoRender'
 import { ownSearch, webToolSet, withSources } from './webSearch'
 import { agentFor, folderNote } from './folders'
 import { RESEARCH_NOTE, RESEARCH_ROUNDS, reportFile, reportName } from './research'
@@ -52,14 +52,20 @@ import {
   pluginToolSet,
   skillsNote,
   skillTools,
+  copyPluginMedia,
   type Plugin,
+  type Skill,
 } from './extensions'
 import {
   PROJECT_TOOLS,
   copyFiles,
   filesFromReply,
   historyLine,
+  listFiles,
+  mediaName,
+  mediaNote,
   openProject,
+  projectTracks,
   projectNote,
   readDesign,
   projectNotes,
@@ -538,6 +544,13 @@ export default function App() {
   // The folder whose context is being edited, and the one a new conversation goes in.
   const [editingFolder, setEditingFolder] = useState<Folder | null>(null)
   const [draftFolder, setDraftFolder] = useState<string | undefined>(undefined)
+  // A folder picked for the next conversation before its first message.
+  const [draftProject, setDraftProject] = useState<ChatProject | undefined>(undefined)
+  // Where conversation folders are made; null when this TSRS cannot save them.
+  const [foldersRoot, setFoldersRoot] = useState<string | null>(null)
+  useEffect(() => {
+    projectsRoot().then(setFoldersRoot, () => setFoldersRoot(null))
+  }, [])
   const [aside, setAside] = useState<Aside | null>(null)
   // Knowledge base documents, all kept in memory to search them.
   const [docs, setDocs] = useState<KnowledgeDoc[]>([])
@@ -557,7 +570,24 @@ export default function App() {
   // Undefined while the active conversation's messages are being read.
   const messages = activeId ? threads[activeId] : undefined
   // Audio of the conversation, offered as the soundtrack of a motion video.
-  const tracks = useMemo(() => chatTracks(messages ?? []), [messages])
+  const chatAudio = useMemo(() => chatTracks(messages ?? []), [messages])
+  // ...and the audio in the folder's midia/ (a kit's soundtrack), read when the preview opens.
+  const [folderAudio, setFolderAudio] = useState<Track[]>([])
+  const projectPath = active?.project?.path
+  useEffect(() => {
+    if (!projectPath || !showPreview) return setFolderAudio([])
+    let stale = false
+    projectTracks(projectPath)
+      .then((list) => !stale && setFolderAudio(list))
+      .catch(() => !stale && setFolderAudio([]))
+    return () => {
+      stale = true
+    }
+  }, [projectPath, showPreview, messages?.length])
+  const tracks = useMemo(
+    () => [...chatAudio, ...folderAudio.filter((f) => !chatAudio.some((c) => c.name === f.name))],
+    [chatAudio, folderAudio],
+  )
   const params = active ? (active.params ?? {}) : draftParams
   const canvas = active ? active.canvas : draftCanvas
   const temporary = active ? !!active.temporary : draftTemporary
@@ -1256,6 +1286,7 @@ export default function App() {
 
   async function selectChat(id: string | null) {
     setDraftFolder(undefined)
+    setDraftProject(undefined)
     if (id !== activeId) closeAside()
     // Leaving a temporary conversation throws it away.
     const left = findMeta(activeId)
@@ -1372,11 +1403,19 @@ export default function App() {
     // Comparing models would let each of them change the same canvas.
     const sharedCanvas = !media && !targets ? meta.canvas : undefined
     if (sharedCanvas) system = `${system ? `${system}\n\n` : ''}${CANVAS_NOTE}`
+    // Files the user attached are kept in the folder's midia/, so the pages
+    // and videos made here can use the real files (a logo, a soundtrack).
+    const lastAsked = history.at(-1)
+    if (settings.projects !== false && !targets && !media && !meta.temporary && lastAsked?.role === 'user') {
+      await keepAttachments(meta.id, lastAsked)
+    }
     // The project folder, read when the request is sent: an earlier reply may have made it.
     const project = settings.projects !== false && !targets ? findMeta(meta.id)?.project : undefined
     if (project) system = `${system ? `${system}\n\n` : ''}${projectNote(project)}`
     const design = project && !media ? await readDesign(project) : ''
     if (design) system = `${system}\n\n${design}`
+    const inMedia = project && !media ? mediaNote(await listFiles(project.path).then((files) => files.map((f) => f.name), () => [])) : ''
+    if (inMedia) system = `${system}\n\n${inMedia}`
     // The conversation's own parameters, else its agent's.
     const callParams = agentParams(meta.params, agent)
     let toolset: ToolSet | null = null
@@ -1571,11 +1610,14 @@ export default function App() {
         )
         toolset = mergeTools([
           ...(sharedCanvas ? [canvasTools(meta.id)] : []),
-          ...(project ? [projectTools(meta.id, usings[0].model)] : []),
+          ...(canProject ? [projectTools(meta.id, usings[0].model)] : []),
           ...(settings.interpreter ? [interpreterTools(meta.id, first.id)] : []),
           ...(remember ? [memoryTools()] : []),
           ...(bases.length ? [knowledgeTools(bases)] : []),
-          ...(skillsOn.length ? [skillTools()] : []),
+          // A plugin's skill brings its kit files (midia/) into the folder when loaded.
+          ...(skillsOn.length
+            ? [skillTools(canProject ? (skill) => kitMedia(meta.id, skill) : undefined)]
+            : []),
           ...(pluginSet ? [pluginSet] : []),
           ...(webSet ? [webSet] : []),
           ...(servers.length ? [await gatherTools(servers)] : []),
@@ -1676,7 +1718,47 @@ export default function App() {
       notes: projectNotes(meta.title || t('Projeto'), request, new Date()),
     })
     updateChat(chatId, { project })
+    // What the user attached before the folder existed goes to its midia/ too.
+    for (const message of threadsRef.current[chatId] ?? []) {
+      if (message.role === 'user') await keepAttachments(chatId, message)
+    }
     return project
+  }
+
+  // Saves the files a user message carries into the folder's midia/, once:
+  // each attachment then remembers where it was written.
+  async function keepAttachments(chatId: string, message: Message) {
+    const fresh = (message.attachments ?? []).filter((a) => a.data && !a.savedPath)
+    if (!fresh.length) return
+    // Only into a folder the conversation already has: attaching a photo to a
+    // question does not make one. When the folder is made, they follow it there.
+    const project = findMeta(chatId)?.project
+    if (!project) return
+    try {
+      const taken = new Set((await listFiles(project.path)).map((f) => f.name))
+      const named = fresh.map((a) => {
+        const name = mediaName(a.name, taken)
+        taken.add(name)
+        return { id: a.id, name, file: { name, content: a.data, ...(a.kind === 'text' ? {} : { encoding: 'base64' as const }) } }
+      })
+      const written = await saveFiles(project.path, named.map((n) => n.file))
+      await saveFiles(project.path, [{ name: 'NOTAS.md', content: historyLine(written, t('anexo do usuário'), new Date()), append: true }])
+      patchThread(chatId, (thread) =>
+        patchMessage(thread, message.id, (m) => ({
+          ...m,
+          attachments: m.attachments?.map((a) => {
+            const kept = named.find((n) => n.id === a.id)
+            return kept ? { ...a, savedPath: pathIn(project.path, kept.name) } : a
+          }),
+        })),
+      )
+    } catch (err) {
+      warnProject(
+        t('Os arquivos desta conversa não foram salvos na pasta: {error}', {
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      )
+    }
   }
 
   function warnProject(error: string) {
@@ -1716,11 +1798,19 @@ export default function App() {
     }
   }
 
+  // A plugin's kit files, copied into the folder when one of its skills is loaded.
+  async function kitMedia(chatId: string, skill: Skill): Promise<string> {
+    if (skill.source === 'user') return ''
+    const project = await ensureProject(chatId)
+    return project ? copyPluginMedia(skill.source, project.path) : ''
+  }
+
   // Reading and writing the conversation's folder, without asking: it is its own.
+  // Offered from the first message; the folder is made when a file is first written.
   function projectTools(chatId: string, who: string): ToolSet {
     return localTools(PROJECT_TOOLS, t('Pasta do projeto'), async (call) => {
-      const project = findMeta(chatId)?.project
-      if (!project) return { content: 'This conversation has no project folder.', isError: true }
+      const project = findMeta(chatId)?.project ?? (call.name.startsWith('project_write') ? await ensureProject(chatId) : undefined)
+      if (!project) return { content: 'This conversation has no project folder yet: nothing has been saved in it.', isError: true }
       return runProjectTool(project, call, (written) => {
         void saveFiles(project.path, [{ name: 'NOTAS.md', content: historyLine(written, who, new Date()), append: true }])
       })
@@ -1820,6 +1910,11 @@ export default function App() {
     const next = await openProject({ path, name: meta?.title })
     if (meta?.project && meta.project.path !== next.path) await copyFiles(meta.project.path, next.path)
     updateChat(chatId, { project: next })
+    if (!meta?.project) {
+      for (const message of threadsRef.current[chatId] ?? []) {
+        if (message.role === 'user') await keepAttachments(chatId, message)
+      }
+    }
   }
 
   // Searching the conversation's knowledge bases again, with the model's words.
@@ -2058,6 +2153,7 @@ export default function App() {
       ...(draftFolder ? { folderId: draftFolder } : {}),
       ...(draftCanvas ? { canvas: draftCanvas } : {}),
       ...(draftTemporary ? { temporary: true } : {}),
+      ...(draftProject && !draftTemporary ? { project: draftProject } : {}),
     }
     if (typed) {
       setDraft('')
@@ -2067,6 +2163,7 @@ export default function App() {
     if (!existing) {
       setDraftParams({})
       setDraftCanvas(undefined)
+      setDraftProject(undefined)
     }
     if (mediaMode && typed && maker) {
       setMediaMode(null)
@@ -2511,9 +2608,14 @@ export default function App() {
         onModel={selectModel}
         onSeenNewModels={() => setSettings(withoutNewModels)}
         onPersona={applyPersona}
-        project={settings.projects !== false ? active?.project : undefined}
+        project={settings.projects !== false ? (active ? active.project : draftProject) : undefined}
+        projectsRoot={settings.projects !== false && !temporary ? (foldersRoot ?? undefined) : undefined}
+        onCreateProject={active ? async () => void (await ensureProject(active.id)) : undefined}
         onOpenUrl={(url, name) => showArtifact('url', url, name)}
-        onMoveProject={(path) => (active ? moveProject(active.id, path) : Promise.resolve())}
+        onMoveProject={async (path) => {
+          if (active) return moveProject(active.id, path)
+          setDraftProject(await openProject({ path }))
+        }}
         onPrice={(providerId, model, price) =>
           setSettings((s) => {
             const prices = { ...s.modelPrices }

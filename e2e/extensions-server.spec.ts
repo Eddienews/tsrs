@@ -5,6 +5,7 @@ import { expect, test } from '@playwright/test'
 import {
   frontMatter,
   httpRequest,
+  installExtension,
   installPlugin,
   installSkill,
   listSkills,
@@ -60,6 +61,27 @@ test('installs skills and plugins on disk and keeps what is replaced or removed'
   expect(plugin?.skills).toEqual(['marca'])
   await expect(removeSkill(root, 'kit:marca')).rejects.toThrow('remove the plugin')
   await expect(installPlugin(root, [text('kit/plugin.json', 'não é json')])).rejects.toThrow('not valid JSON')
+})
+
+test('installs a plugin zip whole, whichever button sent it', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'tsrs-ext-'))
+  const kit = [
+    text('kit/.claude-plugin/plugin.json', '{"name":"kit","version":"0.1.0"}'),
+    text('kit/skills/pulso/SKILL.md', '---\nname: pulso\ndescription: d\n---\n'),
+    text('kit/skills/pulso/beatmap.json', '{}'),
+    text('kit/commands/pulso.md', '---\ndescription: c\n---\nUse a skill.'),
+    text('kit/midia/trilha.md', 'ficha'),
+  ]
+  const made = await installExtension(root, kit)
+  expect(made.kind).toBe('plugin')
+  expect(made.commands.map((c: { name: string }) => c.name)).toEqual(['pulso'])
+  // Nothing of the kit is dropped, and no bare copy of its skill is made.
+  expect(await readFile(join(root, 'plugins', 'kit', 'midia', 'trilha.md'), 'utf8')).toBe('ficha')
+  expect((await listSkills(root)).map((s) => s.id)).toEqual(['kit:pulso'])
+
+  const skill = await installExtension(root, [text('s/SKILL.md', '---\nname: solta\ndescription: d\n---\n')])
+  expect(skill.kind).toBe('skill')
+  await expect(installExtension(root, [text('a.txt', 'x')])).rejects.toThrow('SKILL.md or plugin.json')
 })
 
 test('own tools: valid names, and HTTP calls with secrets kept out of the files', async () => {

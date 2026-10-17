@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { freeName, insideRoot, parseArgs } from '../render/render.mjs'
-import { audioExtension, safeStem, serveOptions } from '../render/serve.mjs'
+import { audioExtension, bringProjectFiles, safeStem, serveOptions } from '../render/serve.mjs'
 import { sameOrigin } from '../render/vite-plugin.mjs'
 
 test('reads the render options', () => {
@@ -61,4 +61,22 @@ test('inside the TSRS server, only TSRS itself may start a render', () => {
   expect(sameOrigin(req('POST', 'null'))).toBe(false)
   expect(sameOrigin(req('POST'))).toBe(false)
   expect(sameOrigin(req('GET', 'http://localhost:5174'))).toBe(false)
+})
+
+test('a page made in a project takes the files it names to the offline render', async () => {
+  const { mkdtemp, mkdir, writeFile, readFile } = await import('node:fs/promises')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const project = await mkdtemp(join(tmpdir(), 'tsrs-proj-'))
+  const into = await mkdtemp(join(tmpdir(), 'tsrs-work-'))
+  await mkdir(join(project, 'midia'), { recursive: true })
+  await mkdir(join(project, 'videos'), { recursive: true })
+  await writeFile(join(project, 'midia', 'logo.png'), 'png')
+  await writeFile(join(project, 'midia', 'nao-usado.png'), 'x')
+  await writeFile(join(project, 'videos', 'midia-antigo.mp4'), 'x')
+  await writeFile(join(project, 'fonte.woff2'), 'f')
+  await writeFile(join(project, 'logo'), 'palavra')
+  const html = '<img src="midia/logo.png"><style>@font-face{src:url("fonte.woff2")}</style><p>logo</p>'
+  expect((await bringProjectFiles(html, project, into)).sort()).toEqual(['fonte.woff2', 'midia/logo.png'])
+  expect(await readFile(join(into, 'midia', 'logo.png'), 'utf8')).toBe('png')
 })

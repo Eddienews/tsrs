@@ -3,11 +3,11 @@
 
 import { sameOrigin } from '../render/vite-plugin.mjs'
 import {
+  copyPluginMedia,
   examplesRoot,
   extensionsRoot,
   installExample,
-  installPlugin,
-  installSkill,
+  installExtension,
   listExamples,
   listPlugins,
   listSkills,
@@ -19,6 +19,7 @@ import {
   saveSkill,
   saveTool,
 } from './extensions.mjs'
+import { allowed, projectsRoot } from './projects.mjs'
 import { readPage, search } from './search.mjs'
 
 export const EXTENSIONS_PATH = '/__tsrs/ext'
@@ -59,10 +60,16 @@ export function extensionsHandler(root = extensionsRoot(), extra = async () => f
       }
       if (req.method !== 'POST') return false
       const job = await body(req)
-      if (path === '/skills/install') return send(res, 200, await installSkill(root, job.files ?? [])), true
+      if (path === '/skills/install' || path === '/plugins/install') {
+        return send(res, 200, await installExtension(root, job.files ?? [])), true
+      }
       if (path === '/skills/save') return send(res, 200, await saveSkill(root, job)), true
       if (path === '/skills/remove') return send(res, 200, { removed: await removeSkill(root, job.id) ?? job.id }), true
-      if (path === '/plugins/install') return send(res, 200, await installPlugin(root, job.files ?? [])), true
+      if (path === '/plugins/media') {
+        // Only into a folder TSRS made or the user chose for a conversation.
+        if (!(await allowed(projectsRoot(), job.project))) throw new Error('That is not a project folder.')
+        return send(res, 200, await copyPluginMedia(root, String(job.plugin ?? ''), job.project)), true
+      }
       if (path === '/examples/install') return send(res, 200, await installExample(root, examples, job.kind, job.id)), true
       if (path === '/plugins/remove') return send(res, 200, { removed: await removePlugin(root, job.id) ?? job.id }), true
       if (path === '/tools/save') return send(res, 200, await saveTool(root, job.tool ?? {})), true

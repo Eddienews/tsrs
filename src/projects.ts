@@ -165,6 +165,52 @@ export function historyLine(files: string[], who: string, date: Date): string {
   return `- ${date.toLocaleString('pt-BR')} · ${files.join(', ')} · ${who}\n`
 }
 
+// Where a file the user attached is kept in the project: midia/<its name>,
+// never over a file already there (logo.png, logo-2.png…).
+export function mediaName(name: string, taken: Set<string>): string {
+  const base = (name.split(/[\\/]/).pop() ?? '').replace(/[:*?"<>|\u0000-\u001f]/g, '-').trim() || 'arquivo'
+  const dot = base.lastIndexOf('.')
+  const [stem, ext] = dot > 0 ? [base.slice(0, dot), base.slice(dot)] : [base, '']
+  let candidate = `midia/${base}`
+  for (let n = 2; taken.has(candidate); n++) candidate = `midia/${stem}-${n}${ext}`
+  return candidate
+}
+
+// Soundtracks in the folder's midia/ (a kit's track, one the user saved there),
+// offered to a motion video beside the conversation's own audio.
+const AUDIO_FILE = /\.(mp3|wav|m4a|aac|ogg|oga|opus|flac)$/i
+const AUDIO_MIME: Record<string, string> = { wav: 'audio/wav', m4a: 'audio/mp4', aac: 'audio/aac', ogg: 'audio/ogg', oga: 'audio/ogg', opus: 'audio/ogg', flac: 'audio/flac' }
+
+export function audioInMedia(files: { name: string; size: number }[]): string[] {
+  return files.filter((f) => f.name.startsWith('midia/') && AUDIO_FILE.test(f.name) && f.size < 60 * 1024 * 1024).map((f) => f.name)
+}
+
+export async function projectTracks(project: string): Promise<{ id: string; name: string; mime: string; data: string }[]> {
+  const names = audioInMedia(await listFiles(project))
+  return Promise.all(
+    names.map(async (name) => {
+      const blob = await (await fetch(fileUrl(project, name))).blob()
+      const ext = name.split('.').pop()!.toLowerCase()
+      return { id: `project:${name}`, name: name.split('/').pop()!, mime: AUDIO_MIME[ext] ?? 'audio/mpeg', data: await base64(blob) }
+    }),
+  )
+}
+
+// Told to the model while the folder has media: what there is and how to use it.
+export function mediaNote(files: string[]): string {
+  const media = files.filter((f) => f.startsWith('midia/')).sort()
+  if (!media.length) return ''
+  const shown = media.slice(0, 60)
+  return (
+    `Files in the project's midia/ folder (images, audio and other files the user attached or a kit brought):\n` +
+    shown.map((f) => `- ${f}`).join('\n') +
+    (media.length > shown.length ? `\n- … and ${media.length - shown.length} more` : '') +
+    '\nPages and motion compositions in this folder can use them by that relative path ' +
+    '(src="midia/logo.png", url(midia/font.woff2)): the preview and the MP4 renderer find them. ' +
+    'Use the real file; do not redraw a logo or an image the user gave.'
+  )
+}
+
 // Told to the model while the conversation has a project folder.
 export function projectNote(project: ChatProject): string {
   return (

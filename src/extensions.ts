@@ -1,3 +1,4 @@
+import { t } from './i18n'
 import type { ToolCall, ToolDef, ToolResult } from './stream'
 import { localTools, type ToolSet } from './tools'
 import type { Settings } from './types'
@@ -120,6 +121,39 @@ export interface UploadFile {
   encoding?: 'base64' | 'text'
 }
 
+// Copies a plugin's midia/ (its kit files) into a project's midia/, keeping
+// what is already there; tells the model where they are.
+export async function copyPluginMedia(plugin: string, project: string): Promise<string> {
+  const { copied, kept } = await post<{ copied: string[]; kept: string[] }>('/plugins/media', { plugin, project })
+  const all = [...copied, ...kept].sort()
+  if (!all.length) return ''
+  return (
+    `The ${plugin} kit's files are in this conversation's project folder: ${all.join(', ')}. ` +
+    'Use them by these paths. ' +
+    (kept.length ? `Already there, kept as the user left them: ${kept.join(', ')}.` : '')
+  ).trim()
+}
+
+// What an install made: the server installs a plugin as a plugin and a skill
+// as a skill, whichever button sent it.
+export type Installed = ({ kind: 'skill' } & Skill) | ({ kind: 'plugin' } & Plugin)
+
+export async function installFiles(picked: File[]): Promise<Installed> {
+  return post<Installed>('/skills/install', { files: await filesToUpload(picked) })
+}
+
+// The line shown after an install; says so when it was not what the button asked for.
+export function installedNote(made: Installed, asked: Installed['kind']): string {
+  if (made.kind === 'plugin') {
+    return asked === 'plugin'
+      ? t('Plugin “{name}” instalado.', { name: made.name })
+      : t('Este arquivo é um plugin: “{name}” foi instalado inteiro, com comandos e arquivos, e está na aba Plugins.', { name: made.name })
+  }
+  return asked === 'skill'
+    ? t('Skill “{name}” instalada.', { name: made.name })
+    : t('Este arquivo é uma skill, não um plugin: “{name}” foi instalada na aba Skills.', { name: made.name })
+}
+
 // Reads what the user picked: a .zip or .skill (a zip), a single SKILL.md, or
 // the files of a folder (with their paths inside it).
 export async function filesToUpload(picked: File[]): Promise<UploadFile[]> {
@@ -200,7 +234,9 @@ export const SKILL_TOOLS: ToolDef[] = [
   },
 ]
 
-export function skillTools(): ToolSet {
+// `onLoad` runs when a skill is loaded; what it returns is added to what the
+// model reads (a kit's files placed in the project, for instance).
+export function skillTools(onLoad?: (skill: Skill) => Promise<string>): ToolSet {
   return localTools(SKILL_TOOLS, 'Skill', async (call: ToolCall): Promise<ToolResult> => {
     const input = (call.input ?? {}) as { name?: string; file?: string }
     try {
@@ -208,7 +244,8 @@ export function skillTools(): ToolSet {
       if (call.name === 'skill_load') {
         const skill = await readSkill(input.name)
         const files = skill.files.length ? `\n\nFiles of this skill:\n${skill.files.map((f) => `- ${f}`).join('\n')}` : ''
-        return { content: skill.body + files, isError: false }
+        const extra = onLoad ? await onLoad(skill).catch((error) => `(${error instanceof Error ? error.message : String(error)})`) : ''
+        return { content: skill.body + files + (extra ? `\n\n${extra}` : ''), isError: false }
       }
       if (!input.file) return { content: 'Say which file.', isError: true }
       return { content: await readSkillFile(input.name, input.file), isError: false }

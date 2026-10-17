@@ -11,3 +11,4 @@ export function safeStem(name: string): string
 export function audioExtension(name: string): string | null
 export function defaultFolder(): string
 export function startRenderServer(config: ServeOptions, log?: (line: string) => void): Promise<Server>
+export function bringProjectFiles(html: string, project: string, into: string): Promise<string[]>
