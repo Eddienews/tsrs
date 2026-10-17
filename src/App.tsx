@@ -34,7 +34,7 @@ import {
 } from './autoBackup'
 import BackupOffer from './BackupOffer'
 import { setLanguage, t } from './i18n'
-import { PreviewContext } from './Markdown'
+import { FileContext, PreviewContext } from './Markdown'
 import MessageView, { ContextReset } from './MessageView'
 import ParamsPanel from './ParamsPanel'
 import { forget } from './mcp'
@@ -1254,7 +1254,8 @@ export default function App() {
   // A page or motion composition the model saved in the folder becomes (or
   // updates) its own tab, so the preview and the MP4 follow the file and not an
   // older block of the conversation.
-  async function followFiles(chatId: string, project: string, written: string[]) {
+  async function followFiles(chatId: string, project: string, written: string[], show = false): Promise<boolean> {
+    let opened = false
     for (const name of written) {
       if (!/\.(html?|svg)$/i.test(name)) continue
       let code: string
@@ -1273,11 +1274,13 @@ export default function App() {
         return at < 0 ? [...list, artifact] : list.map((a, i) => (i === at ? artifact : a))
       })
       setArtifactId(artifact.id)
-      if (settingsRef.current.autoPreview) {
+      opened = true
+      if (show || settingsRef.current.autoPreview) {
         setShowCanvas(false)
         setShowPreview(true)
       }
     }
+    return opened
   }
 
   // Opening an empty panel shows the conversation's latest previewable block.
@@ -2345,6 +2348,17 @@ export default function App() {
     (code: string, lang: string) => latest.current.showArtifact(lang.toLowerCase(), code),
     [],
   )
+  // A page of the folder named in a reply opens in the preview as that file.
+  const openFile = useMemo(
+    () =>
+      projectPath
+        ? (file: string) => {
+            const chatId = liveRef.current.activeId
+            if (chatId) void latest.current.followFiles(chatId, projectPath, [file], true)
+          }
+        : null,
+    [projectPath],
+  )
 
   useEffect(() => {
     function shortcut(event: KeyboardEvent) {
@@ -2748,6 +2762,7 @@ export default function App() {
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6">
             {!messages && <p className="text-sm text-muted-foreground">{t('Carregando…')}</p>}
             <PreviewContext.Provider value={openPreview}>
+            <FileContext.Provider value={openFile}>
               {messages?.map((m, index) =>
                 m.contextReset ? (
                   <ContextReset key={m.id} busy={streaming} onUndo={() => undoClearContext(m.id)} />
@@ -2775,6 +2790,7 @@ export default function App() {
                 />
                 ),
               )}
+            </FileContext.Provider>
             </PreviewContext.Provider>
           </div>
         )}

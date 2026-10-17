@@ -210,6 +210,8 @@ export async function startMockProvider(): Promise<MockProvider> {
       ? ['"Saudação ', 'inicial".']
       : toolReply
         ? [`A ferramenta respondeu: ${toolReply.content}${pictures ? ` (com ${pictures} imagens)` : ''}`]
+        : typeof last.content === 'string' && last.content.startsWith('responda: ')
+          ? [last.content.slice('responda: '.length)]
         : String(last.content).includes('componente')
           ? ['Aqui:\n\n', '```tsx\n' + COMPONENT + '\n```\n\n```mermaid\ngraph TD\n  A[Início] --> B[Fim]\n```']
           : String(last.content).includes('site do NWLab')

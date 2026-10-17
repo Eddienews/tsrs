@@ -1,8 +1,9 @@
-import { Check, ChevronRight, FileDown, Globe, Loader2, Plug, ShieldQuestion, X } from 'lucide-react'
-import { useState } from 'react'
+import { Check, ChevronRight, FileDown, Globe, Loader2, PanelRightOpen, Plug, ShieldQuestion, X } from 'lucide-react'
+import { useContext, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { t } from './i18n'
+import { FileContext, PREVIEW_FILE } from './Markdown'
 import type { ToolPart } from './types'
 
 const PROVIDER_ICONS: Record<string, typeof Globe> = { web_search: Globe, web_fetch: FileDown }
@@ -13,6 +14,17 @@ interface Props {
   onApprove: (callId: string, allowed: boolean) => void
 }
 
+function savedPage(part: ToolPart): string | null {
+  if (part.status !== 'done' || part.error) return null
+  if (part.name !== 'project_write_file' && part.name !== 'project_edit_file') return null
+  try {
+    const file = String((JSON.parse(part.input || '{}') as { file?: unknown }).file ?? '')
+    return PREVIEW_FILE.test(file) ? file.replace(/^\.\//, '') : null
+  } catch {
+    return null
+  }
+}
+
 export default function ToolCallBlock({ part, onApprove }: Props) {
   const waiting = part.status === 'approval'
   const failed = part.status === 'done' && !!part.error
@@ -21,6 +33,9 @@ export default function ToolCallBlock({ part, onApprove }: Props) {
   const open = toggled ?? (waiting || failed)
   const Icon = (part.provider && PROVIDER_ICONS[part.name]) || Plug
   const hasInput = !!part.input && part.input !== '{}'
+  // A page the model saved or edited in the folder: one click opens it in the preview.
+  const openFile = useContext(FileContext)
+  const saved = savedPage(part)
 
   return (
     <div
@@ -81,6 +96,13 @@ export default function ToolCallBlock({ part, onApprove }: Props) {
               </pre>
             </div>
           )}
+        </div>
+      )}
+      {saved && openFile && (
+        <div className="flex items-center gap-2 border-t px-3 py-1.5">
+          <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" onClick={() => openFile(saved)}>
+            <PanelRightOpen className="size-3.5" /> {t('Abrir {name} no preview', { name: saved })}
+          </Button>
         </div>
       )}
       {waiting && (

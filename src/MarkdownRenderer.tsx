@@ -12,7 +12,7 @@ import ReactMarkdown, { type Options } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
 import { t } from './i18n'
-import { PreviewContext, useCopy } from './Markdown'
+import { FileContext, PREVIEW_FILE, PreviewContext, useCopy } from './Markdown'
 import { previewable } from './preview'
 
 const remarkPlugins = [remarkGfm]
@@ -89,7 +89,32 @@ function CodeBlock({ node, children, ...props }: ComponentProps<'pre'> & { node?
   )
 }
 
-const components = { pre: CodeBlock }
+// A file name written as code (`motion-filme.html`) in a conversation with a
+// folder opens that file in the preview.
+function InlineCode({ node, className, children, ...props }: ComponentProps<'code'> & { node?: unknown }) {
+  const openFile = useContext(FileContext)
+  const name = typeof children === 'string' ? children.trim() : ''
+  if (className || !openFile || !PREVIEW_FILE.test(name)) {
+    return (
+      <code className={className} {...props}>
+        {children}
+      </code>
+    )
+  }
+  return (
+    <button
+      type="button"
+      className="file-link inline-flex items-center gap-1 rounded align-baseline hover:underline"
+      title={t('Abrir {name} no preview', { name })}
+      onClick={() => openFile(name.replace(/^\.\//, ''))}
+    >
+      <code {...props}>{children}</code>
+      <PanelRightOpen className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+    </button>
+  )
+}
+
+const components = { pre: CodeBlock, code: InlineCode }
 
 export default function MarkdownRenderer({ content }: { content: string }) {
   const rehypePlugins = useRehypePlugins()
