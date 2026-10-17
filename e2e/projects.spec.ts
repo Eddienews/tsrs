@@ -9,6 +9,7 @@ import {
   listFiles,
   openProject,
   projectFile,
+  editText,
   readText,
   slug,
   writeFiles,
@@ -68,4 +69,22 @@ test('only TSRS itself may use the project folders', async ({ request }) => {
   expect(raw.status()).toBe(404)
   const health = await request.get('/__tsrs/projects/health')
   expect((await health.json()).root).toContain('tsrs-e2e-projects')
+})
+
+test('a piece of a file is replaced only where it is, and only once', async () => {
+  const project = await mkdtemp(join(tmpdir(), 'tsrs-edit-'))
+  await writeFiles(project, [{ name: 'motion.html', content: '<h1>CTA</h1>\n<p>a</p>\n<p>a</p>\n' }])
+  expect(await editText(project, 'motion.html', '<h1>CTA</h1>', '<h1>Comece já</h1>')).toEqual({ replaced: 1, size: 38 })
+  expect(await readText(project, 'motion.html')).toBe('<h1>Comece já</h1>\n<p>a</p>\n<p>a</p>\n')
+  await expect(editText(project, 'motion.html', '<p>a</p>', '<p>b</p>')).rejects.toThrow('appears 2 times')
+  expect((await editText(project, 'motion.html', '<p>a</p>', '<p>b</p>', true)).replaced).toBe(2)
+  await expect(editText(project, 'motion.html', '<h1>CTA</h1>', 'x')).rejects.toThrow('not in motion.html')
+  await expect(editText(project, '../fora.html', 'a', 'b')).rejects.toThrow('No file named')
+  // A file saved with Windows line ends still takes an edit written with \n.
+  await writeFiles(project, [{ name: 'win.html', content: '<a>\r\n<b>\r\n' }])
+  await editText(project, 'win.html', '<a>\n<b>', '<a>\n<c>')
+  expect(await readText(project, 'win.html')).toBe('<a>\r\n<c>\r\n')
+  // $ in the new text is written as it is.
+  await editText(project, 'win.html', '<c>', '$&$1')
+  expect(await readText(project, 'win.html')).toBe('<a>\r\n$&$1\r\n')
 })

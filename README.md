@@ -219,7 +219,12 @@ saves it in the project folder.
 A composition is an ordinary HTML page. Size, duration and frame rate come from
 `<meta name="nwlab:size" content="1080x1920">`,
 `<meta name="nwlab:duration" content="8">` and
-`<meta name="nwlab:fps" content="30">`. The runtime (`public/motion/runtime.js`)
+`<meta name="nwlab:fps" content="30">`; `<meta name="nwlab:audio" content="midia/song.mp3">`
+picks the soundtrack among the audio files of the project folder (otherwise the
+audio file the code names, else the newest one). A composition saved in the
+project folder (by the model's project tools) opens in the preview as that file
+and follows it as it is edited, so **Make MP4** always renders the file on disk.
+The runtime (`public/motion/runtime.js`)
 loads before the page's own scripts and moves it to each time `t`:
 
 - CSS animations, transitions and Web Animations are paused and set to `t`;

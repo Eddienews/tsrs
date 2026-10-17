@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import {
   artifactName,
+  fileLang,
   lastPreviewable,
   normalizeUrl,
   previewDocument,
@@ -86,4 +87,12 @@ test('a page from a project folder finds its pictures there', () => {
   expect(doc).toMatch(/<head><base href="http:\/\/localhost:5173\/__tsrs\/projects\/raw\/abc\/">/)
   // Without a folder, nothing changes.
   expect(previewDocument('html', '<p>oi</p>')).not.toContain('<base')
+})
+
+test('a file of the folder shows as a motion video, a page or a drawing', () => {
+  expect(fileLang('motion-launch-pulse.html', '<meta name="nwlab:duration" content="15">')).toBe('motion')
+  expect(fileLang('a.html', '<script>NWLab.onSeek((t) => draw(t))</script>')).toBe('motion')
+  expect(fileLang('index.html', '<!doctype html><h1>oi</h1>')).toBe('html')
+  expect(fileLang('logo.svg', '<svg></svg>')).toBe('svg')
+  expect(fileLang('NOTAS.md', '# x')).toBeNull()
 })

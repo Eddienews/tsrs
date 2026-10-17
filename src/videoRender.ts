@@ -13,6 +13,25 @@ export interface Track {
   data: string
 }
 
+// The soundtrack a composition asks for: the file in its
+// <meta name="nwlab:audio" content="midia/song.mp3">, else an audio file its code
+// names (a kit's track), else the first one offered.
+export function soundtrackFor<T extends { name: string }>(code: string, tracks: T[]): T | undefined {
+  const base = (path: string) => path.replace(/\\/g, '/').split('/').pop()!.toLowerCase()
+  const asked = /<meta\b[^>]*\bname\s*=\s*["']?nwlab:audio["']?[^>]*>/i.exec(code)?.[0]
+  const wanted = asked && /\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(asked)
+  const file = wanted ? base(wanted[1] ?? wanted[2] ?? wanted[3]) : ''
+  const lower = code.toLowerCase()
+  const named = (name: string) => {
+    const n = name.toLowerCase()
+    for (let at = lower.indexOf(n); at >= 0; at = lower.indexOf(n, at + 1)) {
+      if (!/[\w.-]/.test(lower[at - 1] ?? '') && !/[\w-]/.test(lower[at + n.length] ?? '')) return true
+    }
+    return false
+  }
+  return (file && tracks.find((t) => t.name.toLowerCase() === file)) || tracks.find((t) => named(t.name)) || tracks[0]
+}
+
 export interface RenderProgress {
   frame: number
   frames: number

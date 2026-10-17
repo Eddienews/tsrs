@@ -38,7 +38,7 @@ import { PreviewContext } from './Markdown'
 import MessageView, { ContextReset } from './MessageView'
 import ParamsPanel from './ParamsPanel'
 import { forget } from './mcp'
-import { artifactName, lastPreviewable, withPreviewHint, type Artifact } from './preview'
+import { artifactName, fileLang, lastPreviewable, withPreviewHint, type Artifact } from './preview'
 import { chatTracks, trackBlob, trackFileName, type Track } from './videoRender'
 import { ownSearch, webToolSet, withSources } from './webSearch'
 import { agentFor, folderNote } from './folders'
@@ -58,6 +58,7 @@ import {
 } from './extensions'
 import {
   PROJECT_TOOLS,
+  fileUrl,
   copyFiles,
   filesFromReply,
   historyLine,
@@ -521,6 +522,8 @@ export default function App() {
   // Pending writes of a canvas being typed in, by chat id.
   const canvasSaves = useRef(new Map<string, ReturnType<typeof setTimeout>>())
   const artifactCount = useRef(0)
+  // Files the project tools saved during the reply being written, by chat id.
+  const turnWrites = useRef(new Map<string, Set<string>>())
   // MCP servers that could not be reached for the last reply.
   const [toolProblems, setToolProblems] = useState<string[]>([])
   // Whether the user was already told why files could not be saved to a folder.
@@ -1248,6 +1251,35 @@ export default function App() {
     setShowPreview(true)
   }
 
+  // A page or motion composition the model saved in the folder becomes (or
+  // updates) its own tab, so the preview and the MP4 follow the file and not an
+  // older block of the conversation.
+  async function followFiles(chatId: string, project: string, written: string[]) {
+    for (const name of written) {
+      if (!/\.(html?|svg)$/i.test(name)) continue
+      let code: string
+      try {
+        const res = await fetch(fileUrl(project, name), { cache: 'no-store' })
+        if (!res.ok) continue
+        code = await res.text()
+      } catch {
+        continue
+      }
+      const lang = fileLang(name, code)
+      if (!lang || chatId !== liveRef.current.activeId) continue
+      const artifact: Artifact = { id: crypto.randomUUID(), name, lang, code, file: name }
+      setArtifacts((list) => {
+        const at = list.findIndex((a) => a.file === name)
+        return at < 0 ? [...list, artifact] : list.map((a, i) => (i === at ? artifact : a))
+      })
+      setArtifactId(artifact.id)
+      if (settingsRef.current.autoPreview) {
+        setShowCanvas(false)
+        setShowPreview(true)
+      }
+    }
+  }
+
   // Opening an empty panel shows the conversation's latest previewable block.
   function togglePreview() {
     if (showPreview) return setShowPreview(false)
@@ -1661,10 +1693,14 @@ export default function App() {
       }
     }
 
-    // The files the reply made go to the conversation's folder.
+    // The files the reply made go to the conversation's folder. When the model
+    // saved files itself, only blocks that name their file are saved (no
+    // motion.html copy beside the composition it wrote).
+    const toolWrote = !!turnWrites.current.get(meta.id)?.size
+    turnWrites.current.delete(meta.id)
     if (completed && !targets && !media && settings.projects !== false && !meta.temporary) {
       const reply = threadsRef.current[meta.id]?.find((m) => m.id === first.id)
-      const files = reply ? filesFromReply(reply.content) : []
+      const files = reply ? filesFromReply(reply.content, toolWrote) : []
       if (files.length) void saveToProject(meta.id, files, usings[0].model)
     }
 
@@ -1814,6 +1850,10 @@ export default function App() {
       const project = findMeta(chatId)?.project ?? (call.name.startsWith('project_write') ? await ensureProject(chatId) : undefined)
       if (!project) return { content: 'This conversation has no project folder yet: nothing has been saved in it.', isError: true }
       return runProjectTool(project, call, (written) => {
+        const wrote = turnWrites.current.get(chatId) ?? new Set<string>()
+        written.forEach((name) => wrote.add(name))
+        turnWrites.current.set(chatId, wrote)
+        void latest.current.followFiles(chatId, project.path, written)
         void saveFiles(project.path, [{ name: 'NOTAS.md', content: historyLine(written, who, new Date()), append: true }])
       })
     })
@@ -2287,6 +2327,7 @@ export default function App() {
     switchTo,
     toggleVersions,
     showArtifact,
+    followFiles,
     selectChat,
     togglePreview,
     forkChat,

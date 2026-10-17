@@ -579,6 +579,23 @@ test('a conversation can start in a folder that already exists, with its DESIGN.
   // The project tools are offered from the start, and write into the folder.
   await send(page, 'chame project_write_file {"file":"notas-extra.md","content":"ok"}')
   await expect.poll(() => readFile(join(folder, 'notas-extra.md'), 'utf8').catch(() => '')).toBe('ok')
+
+  // A composition the model saves opens as that file, and follows its edits:
+  // the preview and Gerar MP4 are always the file on disk.
+  const film = '<meta name=\\"nwlab:duration\\" content=\\"3\\"><meta name=\\"nwlab:size\\" content=\\"640x360\\"><h1>CTA velho</h1>'
+  await send(page, `chame project_write_file {"file":"filme.html","content":"${film}"}`)
+  await expect.poll(() => readFile(join(folder, 'filme.html'), 'utf8').catch(() => '')).toContain('CTA velho')
+  await page.locator('.toolbar').getByRole('button', { name: 'Preview', exact: true }).click()
+  const panel = page.locator('.preview')
+  await expect(panel.getByRole('tab', { name: 'filme.html', selected: true })).toBeVisible()
+  await expect(panel).toContainText('640×360 · 30 fps')
+  await expect(panel.frameLocator('iframe').locator('h1')).toHaveText('CTA velho')
+  // The kit's song in midia/ is the soundtrack.
+  await expect(panel.getByRole('combobox', { name: 'Trilha' }).locator('option:checked')).toHaveText('trilha.mp3')
+  await send(page, 'chame project_edit_file {"file":"filme.html","old_text":"CTA velho","new_text":"CTA novo"}')
+  await expect.poll(() => readFile(join(folder, 'filme.html'), 'utf8')).toContain('<h1>CTA novo</h1>')
+  await expect(panel.getByRole('tab', { name: 'filme.html' })).toHaveCount(1)
+  await expect(panel.frameLocator('iframe').locator('h1')).toHaveText('CTA novo')
 })
 
 test('a folder gives its conversations instructions, files and an agent', async ({ page }) => {

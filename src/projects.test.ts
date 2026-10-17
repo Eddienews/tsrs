@@ -33,6 +33,12 @@ test('a whole page, drawing or video is a file even without a name', () => {
   expect(filesFromReply(page).map((f) => f.name)).toEqual(['index.html', 'styles.css', 'script.js'])
 })
 
+test('when the model saved files itself, an unnamed block is not saved again', () => {
+  const reply = [fence('motion', '<h1>x</h1>'), fence('css site.css', 'h1{}')].join('\n')
+  expect(filesFromReply(reply).map((f) => f.name)).toEqual(['motion.html', 'site.css'])
+  expect(filesFromReply(reply, true).map((f) => f.name)).toEqual(['site.css'])
+})
+
 test('a snippet in an explanation is not a project', () => {
   expect(filesFromReply(fence('html', '<button>OK</button>'))).toEqual([])
   expect(filesFromReply(fence('js', 'const x = 1'))).toEqual([])

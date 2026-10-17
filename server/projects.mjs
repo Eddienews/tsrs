@@ -13,8 +13,15 @@
 //   POST /stock/search   {"provider","key","query","orientation"?,"count"?}   {"clips":[...]}
 //   POST /stock/download {"path","url","name"}   {"name","size"}
 //   GET  /list?path=                    {"files":[{"name","size","modified"}]}
-//   GET  /read?path=&file=              {"content"}
-//   GET  /raw/<base64url path>/<file>   the file itself, for the preview
+//   POST /edit   {"path","file","old","new","all"?}   {"replaced","size"}
+//   GET  /read?path=&file=              {"content"}: text files up to 512 KB
+//   GET  /raw/<base64url path>/<file>   the file itself, any size, for the preview
+//                                       and the renderer. <base64url path> is the
+//                                       folder's absolute path, UTF-8, base64url
+//                                       with no padding; <file> is the path inside
+//                                       it, URL-encoded segment by segment.
+// Paths with .. or .git in them are never read or written; /list leaves out
+// node_modules, .git and build folders (SKIP), and stops at 1000 files.
 //   POST /design/...                    open images, looking at a page, the
 //                                       art direction draw (design.mjs)
 //   POST /ui/search, /ui/add            React components from cult/ui (components.mjs)
@@ -191,6 +198,32 @@ export async function readText(project, name) {
   return bytes.toString('utf8')
 }
 
+// Replaces `old` with `new` in a text file of the project: once, unless `all`.
+// The text must be there exactly, and only once when not `all`, so an edit
+// made on an old copy of the file fails instead of landing in the wrong place.
+export async function editText(project, name, old, next, all = false) {
+  const file = projectFile(project, String(name ?? ''))
+  if (!file || !existsSync(file)) throw new Error(`No file named ${name} in the project.`)
+  if (typeof old !== 'string' || !old) throw new Error('Give the text to replace.')
+  if (typeof next !== 'string') throw new Error('Give the text to put in its place.')
+  if (old === next) throw new Error('The new text is the same as the old.')
+  const bytes = await readFile(file)
+  if (bytes.includes(0)) throw new Error(`${name} is not a text file.`)
+  const text = bytes.toString('utf8')
+  // Files saved on Windows may end their lines with \r\n.
+  let [from, to] = [old, next]
+  if (!text.includes(from) && text.includes('\r\n')) {
+    ;[from, to] = [old.replace(/\r?\n/g, '\r\n'), next.replace(/\r?\n/g, '\r\n')]
+  }
+  const count = text.split(from).length - 1
+  if (!count) throw new Error(`The text to replace is not in ${name}. Read the file again: it may have changed.`)
+  if (count > 1 && !all)
+    throw new Error(`The text to replace appears ${count} times in ${name}. Give more of the text around it, or set all.`)
+  const edited = all ? text.split(from).join(to) : text.replace(from, () => to)
+  await writeFile(file, edited, 'utf8')
+  return { replaced: all ? count : 1, size: Buffer.byteLength(edited) }
+}
+
 export async function copyProject(from, to) {
   const copied = []
   for (const file of await listFiles(from)) {
@@ -259,6 +292,10 @@ export function projectsHandler(root = projectsRoot()) {
       if (path === '/write') {
         if (!(await allowed(root, job.path))) return send(res, 403, { error: 'Not a project folder.' }), true
         return send(res, 200, { written: await writeFiles(job.path, job.files) }), true
+      }
+      if (path === '/edit') {
+        if (!(await allowed(root, job.path))) return send(res, 403, { error: 'Not a project folder.' }), true
+        return send(res, 200, await editText(job.path, job.file, job.old, job.new, !!job.all)), true
       }
       // Stock video for short videos: searched with the user's key, saved in midia/stock/.
       if (path === '/stock/search') return send(res, 200, { clips: await searchStock(job) }), true

@@ -59,6 +59,17 @@ export async function listFiles(project: string) {
   return (await call<{ files: { name: string; size: number; modified: number }[] }>(`/list?${query}`)).files
 }
 
+// Replaces a piece of a text file, in the folder itself (server/projects.mjs editText).
+export async function editFile(
+  project: string,
+  file: string,
+  old: string,
+  next: string,
+  all = false,
+): Promise<{ replaced: number; size: number }> {
+  return post('/edit', { path: project, file, old, new: next, all })
+}
+
 export async function readFile(project: string, file: string): Promise<string> {
   const query = new URLSearchParams({ path: project, file })
   return (await call<{ content: string }>(`/read?${query}`)).content
@@ -118,7 +129,10 @@ export function fenceName(info: string): string | null {
 // The files a reply carries: blocks that name their file, and blocks of the
 // kinds that are files on their own (a page, its styles, a script, a motion
 // video). The last block with a name wins, as the newest version of it.
-export function filesFromReply(markdown: string): SavedFile[] {
+// `onlyNamed` keeps only the blocks that name their file: when the reply also
+// saved files with the project tools, an unnamed block is a copy of one of
+// them, not a file of its own.
+export function filesFromReply(markdown: string, onlyNamed = false): SavedFile[] {
   const blocks = [...markdown.matchAll(FENCE)].map((m) => ({
     lang: m[2].toLowerCase(),
     named: fenceName(m[3]),
@@ -133,7 +147,7 @@ export function filesFromReply(markdown: string): SavedFile[] {
   const page = blocks.some((b) => b.named || whole(b))
   const files = new Map<string, string>()
   for (const block of blocks) {
-    const name = block.named ?? (whole(block) || page ? DEFAULT_NAMES[block.lang] : undefined)
+    const name = block.named ?? (!onlyNamed && (whole(block) || page) ? DEFAULT_NAMES[block.lang] : undefined)
     if (name) files.set(name, block.code)
   }
   return [...files].map(([name, content]) => ({ name, content }))
@@ -217,7 +231,12 @@ export function projectNote(project: ChatProject): string {
     `This conversation has a project folder on the user's computer: ${project.path}. ` +
     'Its files are the current version of the work and may have been changed outside this ' +
     'chat (by the user, Claude Code, Codex…), so read a file with project_read_file before ' +
-    'changing it, and save complete files with project_write_file. For a Word document or a ' +
+    'changing it. To change part of a file, use project_edit_file with the exact text to ' +
+    'replace: it is far cheaper than writing the whole file again, and fails safely when the ' +
+    'file changed. Write complete files with project_write_file only for new files or a ' +
+    'rewrite. A page or motion composition saved in the folder opens in the preview by itself, ' +
+    'and the MP4 is made from that file: after saving or editing it, do not repeat its code in ' +
+    'the reply; say what changed. For a Word document or a ' +
     'PowerPoint presentation, use project_write_word or project_write_powerpoint. Code blocks you write that ' +
     'name a file after the language (```html index.html) are saved there too. Keep NOTAS.md ' +
     'up to date with what the project is and the decisions taken.'
@@ -277,6 +296,24 @@ export const PROJECT_TOOLS: ToolDef[] = [
         content: { type: 'string', description: 'The whole file.' },
       },
       required: ['file', 'content'],
+    },
+  },
+  {
+    name: 'project_edit_file',
+    description:
+      'Change part of a text file in the project folder: replaces old_text with new_text. ' +
+      'old_text must be copied exactly from the file (spaces and line breaks included) and ' +
+      'appear only once, unless all is true; include a line or two around the change to make ' +
+      'it unique. Use this for adjustments instead of writing the whole file again.',
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', description: 'Path inside the project, such as index.html.' },
+        old_text: { type: 'string', description: 'The exact text to replace.' },
+        new_text: { type: 'string', description: 'The text to put in its place (empty to delete it).' },
+        all: { type: 'boolean', description: 'Replace every occurrence, not only one.' },
+      },
+      required: ['file', 'old_text', 'new_text'],
     },
   },
   {
@@ -359,6 +396,9 @@ export async function runProjectTool(
     markdown?: string
     theme?: 'light' | 'dark'
     slides?: { title?: string; bullets?: string[]; notes?: string }[]
+    old_text?: string
+    new_text?: string
+    all?: boolean
   }
   try {
     if (call.name === 'project_list_files') {
@@ -404,6 +444,17 @@ export async function runProjectTool(
       const written = await saveFiles(project.path, [{ name, content: await officeBytes(bytes), encoding: 'base64' }])
       onWrite(written)
       return { content: `Saved ${written.join(', ')} with ${slides.length + (input.title ? 1 : 0)} slides.`, isError: false }
+    }
+    if (call.name === 'project_edit_file') {
+      if (/\.(docx|pptx)$/i.test(input.file)) {
+        return { content: 'Word and PowerPoint files are rewritten whole, with project_write_word or project_write_powerpoint.', isError: true }
+      }
+      const { replaced, size } = await editFile(project.path, input.file, input.old_text ?? '', input.new_text ?? '', !!input.all)
+      onWrite([input.file])
+      return {
+        content: `Edited ${input.file}: ${replaced === 1 ? '1 replacement' : `${replaced} replacements`}, ${size} bytes now.`,
+        isError: false,
+      }
     }
     if (call.name === 'project_write_file') {
       const written = await saveFiles(project.path, [{ name: input.file, content: input.content ?? '' }])
