@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { fenceName, filesFromReply, historyLine, projectNote, projectNotes } from './projects'
+import { fenceName, filesFromReply, historyLine, pathIn, projectNote, projectNotes } from './projects'
 
 const fence = (info: string, code: string) => '```' + info + '\n' + code + '\n```'
 
@@ -53,4 +53,14 @@ test('the notes tell whoever carries on what the project is', () => {
   const note = projectNote({ path: 'C:\\Users\\eddie\\projetos\\site', name: 'site' })
   expect(note).toContain('C:\\Users\\eddie\\projetos\\site')
   expect(note).toContain('project_read_file')
+})
+
+test('the saved path reads like the user\'s own file manager', () => {
+  expect(pathIn('C:\\Users\\eddie\\projetos\\Conversa', 'midia/video.mp4')).toBe(
+    'C:\\Users\\eddie\\projetos\\Conversa\\midia\\video.mp4',
+  )
+  expect(pathIn('C:/Users/eddie/projetos/Conversa/', 'midia/video.mp4')).toBe(
+    'C:\\Users\\eddie\\projetos\\Conversa\\midia\\video.mp4',
+  )
+  expect(pathIn('/home/eddie/projetos/Conversa', 'midia/video.mp4')).toBe('/home/eddie/projetos/Conversa/midia/video.mp4')
 })

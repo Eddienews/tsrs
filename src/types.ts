@@ -21,6 +21,8 @@ export interface Attachment {
   // not kept) and its length in seconds. Its sound goes in `transcript`.
   frames?: { at: number; data: string }[]
   duration?: number
+  // Generated media: where the copy in the conversation's folder was written.
+  savedPath?: string
 }
 
 // What a media generation produces.

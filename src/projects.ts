@@ -71,6 +71,16 @@ function base64url(text: string): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
+// A file of the folder as the user's file manager writes it: Windows folders
+// get backslashes throughout.
+export function pathIn(folder: string, file: string): string {
+  const windows = /^[A-Za-z]:[\\/]|\\/.test(folder)
+  const sep = windows ? '\\' : '/'
+  const parts = file.split('/').filter(Boolean)
+  const base = folder.replace(/[\\/]+$/, '')
+  return [windows ? base.replace(/\//g, '\\') : base, ...parts].join(sep)
+}
+
 // The address the preview opens a project file at.
 export function fileUrl(project: string, file: string): string {
   const path = file.split('/').map(encodeURIComponent).join('/')
