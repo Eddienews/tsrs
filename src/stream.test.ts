@@ -81,6 +81,16 @@ describe('streamChat, OpenAI format', () => {
     ])
   })
 
+  it('asks Elorian for room to think, without a temperature', async () => {
+    const fetch = stubFetch(sse(['data: [DONE]\n\n']))
+    await collect(
+      request('elorian', { params: { temperature: 0.2, maxTokens: 8000, effort: 'medium' } }),
+    )
+    const body = sentBody(fetch) as Record<string, unknown>
+    expect(body).toMatchObject({ max_completion_tokens: 8000, reasoning_effort: 'medium' })
+    expect(body).not.toHaveProperty('temperature')
+  })
+
   it('sends system prompt, parameters and auth header', async () => {
     const fetch = stubFetch(sse(['data: [DONE]\n\n']))
     await collect(
