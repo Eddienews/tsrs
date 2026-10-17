@@ -1224,6 +1224,10 @@ test('generates video and audio with media services and keeps the files', async 
   await expect
     .poll(async () => (await readdir(join(folder, 'midia')).catch(() => [])).filter((f) => f.endsWith('.mp4')).length)
     .toBe(1)
+  // And the reply says where, with the path ready to copy.
+  const saved = (await readdir(join(folder, 'midia'))).find((f) => f.endsWith('.mp4'))!
+  await expect(reply(page).locator('.saved-path')).toContainText(`Salvo em ${join(folder, 'midia', saved)}`)
+  await expect(reply(page).getByRole('button', { name: 'Copiar caminho' })).toBeVisible()
   const submit = sent[0]
   expect(submit.url).toBe('https://queue.fal.run/fal-ai/kling-video/v3/standard/text-to-video')
   expect(submit.headers.authorization).toBe('Key fal-key')
@@ -1247,6 +1251,7 @@ test('generates video and audio with media services and keeps the files', async 
   await page.reload()
   await chatRow(page, 'ondas na praia').click()
   await expect(reply(page).first().locator('video')).toHaveAttribute('src', 'data:video/mp4;base64,AQID')
+  await expect(reply(page).first().locator('.saved-path')).toContainText(join(folder, 'midia', saved))
 })
 
 // A tenth of a second of silence, as a WAV file the browser can play.

@@ -390,6 +390,7 @@ function MessageView(props: Props) {
               >
                 <Download className="size-4" />
               </a>
+              {a.savedPath && <SavedPath path={a.savedPath} />}
               {!a.data && a.url && (
                 <p className="mt-1 text-xs text-muted-foreground">
                   {t('O arquivo não pôde ser baixado para o app; fica no link do serviço, que pode expirar.')}
@@ -716,5 +717,27 @@ function AttachedVideo({ video }: { video: Attachment }) {
         <span className="text-muted-foreground">{t('Sem transcrição: o modelo só viu os quadros.')}</span>
       )}
     </div>
+  )
+}
+
+// Where generated media was written in the conversation's folder, to find it
+// outside the app.
+function SavedPath({ path }: { path: string }) {
+  const [copied, copy] = useCopy()
+  return (
+    <p className="saved-path mt-1 flex max-w-full items-center gap-1 text-xs text-muted-foreground">
+      <span className="min-w-0 break-all" title={path}>
+        {t('Salvo em {path}', { path })}
+      </span>
+      <button
+        type="button"
+        className="shrink-0 rounded p-1 hover:bg-surface-2"
+        aria-label={t('Copiar caminho')}
+        title={t('Copiar caminho')}
+        onClick={() => copy(path)}
+      >
+        {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+      </button>
+    </p>
   )
 }

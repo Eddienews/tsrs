@@ -66,6 +66,7 @@ import {
   projectsRoot,
   runProjectTool,
   saveFiles,
+  pathIn,
   type SavedFile,
 } from './projects'
 import { CANVAS_NOTE, CANVAS_TOOLS, newCanvas, runCanvasTool, undo, withCanvas } from './canvas'
@@ -1408,12 +1409,21 @@ export default function App() {
           ...(made.url && !made.data ? { url: made.url } : {}),
         }
         // The file is kept in the conversation's folder too, in midia/.
+        // Once written, the reply says where, so the file can be found outside the app.
         if (made.data && settings.projects !== false && !meta.temporary) {
           void saveToProject(
             meta.id,
             [{ name: `midia/${attachment.name}`, content: made.data, encoding: 'base64' }],
             sourceName(job.target.source),
-          )
+          ).then((saved) => {
+            const file = saved?.written[0]
+            if (!saved || !file) return
+            const savedPath = pathIn(saved.path, file)
+            patchReply((m) => ({
+              ...m,
+              attachments: m.attachments?.map((a) => (a.id === attachment.id ? { ...a, savedPath } : a)),
+            }))
+          })
         }
         patchReply((m) => ({
           ...m,
@@ -1676,19 +1686,27 @@ export default function App() {
   }
 
   // Saves files into the conversation's folder and notes it in NOTAS.md.
-  async function saveToProject(chatId: string, files: SavedFile[], who: string) {
+  // Resolves to the folder and the names written there, or nothing when the
+  // files could not be saved (the user is told why).
+  async function saveToProject(
+    chatId: string,
+    files: SavedFile[],
+    who: string,
+  ): Promise<{ path: string; written: string[] } | undefined> {
     try {
       if (!findMeta(chatId)?.project && !(await projectsRoot())) {
-        return warnProject(
+        warnProject(
           t(
             'Os arquivos desta conversa não foram salvos numa pasta: abra o TSRS pelo npm run dev na pasta do projeto para isso.',
           ),
         )
+        return
       }
       const project = await ensureProject(chatId)
       if (!project) return
       const written = await saveFiles(project.path, files)
       await saveFiles(project.path, [{ name: 'NOTAS.md', content: historyLine(written, who, new Date()), append: true }])
+      return { path: project.path, written }
     } catch (err) {
       warnProject(
         t('Os arquivos desta conversa não foram salvos na pasta: {error}', {

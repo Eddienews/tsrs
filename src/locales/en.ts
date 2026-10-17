@@ -576,6 +576,7 @@ export const en: Record<string, string> = {
     'To make the video, TSRS must be open through {dev} in the project folder (or with the {serve} renderer running).',
   'Baixar {name}': 'Download {name}',
   'Salvo em {path}': 'Saved to {path}',
+  'Copiar caminho': 'Copy path',
   'O MP4 é feito no seu computador, quadro a quadro, e fica salvo na pasta renders do TSRS.':
     'The MP4 is made on your computer, frame by frame, and saved in the renders folder of TSRS.',
   'Se a página ficar em branco, o site não permite ser exibido dentro de outros aplicativos.':
