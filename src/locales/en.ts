@@ -1150,4 +1150,19 @@ export const en: Record<string, string> = {
   'Interpretador de JavaScript e gráficos': 'JavaScript interpreter and charts',
   'O modelo roda JavaScript para contas exatas, análise de dados (os CSVs e planilhas anexados à conversa) e gráficos, que aparecem na resposta. O código roda isolado, neste navegador: sem internet e sem acesso às suas chaves ou conversas.':
     'The model runs JavaScript for exact math, data analysis (the CSVs and spreadsheets attached to the conversation) and charts, which show in the reply. The code runs isolated, in this browser: no internet and no access to your keys or conversations.',
+  'Este arquivo é um plugin: “{name}” foi instalado inteiro, com comandos e arquivos, e está na aba Plugins.':
+    'This file is a plugin: “{name}” was installed whole, with its commands and files, and is in the Plugins tab.',
+  'Este arquivo é uma skill, não um plugin: “{name}” foi instalada na aba Skills.':
+    'This file is a skill, not a plugin: “{name}” was installed in the Skills tab.',
+  'Remover a skill {name}': 'Remove the skill {name}',
+  'anexo do usuário': 'user attachment',
+  'Pasta do projeto: ainda não criada': 'Project folder: not made yet',
+  'Esta conversa ainda não tem pasta. Ela é criada em {root} quando o primeiro arquivo for salvo.':
+    'This conversation has no folder yet. It is made in {root} when the first file is saved.',
+  'Para trabalhar num projeto que já existe (com DESIGN.md e midia/), escolha a pasta dele abaixo antes de começar.':
+    'To work on a project that already exists (with DESIGN.md and midia/), pick its folder below before you start.',
+  'Criar a pasta agora': 'Make the folder now',
+  'Usar uma pasta que já existe': 'Use a folder that already exists',
+  'A conversa passa a ler e gravar nela, inclusive o DESIGN.md e a pasta midia/.':
+    'The conversation then reads and writes there, DESIGN.md and the midia/ folder included.',
 }

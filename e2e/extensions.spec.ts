@@ -260,3 +260,37 @@ test('installs the skills and plugins that come with TSRS', async ({ page, reque
   await expect(card).toContainText('revisor-tecnico')
   for (const tool of ['cambio', 'clima', 'contar_palavras', 'feriados', 'wikipedia']) await expect(card).toContainText(tool)
 })
+
+test('a plugin zip sent to the skill button is installed whole, and its kit files reach the project', async ({ page, request }) => {
+  const root = (await (await request.get('/__tsrs/ext/health')).json()).root as string
+  await connect(page)
+  await openExtensions(page)
+  // Sent to the skills button: the server sees a plugin and installs all of it.
+  await page.getByLabel('Instalar .zip, .skill ou SKILL.md').setInputFiles({
+    name: 'kit-pulso.zip',
+    mimeType: 'application/zip',
+    buffer: zip({
+      'kit-pulso/.claude-plugin/plugin.json': JSON.stringify({ name: 'kit-pulso', version: '0.1.0' }),
+      'kit-pulso/skills/pulso/SKILL.md': '---\nname: pulso\ndescription: Filme de lançamento\n---\n\nUse midia/trilha.md.',
+      'kit-pulso/commands/pulso.md': '---\ndescription: Gera o filme\n---\n\nCarregue a skill kit-pulso:pulso.',
+      'kit-pulso/midia/trilha.md': 'BPM 120',
+    }),
+  })
+  await expect(page.getByRole('status')).toContainText('Este arquivo é um plugin: “kit-pulso” foi instalado inteiro')
+  await expect(page.locator('[data-skill="kit-pulso:pulso"]')).toContainText('plugin kit-pulso')
+  // A plugin's skill has no remove button of its own; the user's skills have one on the row.
+  await expect(page.getByLabel('Remover a skill pulso')).toHaveCount(0)
+  await expect(page.getByLabel('Remover a skill resposta-curta')).toBeVisible()
+  await page.getByRole('tab', { name: 'Plugins' }).click()
+  await expect(page.locator('[data-plugin="kit-pulso"]')).toContainText('/pulso')
+  expect(await readFile(join(root, 'plugins', 'kit-pulso', 'midia', 'trilha.md'), 'utf8')).toBe('BPM 120')
+  await page.keyboard.press('Escape')
+
+  // Loading the kit's skill in a conversation puts its files in the conversation's folder.
+  await send(page, 'chame skill_load {"name":"kit-pulso:pulso"}')
+  await expect(reply(page).last()).toContainText('midia/trilha.md')
+  const button = page.locator('.toolbar .project')
+  await expect(button).toHaveAttribute('title', /^Pasta do projeto: (?!ainda não criada)/)
+  const folder = (await button.getAttribute('title'))!.replace(/^Pasta do projeto: /, '')
+  expect(await readFile(join(folder, 'midia', 'trilha.md'), 'utf8')).toBe('BPM 120')
+})

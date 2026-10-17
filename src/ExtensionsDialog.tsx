@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { ChevronDown, ChevronRight, FolderUp, Plus, Upload } from 'lucide-react'
+import { ChevronDown, ChevronRight, FolderUp, Plus, Trash2, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -8,8 +8,9 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import {
   extensionsRoot,
-  filesToUpload,
   installExample,
+  installedNote,
+  installFiles,
   listExamples,
   listPlugins,
   listSkills,
@@ -140,8 +141,7 @@ function SkillsTab(p: Props & { skills: Skill[]; reload: () => void; setNote: (n
     if (!files.length) return
     setBusy(true)
     try {
-      const skill = await post<Skill>('/skills/install', { files: await filesToUpload(files) })
-      p.setNote(t('Skill “{name}” instalada.', { name: skill.name }))
+      p.setNote(installedNote(await installFiles(files), 'skill'))
       p.reload()
     } catch (err) {
       p.setNote(err instanceof Error ? err.message : String(err))
@@ -201,6 +201,23 @@ function SkillsTab(p: Props & { skills: Skill[]; reload: () => void; setNote: (n
                 <p className={hint}>{t('{count} arquivos de apoio', { count: skill.files.length })}</p>
               )}
             </div>
+            {/* Removing is right on the row, not behind the arrow; a plugin's skill goes with its plugin. */}
+            {skill.source === 'user' && (
+              <Button
+                size="icon"
+                variant="ghost"
+                className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
+                aria-label={t('Remover a skill {name}', { name: skill.name })}
+                title={t('Remover')}
+                onClick={async () => {
+                  if (!confirm(t('Remover a skill “{name}”? Ela vai para extensoes/_removidas.', { name: skill.name }))) return
+                  await post('/skills/remove', { id: skill.id })
+                  p.reload()
+                }}
+              >
+                <Trash2 className="size-3.5" />
+              </Button>
+            )}
             <Switch
               aria-label={t('Usar a skill {name}', { name: skill.name })}
               checked={!off.has(skill.id)}
@@ -218,18 +235,6 @@ function SkillsTab(p: Props & { skills: Skill[]; reload: () => void; setNote: (n
                     onClick={async () => setEditing(await readSkill(skill.id))}
                   >
                     {t('Editar')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-destructive"
-                    onClick={async () => {
-                      if (!confirm(t('Remover a skill “{name}”? Ela vai para extensoes/_removidas.', { name: skill.name }))) return
-                      await post('/skills/remove', { id: skill.id })
-                      p.reload()
-                    }}
-                  >
-                    {t('Remover')}
                   </Button>
                 </div>
               )}
@@ -326,8 +331,7 @@ function PluginsTab(p: Props & { plugins: Plugin[]; reload: () => void; setNote:
     if (!files.length) return
     setBusy(true)
     try {
-      const plugin = await post<Plugin>('/plugins/install', { files: await filesToUpload(files) })
-      p.setNote(t('Plugin “{name}” instalado.', { name: plugin.name }))
+      p.setNote(installedNote(await installFiles(files), 'plugin'))
       p.reload()
     } catch (err) {
       p.setNote(err instanceof Error ? err.message : String(err))

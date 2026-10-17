@@ -4,6 +4,7 @@ import {
   Copy,
   Eraser,
   FolderOpen,
+  FolderPlus,
   Menu,
   MessageSquareDashed,
   NotebookPen,
@@ -67,6 +68,10 @@ interface Props {
   onToggleCanvas: () => void
   // The folder where the conversation saves its files, once it has one.
   project?: ChatProject
+  // Where new folders are made; absent when this TSRS cannot save folders.
+  projectsRoot?: string
+  // Makes the conversation's folder now; absent before the conversation exists.
+  onCreateProject?: () => Promise<void>
   onOpenUrl: (url: string, name: string) => void
   onMoveProject: (path: string) => Promise<void>
   // The conversation is temporary, or the next one will be.
@@ -158,11 +163,15 @@ function PriceButton(p: Pick<Props, 'settings' | 'provider' | 'onPrice'>) {
   )
 }
 
-// The conversation's folder: where it is, what is in it, and moving it.
+// The conversation's folder: where it is, what is in it, and moving it. Before
+// it has one, it says where it will be and lets the user pick a folder of their
+// own (a project with its DESIGN.md and midia/) or make it right away.
 function ProjectButton(p: {
-  project: ChatProject
+  project?: ChatProject
+  root: string
   onOpenUrl: Props['onOpenUrl']
   onMoveProject: Props['onMoveProject']
+  onCreateProject?: () => Promise<void>
 }) {
   const [open, setOpen] = useState(false)
   const [files, setFiles] = useState<{ name: string; size: number }[] | null>(null)
@@ -170,99 +179,122 @@ function ProjectButton(p: {
   const [path, setPath] = useState('')
   const [moving, setMoving] = useState(false)
   const [copied, setCopied] = useState(false)
+  const project = p.project
   useEffect(() => {
     if (!open) return
     setFiles(null)
     setError('')
-    listFiles(p.project.path)
+    if (!project) return
+    listFiles(project.path)
       .then(setFiles)
       .catch((err) => setError(err instanceof Error ? err.message : String(err)))
-  }, [open, p.project.path])
+  }, [open, project?.path])
   const pages = (files ?? []).filter((f) => /\.(html?|svg)$/i.test(f.name))
+  const run = async (job: () => Promise<void>) => {
+    setMoving(true)
+    setError('')
+    try {
+      await job()
+      setPath('')
+      setOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setMoving(false)
+    }
+  }
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
           size="sm"
-          className="project h-8 max-w-48 gap-1.5 text-xs"
-          title={t('Pasta do projeto: {path}', { path: p.project.path })}
+          className={cn('project h-8 max-w-48 gap-1.5 text-xs', !project && 'text-muted-foreground')}
+          title={project ? t('Pasta do projeto: {path}', { path: project.path }) : t('Pasta do projeto: ainda não criada')}
         >
-          <FolderOpen className="size-3.5 shrink-0" />
-          <span className="truncate">{p.project.name}</span>
+          {project ? <FolderOpen className="size-3.5 shrink-0" /> : <FolderPlus className="size-3.5 shrink-0" />}
+          <span className="truncate">{project ? project.name : t('Pasta')}</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-96 space-y-3 text-xs">
-        <div className="space-y-1">
-          <p className="font-medium">{t('Pasta do projeto')}</p>
-          <div className="flex items-center gap-1">
-            <code className="min-w-0 flex-1 select-all break-all rounded bg-code px-2 py-1 font-mono text-[11px]">
-              {p.project.path}
-            </code>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7 shrink-0"
-              aria-label={t('Copiar o caminho')}
-              title={copied ? t('Copiado') : t('Copiar o caminho')}
-              onClick={() => {
-                void navigator.clipboard.writeText(p.project.path)
-                setCopied(true)
-                setTimeout(() => setCopied(false), 1500)
-              }}
-            >
-              <Copy className="size-3.5" />
-            </Button>
-          </div>
-          <p className="text-muted-foreground">
-            {t(
-              'Os arquivos que a conversa cria ficam aqui. Abra esta pasta no Claude Code, no Codex ou num editor para continuar; o TSRS lê a versão atual.',
-            )}
-          </p>
-        </div>
-        <div className="space-y-1">
-          <p className="font-medium">{t('Arquivos')}</p>
-          {error && <p className="text-destructive">{error}</p>}
-          {!files && !error && <p className="text-muted-foreground">{t('Carregando…')}</p>}
-          {files && files.length === 0 && <p className="text-muted-foreground">{t('Ainda vazia.')}</p>}
-          <ul className="max-h-40 space-y-0.5 overflow-y-auto font-mono text-[11px]">
-            {(files ?? []).map((f) => (
-              <li key={f.name} className="flex items-center gap-2">
-                <span className="min-w-0 flex-1 truncate">{f.name}</span>
-                {pages.includes(f) && (
-                  <button
-                    className="shrink-0 text-primary underline-offset-2 hover:underline"
-                    onClick={() => {
-                      p.onOpenUrl(fileUrl(p.project.path, f.name), f.name)
-                      setOpen(false)
-                    }}
-                  >
-                    {t('Abrir no preview')}
-                  </button>
+        {project ? (
+          <>
+            <div className="space-y-1">
+              <p className="font-medium">{t('Pasta do projeto')}</p>
+              <div className="flex items-center gap-1">
+                <code className="min-w-0 flex-1 select-all break-all rounded bg-code px-2 py-1 font-mono text-[11px]">
+                  {project.path}
+                </code>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 shrink-0"
+                  aria-label={t('Copiar o caminho')}
+                  title={copied ? t('Copiado') : t('Copiar o caminho')}
+                  onClick={() => {
+                    void navigator.clipboard.writeText(project.path)
+                    setCopied(true)
+                    setTimeout(() => setCopied(false), 1500)
+                  }}
+                >
+                  <Copy className="size-3.5" />
+                </Button>
+              </div>
+              <p className="text-muted-foreground">
+                {t(
+                  'Os arquivos que a conversa cria ficam aqui. Abra esta pasta no Claude Code, no Codex ou num editor para continuar; o TSRS lê a versão atual.',
                 )}
-              </li>
-            ))}
-          </ul>
-        </div>
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="font-medium">{t('Arquivos')}</p>
+              {!files && !error && <p className="text-muted-foreground">{t('Carregando…')}</p>}
+              {files && files.length === 0 && <p className="text-muted-foreground">{t('Ainda vazia.')}</p>}
+              <ul className="max-h-40 space-y-0.5 overflow-y-auto font-mono text-[11px]">
+                {(files ?? []).map((f) => (
+                  <li key={f.name} className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                    {pages.includes(f) && (
+                      <button
+                        className="shrink-0 text-primary underline-offset-2 hover:underline"
+                        onClick={() => {
+                          p.onOpenUrl(fileUrl(project.path, f.name), f.name)
+                          setOpen(false)
+                        }}
+                      >
+                        {t('Abrir no preview')}
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </>
+        ) : (
+          <div className="space-y-2">
+            <p className="font-medium">{t('Pasta do projeto')}</p>
+            <p className="text-muted-foreground">
+              {t('Esta conversa ainda não tem pasta. Ela é criada em {root} quando o primeiro arquivo for salvo.', { root: p.root })}
+            </p>
+            <p className="text-muted-foreground">
+              {t('Para trabalhar num projeto que já existe (com DESIGN.md e midia/), escolha a pasta dele abaixo antes de começar.')}
+            </p>
+            {p.onCreateProject && (
+              <Button size="sm" variant="outline" className="h-8" disabled={moving} onClick={() => run(p.onCreateProject!)}>
+                {t('Criar a pasta agora')}
+              </Button>
+            )}
+          </div>
+        )}
+        {error && <p className="text-destructive">{error}</p>}
         <form
           className="space-y-1"
-          onSubmit={async (e) => {
+          onSubmit={(e) => {
             e.preventDefault()
-            if (!path.trim()) return
-            setMoving(true)
-            setError('')
-            try {
-              await p.onMoveProject(path.trim())
-              setPath('')
-              setOpen(false)
-            } catch (err) {
-              setError(err instanceof Error ? err.message : String(err))
-            } finally {
-              setMoving(false)
-            }
+            if (path.trim()) void run(() => p.onMoveProject(path.trim()))
           }}
         >
-          <p className="font-medium">{t('Usar outra pasta')}</p>
+          <p className="font-medium">{project ? t('Usar outra pasta') : t('Usar uma pasta que já existe')}</p>
           <div className="flex gap-1">
             <Input
               aria-label={t('Caminho da outra pasta')}
@@ -275,7 +307,9 @@ function ProjectButton(p: {
               {t('Usar')}
             </Button>
           </div>
-          <p className="text-muted-foreground">{t('Os arquivos atuais são copiados para lá.')}</p>
+          <p className="text-muted-foreground">
+            {project ? t('Os arquivos atuais são copiados para lá.') : t('A conversa passa a ler e gravar nela, inclusive o DESIGN.md e a pasta midia/.')}
+          </p>
         </form>
       </PopoverContent>
     </Popover>
@@ -446,8 +480,14 @@ export default function ChatTopBar(p: Props) {
         </DropdownMenu>
       )}
       <div className="ml-auto flex flex-wrap items-center gap-1">
-        {p.project && (
-          <ProjectButton project={p.project} onOpenUrl={p.onOpenUrl} onMoveProject={p.onMoveProject} />
+        {p.projectsRoot && (
+          <ProjectButton
+            project={p.project}
+            root={p.projectsRoot}
+            onOpenUrl={p.onOpenUrl}
+            onMoveProject={p.onMoveProject}
+            onCreateProject={p.onCreateProject}
+          />
         )}
         {spent.tokens > 0 && (
           <div

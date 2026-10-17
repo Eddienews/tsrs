@@ -22,12 +22,12 @@
 //   GET  /video/<id>    the MP4
 
 import { randomUUID } from 'node:crypto'
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { copyFile, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { basename, dirname, extname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { allowed, projectsRoot } from '../server/projects.mjs'
+import { allowed, projectFile, projectsRoot } from '../server/projects.mjs'
 import { freeName, render } from './render.mjs'
 import { renderShort } from './short.mjs'
 
@@ -54,6 +54,44 @@ export function serveOptions(argv) {
   }
   if (!out.origins.length) out.origins = DEFAULT_ORIGINS
   return out
+}
+
+// The project's files a page names by their path in the folder (src="midia/logo.png",
+// url(midia/font.woff2), "midia/trilha.mp3" in a script), copied beside the page
+// so the offline render finds them as the preview does. Only files inside the
+// project, and only the ones the page names.
+export async function bringProjectFiles(html, project, into) {
+  const files = []
+  const skip = new Set(['node_modules', '.git', 'videos'])
+  async function walk(dir, rel, depth) {
+    if (depth > 4 || files.length > 2000) return
+    let entries = []
+    try {
+      entries = await readdir(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      if (entry.name.startsWith('.') || skip.has(entry.name)) continue
+      const name = rel ? `${rel}/${entry.name}` : entry.name
+      if (entry.isDirectory()) await walk(join(dir, entry.name), name, depth + 1)
+      else if (entry.isFile()) files.push(name)
+    }
+  }
+  await walk(project, '', 0)
+  // A file in a subfolder is named by its path; one at the top only when quoted
+  // whole, so a word in the text is not taken for a file.
+  const quoted = (name) => [`"${name}"`, `'${name}'`, `(${name})`].some((q) => html.includes(q))
+  const named = files.filter((name) =>
+    name.includes('/') ? html.includes(name) || html.includes(encodeURI(name)) : quoted(name),
+  )
+  for (const name of named) {
+    const target = projectFile(into, name)
+    if (!target) continue
+    await mkdir(dirname(target), { recursive: true })
+    await copyFile(join(project, ...name.split('/')), target)
+  }
+  return named
 }
 
 // A name safe for a file on Windows, macOS and Linux, without its extension.
@@ -166,11 +204,14 @@ export function renderHandler(config, log = console.log) {
         audio = join(work, `track${extension}`)
         await writeFile(audio, Buffer.from(job.audio.data, 'base64'))
       }
-      // A conversation with a project folder keeps its videos there, in videos/.
-      const into =
-        typeof job.project === 'string' && (await allowed(projectsRoot(), job.project))
-          ? join(job.project, 'videos')
-          : config.folder
+      // A conversation with a project folder keeps its videos there, in videos/,
+      // and its page may use the folder's files (midia/logo.png).
+      const inProject = typeof job.project === 'string' && (await allowed(projectsRoot(), job.project))
+      if (inProject) {
+        const brought = await bringProjectFiles(job.html, job.project, work)
+        if (brought.length) log(`with ${brought.length} file(s) of the project: ${brought.join(', ')}`)
+      }
+      const into = inProject ? join(job.project, 'videos') : config.folder
       await mkdir(into, { recursive: true })
       const lufs = Number.isFinite(job.lufs) ? Math.min(-5, Math.max(-40, job.lufs)) : -14
       log(`rendering ${stem}${audio ? ` with ${job.audio.name}` : ''}`)

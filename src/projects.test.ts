@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { fenceName, filesFromReply, historyLine, pathIn, projectNote, projectNotes } from './projects'
+import { fenceName, filesFromReply, historyLine, mediaName, mediaNote, pathIn, projectNote, projectNotes } from './projects'
 
 const fence = (info: string, code: string) => '```' + info + '\n' + code + '\n```'
 
@@ -63,4 +63,20 @@ test('the saved path reads like the user\'s own file manager', () => {
     'C:\\Users\\eddie\\projetos\\Conversa\\midia\\video.mp4',
   )
   expect(pathIn('/home/eddie/projetos/Conversa', 'midia/video.mp4')).toBe('/home/eddie/projetos/Conversa/midia/video.mp4')
+})
+
+test('attached files go to midia/ without replacing what is there', () => {
+  const taken = new Set(['midia/logo.png', 'midia/logo-2.png'])
+  expect(mediaName('logo.png', taken)).toBe('midia/logo-3.png')
+  expect(mediaName('C:\\fakepath\\trilha.mp3', taken)).toBe('midia/trilha.mp3')
+  expect(mediaName('a:b?.png', new Set())).toBe('midia/a-b-.png')
+  expect(mediaName('', new Set())).toBe('midia/arquivo')
+})
+
+test('the model is told what is in midia/ and to use the real files', () => {
+  expect(mediaNote(['index.html', 'NOTAS.md'])).toBe('')
+  const note = mediaNote(['midia/logo.png', 'index.html', 'midia/launch-pulse-trilha.mp3'])
+  expect(note).toContain('- midia/launch-pulse-trilha.mp3\n- midia/logo.png')
+  expect(note).toContain('src="midia/logo.png"')
+  expect(note).toContain('do not redraw a logo')
 })

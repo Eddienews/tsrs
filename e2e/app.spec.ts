@@ -60,6 +60,12 @@ async function send(page: Page, text: string) {
   await expect(page.getByRole('button', { name: 'Enviar' })).toBeVisible()
 }
 
+// The conversation's folder, once it has one (before that the button says it is not made yet).
+async function projectFolder(button: ReturnType<Page['locator']>): Promise<string> {
+  await expect(button).toHaveAttribute('title', /^Pasta do projeto: (?!ainda não criada)/)
+  return (await button.getAttribute('title'))!.replace(/^Pasta do projeto: /, '')
+}
+
 async function chatMenu(page: Page, title: string, item: string | RegExp) {
   await chatRow(page, title).getByTitle('Opções').click()
   await page.getByRole('menuitem', { name: item }).click()
@@ -443,7 +449,7 @@ test('saves the files of a conversation into its own folder, and carries on from
   // while there is none yet), with the files and the notes.
   const button = page.locator('.toolbar .project')
   await expect(button).toContainText(/^(saudacao-inicial|crie-o-site-do-nwlab)(-\d+)?$/)
-  const folder = (await button.getAttribute('title'))!.replace(/^Pasta do projeto: /, '')
+  const folder = await projectFolder(button)
   expect(folder).toContain('tsrs-e2e-projects')
   await expect.poll(() => readFile(join(folder, 'index.html'), 'utf8').catch(() => '')).toContain('NorthWind Lab')
   expect(await readFile(join(folder, 'styles.css'), 'utf8')).toBe('h1 { color: rgb(220, 80, 0) }')
@@ -506,7 +512,7 @@ test('the folder tools are there from the first message, and make the folder whe
   await send(page, 'chame inspect_page {"file":"index.html"}')
   // Offered before the conversation had a folder.
   const names = provider.chats.at(-2)!.body.tools.map((t: any) => t.function.name)
-  expect(names).toEqual(expect.arrayContaining(['find_images', 'get_image', 'inspect_page', 'ui_component_add']))
+  expect(names).toEqual(expect.arrayContaining(['find_images', 'get_image', 'inspect_page', 'ui_component_add', 'project_write_file']))
   await expect(reply(page).last()).toContainText('No page named index.html')
   await expect(page.locator('.toolbar .project')).toBeVisible()
 })
@@ -516,7 +522,7 @@ test('a reply\'s page in the preview finds its pictures in the project folder', 
   await send(page, 'crie o site do NWLab')
   const button = page.locator('.toolbar .project')
   await expect(button).toBeVisible()
-  const folder = (await button.getAttribute('title'))!.replace(/^Pasta do projeto: /, '')
+  const folder = await projectFolder(button)
   await mkdir(join(folder, 'imagens'), { recursive: true })
   // A 1×1 PNG.
   await writeFile(join(folder, 'imagens', 'p.png'), Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==', 'base64'))
@@ -538,7 +544,41 @@ test('a snippet in an explanation does not make a project folder', async ({ page
   await connect(page)
   await send(page, 'primeira')
   await expect(reply(page)).toContainText('Resposta 1.')
-  await expect(page.locator('.toolbar .project')).toHaveCount(0)
+  // The folder button says where the folder would go, but none was made.
+  await expect(page.locator('.toolbar .project')).toHaveAttribute('title', 'Pasta do projeto: ainda não criada')
+})
+
+test('a conversation can start in a folder that already exists, with its DESIGN.md and midia/', async ({ page }) => {
+  await connect(page)
+  const folder = await mkdtemp(join(tmpdir(), 'tsrs-kit-'))
+  await mkdir(join(folder, 'midia'), { recursive: true })
+  await writeFile(join(folder, 'DESIGN.md'), '# Marca\n\nLaranja #dc5000.')
+  await writeFile(join(folder, 'midia', 'trilha.mp3'), Buffer.from('ID3'))
+
+  // Picked before the first message: the very first request already reads it.
+  const button = page.locator('.toolbar .project')
+  await expect(button).toHaveAttribute('title', 'Pasta do projeto: ainda não criada')
+  await button.click()
+  await expect(page.getByText('Esta conversa ainda não tem pasta.')).toBeVisible()
+  await page.getByLabel('Caminho da outra pasta').fill(folder)
+  await page.getByRole('button', { name: 'Usar', exact: true }).click()
+  await expect(button).toHaveAttribute('title', `Pasta do projeto: ${folder}`)
+
+  // An image attached with the message is kept in midia/, beside what was there.
+  await page.locator('.composer input[type=file]').setInputFiles([
+    { name: 'logo.png', mimeType: 'image/png', buffer: Buffer.from([137, 80, 78, 71]) },
+  ])
+  await send(page, 'faça o filme')
+  const system = provider.chats[0].body.messages[0].content
+  expect(system).toContain(`project folder on the user's computer: ${folder}`)
+  expect(system).toContain('<design_md>\n# Marca\n\nLaranja #dc5000.\n</design_md>')
+  expect(system).toContain('- midia/logo.png\n- midia/trilha.mp3')
+  expect(system).toContain('do not redraw a logo')
+  expect([...(await readFile(join(folder, 'midia', 'logo.png')))]).toEqual([137, 80, 78, 71])
+  await expect.poll(() => readFile(join(folder, 'NOTAS.md'), 'utf8').catch(() => '')).toContain('midia/logo.png · anexo do usuário')
+  // The project tools are offered from the start, and write into the folder.
+  await send(page, 'chame project_write_file {"file":"notas-extra.md","content":"ok"}')
+  await expect.poll(() => readFile(join(folder, 'notas-extra.md'), 'utf8').catch(() => '')).toBe('ok')
 })
 
 test('a folder gives its conversations instructions, files and an agent', async ({ page }) => {
@@ -605,7 +645,7 @@ test('own web search: any model searches and reads pages, and deep research save
   await expect(page.getByPlaceholder(/Escreva sua mensagem/)).toBeVisible()
   const button = page.locator('.toolbar .project')
   await expect(button).toBeVisible()
-  const folder = (await button.getAttribute('title'))!.replace(/^Pasta do projeto: /, '')
+  const folder = await projectFolder(button)
   await expect
     .poll(async () => ((await readdir(join(folder, 'pesquisas')).catch(() => [])) as string[]).length)
     .toBe(1)
@@ -1119,7 +1159,7 @@ test('makes a short video: narration with word times, stock clips, captions and 
     await expect(reply(page).last()).toContainText('captions timed by voice')
 
     const button = page.locator('.toolbar .project')
-    const folder = (await button.getAttribute('title'))!.replace(/^Pasta do projeto: /, '')
+    const folder = await projectFolder(button)
     expect(await readdir(join(folder, 'videos'))).toContain('tsrs.mp4')
     expect(await readdir(join(folder, 'midia'))).toEqual(expect.arrayContaining(['tsrs-narracao.mp3', 'stock']))
     const credits = await readFile(join(folder, 'CREDITOS.md'), 'utf8')
@@ -1220,7 +1260,7 @@ test('generates video and audio with media services and keeps the files', async 
     timeout: 15_000,
   })
   // The video is kept in the conversation's folder too.
-  const folder = (await page.locator('.toolbar .project').getAttribute('title'))!.replace(/^Pasta do projeto: /, '')
+  const folder = await projectFolder(page.locator('.toolbar .project'))
   await expect
     .poll(async () => (await readdir(join(folder, 'midia')).catch(() => [])).filter((f) => f.endsWith('.mp4')).length)
     .toBe(1)
