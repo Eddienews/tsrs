@@ -129,7 +129,16 @@ export const en: Record<string, string> = {
   'Chaves protegidas por senha e desbloqueadas.': 'Keys protected by a password and unlocked.',
   'Bloquear agora': 'Lock now',
   'Remover proteção': 'Remove protection',
-  'Chaves protegidas por senha e bloqueadas.': 'Keys protected by a password and locked.',
+  'Chaves protegidas por senha e bloqueadas. Para remover a senha, desbloqueie primeiro.':
+    'Keys protected by a password and locked. To remove the password, unlock first.',
+  'Sem senha: as chaves ficam em texto puro neste navegador.':
+    'No password: the keys are kept in plain text in this browser.',
+  'Senha criada. As chaves agora ficam criptografadas.':
+    'Password set. The keys are now stored encrypted.',
+  'Remover a senha? As chaves passam a ficar em texto puro neste navegador.':
+    'Remove the password? The keys will be kept in plain text in this browser.',
+  'Senha removida. Não é preciso digitar nada abaixo: o formulário só serve para proteger de novo.':
+    'Password removed. Nothing to type below: the form is only for protecting the keys again.',
   'Apagar todas as chaves salvas e remover a senha?':
     'Erase all saved keys and remove the password?',
   'Esqueci a senha': 'Forgot password',
