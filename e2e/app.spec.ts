@@ -883,6 +883,39 @@ test('keeps API keys encrypted behind a password', async ({ page }) => {
   await expect(page.getByLabel('Token (opcional)')).toHaveValue('tok-mcp')
 })
 
+test('removes the password protection after unlocking', async ({ page }) => {
+  await connect(page, 'sk-secret')
+  await openSettings(page, 'Segurança')
+  await page.getByPlaceholder('Senha', { exact: true }).fill('correta')
+  await page.getByPlaceholder('Repita a senha').fill('correta')
+  await page.getByRole('button', { name: 'Proteger' }).click()
+  await expect(page.getByText('protegidas por senha e desbloqueadas')).toBeVisible()
+
+  await page.reload()
+  const unlock = page.locator('.dialog.narrow')
+  await unlock.getByPlaceholder('Senha').fill('correta')
+  await unlock.getByRole('button', { name: 'Desbloquear' }).click()
+  await expect(unlock).toBeHidden()
+
+  await openSettings(page, 'Segurança')
+  page.once('dialog', (dialog) => dialog.accept())
+  await page.getByRole('button', { name: 'Remover proteção' }).click()
+  // The form that follows only protects again; the note says so.
+  await expect(page.getByRole('status').filter({ hasText: 'Senha removida.' })).toBeVisible()
+  await expect(page.getByText('Sem senha: as chaves ficam em texto puro')).toBeVisible()
+  await expect
+    .poll(() =>
+      page.evaluate(() => JSON.parse(localStorage.getItem('tsrs:settings')!).vault ?? null),
+    )
+    .toBeNull()
+  await page.reload()
+  await expect(page.locator('.dialog.narrow')).toHaveCount(0)
+  await openSettings(page, 'Provedores')
+  await expect(page.locator('[data-provider=custom]').getByLabel(/Chave de API/)).toHaveValue(
+    'sk-secret',
+  )
+})
+
 test('a second tab does not undo the password protection', async ({ page, context }) => {
   await connect(page, 'sk-secret')
   const other = await context.newPage()

@@ -134,6 +134,9 @@ export default function SettingsDialog(props: Props) {
   const [password, setPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
   const [visible, setVisible] = useState(false)
+  // Says what just changed in the key security, since the form that follows
+  // a removal looks like a request for the password again.
+  const [vaultNote, setVaultNote] = useState('')
   // Providers whose API key is currently shown in clear text.
   const [shownKeys, setShownKeys] = useState<string[]>([])
   // Per-provider status line for the "load models" action.
@@ -522,8 +525,19 @@ export default function SettingsDialog(props: Props) {
             {section === 'security' && (
               <div className="space-y-4">
                 <h3 className="text-sm font-medium">{t('Segurança das chaves')}</h3>
+                {vaultNote && (
+                  <p
+                    role="status"
+                    className="rounded-md border border-emerald-600/40 bg-emerald-600/10 p-3 text-sm"
+                  >
+                    {vaultNote}
+                  </p>
+                )}
                 {!settings.vault && (
                   <>
+                    <p className="text-sm">
+                      {t('Sem senha: as chaves ficam em texto puro neste navegador.')}
+                    </p>
                     <p className={hint}>
                       {t(
                         'Sem proteção, as chaves ficam no localStorage deste navegador em texto puro. Com uma senha, elas são gravadas criptografadas e pedidas uma vez a cada abertura do app.',
@@ -563,6 +577,7 @@ export default function SettingsDialog(props: Props) {
                           await props.onEnableVault(password)
                           setPassword('')
                           setConfirmation('')
+                          setVaultNote(t('Senha criada. As chaves agora ficam criptografadas.'))
                         }}
                       >
                         <Lock className="size-3.5" />
@@ -576,11 +591,34 @@ export default function SettingsDialog(props: Props) {
                     <span className={cn(hint, 'min-w-40 flex-1')}>
                       {t('Chaves protegidas por senha e desbloqueadas.')}
                     </span>
-                    <Button variant="outline" size="sm" className="gap-1.5" onClick={props.onLock}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => {
+                        setVaultNote('')
+                        props.onLock()
+                      }}
+                    >
                       <Lock className="size-3.5" />
                       {t('Bloquear agora')}
                     </Button>
-                    <Button variant="outline" size="sm" onClick={props.onDisableVault}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const sure = confirm(
+                          t('Remover a senha? As chaves passam a ficar em texto puro neste navegador.'),
+                        )
+                        if (!sure) return
+                        props.onDisableVault()
+                        setVaultNote(
+                          t(
+                            'Senha removida. Não é preciso digitar nada abaixo: o formulário só serve para proteger de novo.',
+                          ),
+                        )
+                      }}
+                    >
                       {t('Remover proteção')}
                     </Button>
                   </div>
@@ -588,7 +626,9 @@ export default function SettingsDialog(props: Props) {
                 {locked && (
                   <div className="flex flex-wrap items-center gap-2 rounded-md border p-3">
                     <span className={cn(hint, 'min-w-40 flex-1')}>
-                      {t('Chaves protegidas por senha e bloqueadas.')}
+                      {t(
+                        'Chaves protegidas por senha e bloqueadas. Para remover a senha, desbloqueie primeiro.',
+                      )}
                     </span>
                     <Button variant="outline" size="sm" onClick={props.onUnlock}>
                       {t('Desbloquear')}
