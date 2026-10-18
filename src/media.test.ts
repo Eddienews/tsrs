@@ -277,6 +277,20 @@ describe('generateMedia', () => {
     expect(calls.some((c) => c.url === 'https://api.krea.ai/generate/enhance/bytedance/seedvr-2')).toBe(true)
   })
 
+  it('fills the fields Krea requires for its default image model and names a refused field', async () => {
+    routes.push([/api\.krea\.ai\/jobs\/k2$/, () => json({ job_id: 'k2', status: 'completed', result: { urls: ['https://gen.krea.ai/o/i.png'] } })])
+    routes.push([/api\.krea\.ai\/generate/, (call) =>
+      call.body.aspect_ratio === '1:1'
+        ? new Response(JSON.stringify({ error: 'Validation failed', details: [{ path: 'resolution' }] }), { status: 422 })
+        : json({ job_id: 'k2', status: 'queued' })])
+    routes.push([/gen\.krea\.ai/, () => file('image/png')])
+    const settings = settingsWith({ krea: 'kr' })
+    await run(settings, { source: 'krea', model: 'z-image/z-image', options: '' }, 'image')
+    expect(calls[0].body).toEqual({ prompt: 'um gato', aspect_ratio: '16:9', resolution: '1K' })
+    const typed = { source: 'krea', model: 'z-image/z-image', options: '{"aspect_ratio":"1:1","resolution":"2K"}' }
+    await expect(run(settings, typed, 'image')).rejects.toThrow('Krea (422): Validation failed {"details":[{"path":"resolution"}]}')
+  })
+
   it('makes a Veo video with the Gemini key and downloads it with the key', async () => {
     const base = 'https://generativelanguage.googleapis.com/v1beta'
     let checks = 0
