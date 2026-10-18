@@ -339,6 +339,7 @@ export const en: Record<string, string> = {
     'Adds a note to the system prompt saying that HTML, SVG, JavaScript and Markdown code blocks can be opened in the preview.',
   Preview: 'Preview',
   'Abrir {name} no preview': 'Open {name} in the preview',
+  'APIs abertas': 'Open APIs',
   'Abrir preview': 'Open preview',
   'Abrir ou fechar o preview': 'Open or close the preview',
   'Fechar o preview': 'Close the preview',
