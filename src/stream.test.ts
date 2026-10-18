@@ -91,30 +91,99 @@ describe('streamChat, OpenAI format', () => {
     expect(body).not.toHaveProperty('temperature')
   })
 
-  it('drops to effort none when the model refuses effort with tools', async () => {
+  it('moves to the Responses API when a model refuses function tools on chat completions', async () => {
     const refusal = JSON.stringify({ error: { message: "Function tools with reasoning_effort are not supported for gpt-x in /v1/chat/completions. To use function tools, use /v1/responses or set reasoning_effort to 'none'." } })
-    const replies = [new Response(refusal, { status: 400 }), sse(['data: {"choices":[{"delta":{"content":"ok"}}]}\n\n', 'data: [DONE]\n\n'])]
+    const ev = (e: object) => `data: ${JSON.stringify(e)}\n\n`
+    const replies = [
+      new Response(refusal, { status: 400 }),
+      sse([
+        ev({ type: 'response.output_text.delta', delta: 'Vou salvar. ' }),
+        ev({ type: 'response.output_item.done', item: { type: 'function_call', id: 'fc_1', call_id: 'call_1', name: 'project_write_file', arguments: '{"file":"a.html"}' } }),
+        ev({ type: 'response.completed', response: { usage: { input_tokens: 100, output_tokens: 10, input_tokens_details: { cached_tokens: 40 } } } }),
+      ]),
+      sse([
+        ev({ type: 'response.output_text.delta', delta: 'Pronto.' }),
+        ev({ type: 'response.completed', response: { usage: { input_tokens: 120, output_tokens: 5 } } }),
+      ]),
+      sse([ev({ type: 'response.output_text.delta', delta: 'De novo.' }), ev({ type: 'response.completed', response: {} })]),
+    ]
     const fetch = vi.fn(async (_url: string, _init: RequestInit) => replies.shift()!)
     vi.stubGlobal('fetch', fetch)
     const tools = [{ name: 'project_write_file', description: 'save', schema: { type: 'object', properties: {} } }]
-    const events = await collect(request('openai', { params: { effort: 'high' }, tools }))
-    expect(events).toContainEqual({ type: 'text', text: 'ok' })
-    expect(fetch).toHaveBeenCalledTimes(2)
-    expect(JSON.parse(fetch.mock.calls[0][1].body as string).reasoning_effort).toBe('high')
-    expect(JSON.parse(fetch.mock.calls[1][1].body as string).reasoning_effort).toBe('none')
+    const runTool = vi.fn(async () => ({ content: 'salvo', isError: false }))
+    const events = await collect(request('openai', { model: 'gpt-x', params: { effort: 'high', maxTokens: 900 }, tools, runTool }))
+    expect(events.filter((e) => e.type === 'text').map((e) => (e as { text: string }).text).join('')).toBe('Vou salvar. Pronto.')
+    expect(runTool).toHaveBeenCalledWith({ id: 'call_1', name: 'project_write_file', input: { file: 'a.html' } })
+    expect(events).toContainEqual({ type: 'usage', usage: { input: 220, output: 15, cacheRead: 40, context: 125 } })
+
+    const urls = fetch.mock.calls.map((c) => c[0])
+    expect(urls.slice(0, 3)).toEqual([
+      'https://example.test/v1/chat/completions',
+      'https://example.test/v1/responses',
+      'https://example.test/v1/responses',
+    ])
+    const first = JSON.parse(fetch.mock.calls[1][1].body as string)
+    expect(first).toMatchObject({
+      model: 'gpt-x',
+      instructions: 'sys',
+      input: [{ role: 'user', content: 'hi' }],
+      stream: true,
+      store: false,
+      max_output_tokens: 900,
+      reasoning: { effort: 'high' },
+      tools: [{ type: 'function', name: 'project_write_file', description: 'save', parameters: { type: 'object', properties: {} } }],
+    })
+    const second = JSON.parse(fetch.mock.calls[2][1].body as string)
+    expect(second.input.slice(1)).toEqual([
+      { role: 'assistant', content: 'Vou salvar. ' },
+      { type: 'function_call', call_id: 'call_1', name: 'project_write_file', arguments: '{"file":"a.html"}' },
+      { type: 'function_call_output', call_id: 'call_1', output: 'salvo' },
+    ])
+
+    // The next reply from the same model goes straight to /responses.
+    await collect(request('openai', { model: 'gpt-x', tools }))
+    expect(fetch.mock.calls[3][0]).toBe('https://example.test/v1/responses')
   })
 
-  it('drops to effort none when no effort was set, and remembers it for the model', async () => {
-    const refusal = JSON.stringify({ error: { message: "Function tools with reasoning_effort are not supported for gpt-y in /v1/chat/completions. To use function tools, use /v1/responses or set reasoning_effort to 'none'." } })
-    const ok = () => sse(['data: {"choices":[{"delta":{"content":"ok"}}]}\n\n', 'data: [DONE]\n\n'])
-    const replies = [new Response(refusal, { status: 400 }), ok(), ok()]
+  it('replays earlier tool calls and attachments as Responses input items', async () => {
+    const refusal = JSON.stringify({ error: { message: 'Function tools are not supported for this model in /v1/chat/completions. Use /v1/responses.' } })
+    const replies = [new Response(refusal, { status: 400 }), sse(['data: {"type":"response.completed","response":{}}\n\n'])]
     const fetch = vi.fn(async (_url: string, _init: RequestInit) => replies.shift()!)
     vi.stubGlobal('fetch', fetch)
-    const tools = [{ name: 'project_write_file', description: 'save', schema: { type: 'object', properties: {} } }]
-    await collect(request('openai', { model: 'gpt-y', tools }))
-    await collect(request('openai', { model: 'gpt-y', tools }))
-    const sentEffort = fetch.mock.calls.map((c) => JSON.parse(c[1].body as string).reasoning_effort)
-    expect(sentEffort).toEqual([undefined, 'none', 'none'])
+    const tools = [{ name: 'memory_save', description: 'save', schema: { type: 'object', properties: {} } }]
+    await collect(
+      request('openai', {
+        model: 'gpt-z',
+        tools,
+        messages: [
+          { role: 'user', content: 'veja', attachments: [{ id: 'a', kind: 'image', name: 'f.png', mime: 'image/png', data: 'AAA', size: 3 } as never] },
+          {
+            role: 'assistant',
+            content: 'feito',
+            parts: [
+              { type: 'tool', id: 'c9', name: 'memory_save', input: '{"fact":"x"}', status: 'done', result: 'ok' },
+              { type: 'text', text: 'feito' },
+            ],
+          },
+          { role: 'user', content: 'e agora?' },
+        ],
+      }),
+    )
+    expect(JSON.parse(fetch.mock.calls[1][1].body as string).input).toEqual([
+      { role: 'user', content: [{ type: 'input_text', text: 'veja' }, { type: 'input_image', image_url: 'data:image/png;base64,AAA' }] },
+      { type: 'function_call', call_id: 'c9', name: 'memory_save', arguments: '{"fact":"x"}' },
+      { type: 'function_call_output', call_id: 'c9', output: 'ok' },
+      { role: 'assistant', content: 'feito' },
+      { role: 'user', content: 'e agora?' },
+    ])
+  })
+
+  it('reports a failed Responses stream as an error', async () => {
+    const refusal = JSON.stringify({ error: { message: 'use /v1/responses for function tools' } })
+    const replies = [new Response(refusal, { status: 400 }), sse(['data: {"type":"response.failed","response":{"error":{"message":"quota"}}}\n\n'])]
+    vi.stubGlobal('fetch', vi.fn(async () => replies.shift()!))
+    const tools = [{ name: 't', description: 'd', schema: {} }]
+    await expect(collect(request('openai', { model: 'gpt-w', tools }))).rejects.toThrow('quota')
   })
 
   it('sends system prompt, parameters and auth header', async () => {

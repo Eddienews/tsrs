@@ -106,21 +106,15 @@ test('regenerates a reply and resends an edited message', async ({ page }) => {
   ])
 })
 
-test('drops the reasoning effort when the model refuses it with tools', async ({ page }) => {
+test('goes to the Responses API when the model refuses tools on chat completions', async ({ page }) => {
   await connect(page)
   await page.getByRole('button', { name: 'Parâmetros' }).click()
   await page.getByLabel('Nível de raciocínio').selectOption('high')
   await page.getByTitle('Fechar').click()
   await send(page, 'responda: modelo exigente respondeu')
   await expect(reply(page)).toContainText('modelo exigente respondeu')
-  expect(provider.chats.map((c) => c.body.reasoning_effort)).toEqual(['high', 'none'])
-})
-
-test('asks for effort none when the model refuses its own default effort', async ({ page }) => {
-  await connect(page)
-  await send(page, 'responda: modelo exigente sem nível')
-  await expect(reply(page)).toContainText('modelo exigente sem nível')
-  expect(provider.chats.map((c) => c.body.reasoning_effort)).toEqual([undefined, 'none'])
+  expect(provider.chats.map((c) => c.url)).toEqual(['/v1/chat/completions', '/v1/responses'])
+  expect(provider.chats[1].body).toMatchObject({ reasoning: { effort: 'high' }, store: false })
 })
 
 test('sends per-chat parameters and attachments', async ({ page }) => {

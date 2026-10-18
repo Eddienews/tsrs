@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net'
 export interface RecordedRequest {
   headers: http.IncomingHttpHeaders
   body: any
+  url?: string
 }
 
 export interface MockProvider {
@@ -137,7 +138,7 @@ export async function startMockProvider(): Promise<MockProvider> {
     }
     const body = JSON.parse(raw)
     const isTitle = raw.includes('Crie um título')
-    if (!isTitle) chats.push({ headers: req.headers, body })
+    if (!isTitle) chats.push({ headers: req.headers, body, url: req.url })
 
     if (failure && !isTitle) {
       const { status, headers } = failure
@@ -147,9 +148,16 @@ export async function startMockProvider(): Promise<MockProvider> {
         .end(JSON.stringify({ error: { message: 'mock failure' } }))
     }
 
-    // Like gpt-6.1-sol on chat completions: no reasoning effort with function tools.
-    const lastText = String(body.messages.at(-1)?.content ?? '')
-    if (lastText.includes('modelo exigente') && body.reasoning_effort !== 'none') {
+    // Like gpt-6.1-sol: function tools only on the Responses API, whatever the effort.
+    if (req.url === '/v1/responses') {
+      const said = body.input.filter((i: any) => i.role === 'user').at(-1)?.content
+      const text = String(said ?? '').replace(/^responda: /, '')
+      res.writeHead(200, { ...CORS, 'Content-Type': 'text/event-stream' })
+      res.write(`data: ${JSON.stringify({ type: 'response.output_text.delta', delta: text })}\n\n`)
+      const usage = { input_tokens: 300, output_tokens: 20 }
+      return res.end(`data: ${JSON.stringify({ type: 'response.completed', response: { usage } })}\n\n`)
+    }
+    if (String(body.messages.at(-1)?.content ?? '').includes('modelo exigente')) {
       return res
         .writeHead(400, { ...CORS, 'Content-Type': 'application/json' })
         .end(JSON.stringify({ error: { message: "Function tools with reasoning_effort are not supported for gpt-6.1-sol in /v1/chat/completions. To use function tools, use /v1/responses or set reasoning_effort to 'none'." } }))

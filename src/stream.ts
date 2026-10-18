@@ -344,6 +344,66 @@ function openaiResults(calls: Pick<ToolPart, 'id' | 'result'>[]): unknown[] {
   return calls.map((c) => ({ role: 'tool', tool_call_id: c.id, content: c.result ?? '' }))
 }
 
+// The same conversation as input items of OpenAI's Responses API, which some
+// models need for function tools (they refuse them on chat completions).
+function responsesMessages(message: RequestMessage, req: ChatRequest): unknown[] {
+  if (usedTools(message, req)) {
+    return rounds(message.parts!).flatMap((round) => [
+      ...(round.text ? [{ role: 'assistant', content: round.text }] : []),
+      ...round.calls.map((c) => ({
+        type: 'function_call',
+        call_id: c.id,
+        name: c.name,
+        arguments: c.input || '{}',
+      })),
+      ...round.calls.map((c) => ({ type: 'function_call_output', call_id: c.id, output: c.result ?? '' })),
+    ])
+  }
+  const text = textOf(message)
+  const media = message.role === 'user' ? binaries(message) : []
+  if (!media.length) return [{ role: message.role, content: text }]
+  return [
+    {
+      role: message.role,
+      content: [
+        ...(text ? [{ type: 'input_text', text }] : []),
+        ...media.map((a) => {
+          const dataUrl = `data:${a.mime};base64,${a.data}`
+          return a.kind === 'pdf'
+            ? { type: 'input_file', filename: a.name, file_data: dataUrl }
+            : { type: 'input_image', image_url: dataUrl }
+        }),
+      ],
+    },
+  ]
+}
+
+function responsesBody(req: ChatRequest, input: unknown[]): unknown {
+  const { provider, params = {} } = req
+  const defs = req.tools ?? []
+  return {
+    model: req.model,
+    ...(req.system ? { instructions: req.system } : {}),
+    input,
+    stream: true,
+    // The conversation lives in TSRS; nothing is kept at OpenAI between requests.
+    store: false,
+    ...(provider.temperature && params.temperature !== undefined ? { temperature: params.temperature } : {}),
+    ...(params.maxTokens ? { max_output_tokens: params.maxTokens } : {}),
+    ...(params.effort ? { reasoning: { effort: params.effort } } : {}),
+    ...(defs.length
+      ? {
+          tools: defs.map((t) => ({
+            type: 'function',
+            name: t.name,
+            description: t.description,
+            parameters: t.schema,
+          })),
+        }
+      : {}),
+  }
+}
+
 // Provider-side web tools. The newer versions filter results with code the
 // model writes, which Haiku models do not support.
 function anthropicWebTools(req: ChatRequest): unknown[] {
@@ -430,7 +490,7 @@ interface Turn {
   stop: 'end' | 'tools' | 'pause'
   calls(): ToolCall[]
   // The model's turn in the provider's format, to append to the conversation.
-  message(): unknown
+  message(): unknown[]
   results(done: (ToolCall & ToolResult)[]): unknown[]
 }
 
@@ -533,7 +593,7 @@ function anthropicTurn(): Turn {
       blocks
         .filter((b) => b?.type === 'tool_use')
         .map((b) => ({ id: b.id, name: b.name, input: b.input ?? {} })),
-    message: () => ({ role: 'assistant', content: blocks.filter(Boolean) }),
+    message: () => [{ role: 'assistant', content: blocks.filter(Boolean) }],
     results: (done) =>
       done.length
         ? [
@@ -629,15 +689,17 @@ function openaiTurn(): Turn {
       calls
         .filter(Boolean)
         .map((c, i) => ({ id: c.id || `call_${i}`, name: c.name, input: parse(c.args) })),
-    message: () => ({
-      role: 'assistant',
-      content: content || null,
-      tool_calls: turn.calls().map((c) => ({
-        id: c.id,
-        type: 'function',
-        function: { name: c.name, arguments: JSON.stringify(c.input) },
-      })),
-    }),
+    message: () => [
+      {
+        role: 'assistant',
+        content: content || null,
+        tool_calls: turn.calls().map((c) => ({
+          id: c.id,
+          type: 'function',
+          function: { name: c.name, arguments: JSON.stringify(c.input) },
+        })),
+      },
+    ],
     results: (done) => [
       ...openaiResults(done.map((d) => ({ id: d.id, result: d.content }))),
       // Tool messages carry text only: pictures follow in a user message.
@@ -651,6 +713,68 @@ function openaiTurn(): Turn {
                   (d.images ?? []).map((image) => ({
                     type: 'image_url',
                     image_url: { url: `data:${image.mime};base64,${image.data}` },
+                  })),
+                ),
+              ],
+            },
+          ]
+        : []),
+    ],
+  }
+  return turn
+}
+
+function responsesTurn(): Turn {
+  let content = ''
+  const calls: { call_id: string; name: string; arguments: string }[] = []
+  const turn: Turn = {
+    usage: { input: 0, output: 0 },
+    stop: 'end',
+    decode(event) {
+      const events: StreamEvent[] = []
+      if (event.type === 'response.output_text.delta' && event.delta) {
+        content += event.delta
+        events.push({ type: 'text', text: event.delta })
+      } else if (event.type === 'response.reasoning_summary_text.delta' && event.delta) {
+        events.push({ type: 'thinking', text: event.delta })
+      } else if (event.type === 'response.output_item.done' && event.item?.type === 'function_call') {
+        const { call_id, name, arguments: args } = event.item
+        calls.push({ call_id, name, arguments: args ?? '' })
+        turn.stop = 'tools'
+      } else if (event.type === 'error') {
+        throw new Error(event.message ?? JSON.stringify(event))
+      } else if (event.type === 'response.failed') {
+        throw new Error(event.response?.error?.message ?? t('O provedor recusou a requisição'))
+      } else if (event.type === 'response.completed' || event.type === 'response.incomplete') {
+        const u = event.response?.usage ?? {}
+        const cached = u.input_tokens_details?.cached_tokens
+        turn.usage = {
+          input: u.input_tokens ?? 0,
+          output: u.output_tokens ?? 0,
+          ...(cached ? { cacheRead: cached } : {}),
+        }
+        if (event.response?.incomplete_details?.reason === 'max_output_tokens') events.push({ type: 'truncated' })
+      }
+      return events
+    },
+    calls: () => calls.map((c, i) => ({ id: c.call_id || `call_${i}`, name: c.name, input: parse(c.arguments) })),
+    message: () => [
+      ...(content ? [{ role: 'assistant', content }] : []),
+      ...calls.map((c) => ({ type: 'function_call', call_id: c.call_id, name: c.name, arguments: c.arguments || '{}' })),
+    ],
+    results: (done) => [
+      ...done.map((d) => ({ type: 'function_call_output', call_id: d.id, output: d.content })),
+      // Pictures follow in a user message, as on chat completions.
+      ...(done.some((d) => d.images?.length)
+        ? [
+            {
+              role: 'user',
+              content: [
+                { type: 'input_text', text: 'Pictures returned by the tools above:' },
+                ...done.flatMap((d) =>
+                  (d.images ?? []).map((image) => ({
+                    type: 'input_image',
+                    image_url: `data:${image.mime};base64,${image.data}`,
                   })),
                 ),
               ],
@@ -683,45 +807,50 @@ function aborted(): Error {
   return new DOMException('Aborted', 'AbortError')
 }
 
-// Models (base URL and name) that took tools only with reasoning_effort 'none'.
-const EFFORT_NONE = new Set<string>()
+// Models (base URL and name) that refused function tools on chat completions
+// and asked for the Responses API instead.
+const RESPONSES = new Set<string>()
 
 // Streams a reply, running the tools the model calls and sending their
 // results back until it has nothing more to ask for.
 export async function* streamChat(req: ChatRequest): AsyncGenerator<StreamEvent> {
   const anthropic = req.provider.format === 'anthropic'
-  const wire = req.messages.flatMap((m) =>
-    anthropic ? anthropicMessages(m, req) : openaiMessages(m, req),
-  )
+  // Some OpenAI models (gpt-6.1-sol) take function tools only on /responses,
+  // whatever the reasoning effort; the model is remembered, so later replies
+  // go there from the start.
+  const model = `${req.baseUrl}|${req.model}`
+  let responses = !anthropic && !!req.tools?.length && RESPONSES.has(model)
+  const convert = () =>
+    req.messages.flatMap((m) =>
+      anthropic ? anthropicMessages(m, req) : responses ? responsesMessages(m, req) : openaiMessages(m, req),
+    )
+  let wire = convert()
   const total: Usage = { input: 0, output: 0 }
 
-  // Some OpenAI models refuse a reasoning effort together with function tools on
-  // chat completions and ask for 'none', even when none was sent (their default
-  // effort counts). The reply carries on that way, and later replies from the
-  // same model ask for 'none' from the start.
-  const model = `${req.baseUrl}|${req.model}`
-  let sent: ChatRequest =
-    !anthropic && req.tools?.length && EFFORT_NONE.has(model)
-      ? { ...req, params: { ...req.params, effort: 'none' } }
-      : req
   for (let round = 1; ; round++) {
-    const init = (): RequestInit => ({
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...headers(sent) },
-      body: JSON.stringify(body(sent, wire)),
-      signal: req.signal,
-    })
+    const send = () =>
+      request(
+        url(req, responses ? '/responses' : req.provider.chatPath),
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...headers(req) },
+          body: JSON.stringify(responses ? responsesBody(req, wire) : body(req, wire)),
+          signal: req.signal,
+        },
+        req,
+      )
     let res: Response
     try {
-      res = await request(url(req, req.provider.chatPath), init(), req)
+      res = await send()
     } catch (err) {
-      const refused = err instanceof Error && /reasoning_effort/i.test(err.message) && /tools?/i.test(err.message)
-      if (anthropic || !refused || sent.params?.effort === 'none') throw err
-      EFFORT_NONE.add(model)
-      sent = { ...sent, params: { ...sent.params, effort: 'none' } }
-      res = await request(url(req, req.provider.chatPath), init(), req)
+      const refused = err instanceof Error && /tools?/i.test(err.message) && /\/responses/.test(err.message)
+      if (anthropic || responses || round > 1 || !refused) throw err
+      RESPONSES.add(model)
+      responses = true
+      wire = convert()
+      res = await send()
     }
-    const turn = anthropic ? anthropicTurn() : openaiTurn()
+    const turn = anthropic ? anthropicTurn() : responses ? responsesTurn() : openaiTurn()
     for await (const data of sseData(res)) {
       if (!data || data === '[DONE]') continue
       const event = JSON.parse(data)
@@ -749,7 +878,7 @@ export async function* streamChat(req: ChatRequest): AsyncGenerator<StreamEvent>
         }),
       )
     }
-    wire.push(turn.message())
+    wire.push(...turn.message())
 
     const done: (ToolCall & ToolResult)[] = []
     for (const call of calls) {
