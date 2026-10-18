@@ -165,6 +165,17 @@ export async function startMockProvider(): Promise<MockProvider> {
 
     res.writeHead(200, { ...CORS, 'Content-Type': 'text/event-stream' })
     const last = body.messages.at(-1)
+    // Afinar agente: the proposer gets one new version, the judge prefers it.
+    const lastText = String(last.content)
+    const tuning = lastText.includes('## Agent tuning: propose variants')
+      ? '```json\n{"variants":[{"label":"Pirata breve","change":"responde em uma frase","system":"Fale como um pirata, em uma frase."}]}\n```'
+      : lastText.includes('## Agent tuning: judge answers')
+        ? '{"scores":[{"answer":1,"score":4,"reason":"longa demais"},{"answer":2,"score":9,"reason":"curta e no tom"}]}'
+        : ''
+    if (tuning) {
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: tuning } }] })}\n\n`)
+      return res.end('data: [DONE]\n\n')
+    }
     // Asked about the project folder, the mock reads or writes a file in it.
     const offered = (name: string) => body.tools?.some((t: any) => t.function.name === name)
     const projectCall =

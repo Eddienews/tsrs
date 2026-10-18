@@ -229,6 +229,8 @@ export interface Persona {
   // that is turned on, an empty list none.
   skills?: string[]
   plugins?: string[]
+  // The prompt before the last version adopted in Afinar, to go back to.
+  previousSystem?: string
 }
 
 export interface AgentParams {

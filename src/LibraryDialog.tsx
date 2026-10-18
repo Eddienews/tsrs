@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronRight, FileText, Paperclip, Plus, Sparkles, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -20,6 +20,8 @@ import { listPlugins, listSkills, type Plugin, type Skill } from './extensions'
 import { PROVIDERS, getProvider } from './providers'
 import { missingStarters } from './starters'
 import CommunityGallery from './CommunityGallery'
+
+const AgentTuner = lazy(() => import('./AgentTuner'))
 import type { AgentParams, Memory, Persona, PersonaTools, SavedPrompt, Settings } from './types'
 
 // Settings live in localStorage, which holds a few megabytes at most.
@@ -450,6 +452,8 @@ export default function LibraryDialog(props: Props) {
   const [fresh, setFresh] = useState<string[]>([])
   // Items whose card was toggled by hand, which overrides the initial state.
   const [toggled, setToggled] = useState<Record<string, boolean>>({})
+  // The persona being tuned in Afinar.
+  const [tuning, setTuning] = useState<string | null>(null)
 
   function create(): string {
     const id = crypto.randomUUID()
@@ -570,7 +574,20 @@ export default function LibraryDialog(props: Props) {
                   settings={settings}
                   onPatch={(fields) => patchPersona(persona.id, fields)}
                 />
-                <div className="flex justify-end">
+                <div className="flex flex-wrap justify-end gap-2">
+                  {persona.previousSystem !== undefined && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => patchPersona(persona.id, { system: persona.previousSystem, previousSystem: undefined })}
+                    >
+                      {t('Voltar ao prompt anterior')}
+                    </Button>
+                  )}
+                  <Button variant="outline" size="sm" className="gap-1" onClick={() => setTuning(persona.id)}>
+                    <Sparkles className="size-3.5" />
+                    {t('Afinar')}
+                  </Button>
                   <Button
                     variant="destructive"
                     size="sm"
@@ -722,6 +739,19 @@ export default function LibraryDialog(props: Props) {
             )}
           </TabsContent>
         </Tabs>
+        {tuning && (() => {
+          const persona = settings.personas.find((p) => p.id === tuning)
+          return persona ? (
+            <Suspense fallback={null}>
+              <AgentTuner
+                persona={persona}
+                settings={settings}
+                onAdopt={(system) => patchPersona(persona.id, { system, previousSystem: persona.system })}
+                onClose={() => setTuning(null)}
+              />
+            </Suspense>
+          ) : null
+        })()}
       </DialogContent>
     </Dialog>
   )
