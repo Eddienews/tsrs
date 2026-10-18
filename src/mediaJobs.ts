@@ -498,6 +498,39 @@ function bflQueue(model: string, key: string, input: object): Queue {
   }
 }
 
+// Krea: one endpoint per model under its kind (image/, video/, enhance/,
+// audio/), a job polled until done; a waiting job can be deleted.
+function kreaQueue(job: Job, key: string, input: object): Queue {
+  const base = 'https://api.krea.ai'
+  const model = job.target.model.replace(/^\/+/, '')
+  const path = /^(image|video|audio|enhance|3d)\//.test(model) ? model : `${job.kind}/${model}`
+  const jobUrl = (ticket: any) => ticket.job_id && `${base}/jobs/${ticket.job_id}`
+  return {
+    submit: `${base}/generate/${path}`,
+    body: input,
+    headers: { Authorization: `Bearer ${key}` },
+    statusUrl: jobUrl,
+    cancel: (ticket) => jobUrl(ticket) && { url: jobUrl(ticket), method: 'DELETE' },
+    read(status) {
+      const state = String(status.status)
+      if (state === 'completed') return { state: 'done' }
+      if (['failed', 'cancelled'].includes(state)) {
+        return { state: 'failed', error: String(status.error?.message ?? status.error?.code ?? state) }
+      }
+      return {
+        state: 'waiting',
+        progress:
+          typeof status.progress === 'number'
+            ? `${Math.round(status.progress * 100)}%`
+            : ['processing', 'sampling'].includes(state)
+              ? t('gerando')
+              : undefined,
+      }
+    },
+    result: (_ticket, status) => status.result?.urls,
+  }
+}
+
 // Stability's image endpoints take a form and answer with the image itself.
 async function stability(job: Job, key: string, options: Record<string, unknown>): Promise<GeneratedMedia> {
   const form = new FormData()
@@ -735,6 +768,8 @@ export async function generateMedia(job: Job): Promise<GeneratedMedia> {
         : queued(job, service, minimaxQueue(job, key, options))
     case 'cartesia':
       return cartesia(job, key, options)
+    case 'krea':
+      return queued(job, service, kreaQueue(job, key, input))
   }
 }
 

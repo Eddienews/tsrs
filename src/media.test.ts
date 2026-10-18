@@ -251,6 +251,32 @@ describe('generateMedia', () => {
     await expect(run(settings, target, 'video')).rejects.toThrow('WaveSpeedAI: sem créditos')
   })
 
+  it('runs a Krea model under its kind, polls the job and downloads the file', async () => {
+    let state = 'processing'
+    routes.push([
+      /api\.krea\.ai\/jobs\/k1$/,
+      () => {
+        const now = state
+        state = 'completed'
+        return json({ job_id: 'k1', status: now, progress: 0.5, result: { urls: ['https://gen.krea.ai/o/v.mp4'] } })
+      },
+    ])
+    routes.push([/api\.krea\.ai\/generate/, () => json({ job_id: 'k1', status: 'queued' })])
+    routes.push([/gen\.krea\.ai/, () => file('video/mp4')])
+    const settings = settingsWith({ krea: 'kr' })
+    const progress: string[] = []
+    const target = { source: 'krea', model: 'minimax/h3-max-turbo', options: '{"resolution":"1080p"}' }
+    expect((await run(settings, target, 'video', progress)).mime).toBe('video/mp4')
+    expect(calls[0].url).toBe('https://api.krea.ai/generate/video/minimax/h3-max-turbo')
+    expect(calls[0].body).toEqual({ prompt: 'um gato', resolution: '1080p' })
+    expect(calls[0].headers.Authorization).toBe('Bearer kr')
+    expect(progress).toContain('50%')
+    // A model typed with its kind keeps it; a failed job says why.
+    routes.unshift([/api\.krea\.ai\/jobs\/k1$/, () => json({ job_id: 'k1', status: 'failed', error: { code: 'x', message: 'sem créditos' } })])
+    await expect(run(settings, { source: 'krea', model: 'enhance/bytedance/seedvr-2', options: '' }, 'video')).rejects.toThrow('Krea: sem créditos')
+    expect(calls.some((c) => c.url === 'https://api.krea.ai/generate/enhance/bytedance/seedvr-2')).toBe(true)
+  })
+
   it('makes a Veo video with the Gemini key and downloads it with the key', async () => {
     const base = 'https://generativelanguage.googleapis.com/v1beta'
     let checks = 0

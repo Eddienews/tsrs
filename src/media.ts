@@ -4,7 +4,7 @@ import { PROVIDERS } from './providers'
 import type { MediaChoice, MediaKind, Provider, Settings } from './types'
 
 // Images, video and audio made from a message by a media service (ElevenLabs,
-// Runware, fal.ai, Replicate, WaveSpeedAI, Higgsfield) or, for images, by a
+// Runware, fal.ai, Replicate, WaveSpeedAI, Higgsfield, Krea) or, for images, by a
 // chat provider that draws them (OpenAI, Gemini): which services there are,
 // and who makes each kind. Making it is in mediaJobs.ts, loaded when needed.
 
@@ -19,6 +19,7 @@ export type MediaServiceId =
   | 'bfl'
   | 'minimax'
   | 'cartesia'
+  | 'krea'
 
 export const MEDIA_KINDS: MediaKind[] = ['image', 'video', 'audio']
 
@@ -135,6 +136,16 @@ export const MEDIA_SERVICES: MediaService[] = [
     examples: {},
     keyUrl: 'https://play.cartesia.ai/keys',
     catalogUrl: 'https://play.cartesia.ai/voices',
+  },
+  {
+    id: 'krea',
+    name: 'Krea',
+    // Krea's model ids, as its catalogue lists them (the kind comes first in
+    // the endpoint, and may be typed too: video/minimax/h3-max-turbo).
+    models: { image: 'z-image/z-image', video: 'minimax/h3-max-turbo', audio: '' },
+    examples: { image: 'google/nano-banana-pro', video: 'bytedance/seedance-2-5' },
+    keyUrl: 'https://krea.ai/features/api',
+    catalogUrl: 'https://docs.krea.ai',
   },
 ]
 
