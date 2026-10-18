@@ -517,6 +517,18 @@ test('the folder tools are there from the first message, and make the folder whe
   await expect(page.locator('.toolbar .project')).toBeVisible()
 })
 
+test('looking in the folder before it exists is not a failure, and the first save makes it', async ({ page }) => {
+  await connect(page)
+  const button = page.locator('.toolbar .project')
+  await send(page, 'chame project_list_files {}')
+  await expect(reply(page).last()).toContainText('The project folder is empty')
+  await expect(page.locator('.message.assistant').last().locator('.tool')).not.toContainText('falhou')
+  await expect(button).toHaveAttribute('title', 'Pasta do projeto: ainda não criada')
+  await send(page, 'chame project_write_file {"file":"motion-filme.html","content":"<h1>oi</h1>"}')
+  const folder = await projectFolder(button)
+  await expect.poll(() => readFile(join(folder, 'motion-filme.html'), 'utf8').catch(() => '')).toBe('<h1>oi</h1>')
+})
+
 test('a reply\'s page in the preview finds its pictures in the project folder', async ({ page }) => {
   await connect(page)
   await send(page, 'crie o site do NWLab')

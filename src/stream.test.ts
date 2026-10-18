@@ -91,6 +91,19 @@ describe('streamChat, OpenAI format', () => {
     expect(body).not.toHaveProperty('temperature')
   })
 
+  it('drops to effort none when the model refuses effort with tools', async () => {
+    const refusal = JSON.stringify({ error: { message: "Function tools with reasoning_effort are not supported for gpt-x in /v1/chat/completions. To use function tools, use /v1/responses or set reasoning_effort to 'none'." } })
+    const replies = [new Response(refusal, { status: 400 }), sse(['data: {"choices":[{"delta":{"content":"ok"}}]}\n\n', 'data: [DONE]\n\n'])]
+    const fetch = vi.fn(async (_url: string, _init: RequestInit) => replies.shift()!)
+    vi.stubGlobal('fetch', fetch)
+    const tools = [{ name: 'project_write_file', description: 'save', schema: { type: 'object', properties: {} } }]
+    const events = await collect(request('openai', { params: { effort: 'high' }, tools }))
+    expect(events).toContainEqual({ type: 'text', text: 'ok' })
+    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(JSON.parse(fetch.mock.calls[0][1].body as string).reasoning_effort).toBe('high')
+    expect(JSON.parse(fetch.mock.calls[1][1].body as string).reasoning_effort).toBe('none')
+  })
+
   it('sends system prompt, parameters and auth header', async () => {
     const fetch = stubFetch(sse(['data: [DONE]\n\n']))
     await collect(

@@ -692,14 +692,25 @@ export async function* streamChat(req: ChatRequest): AsyncGenerator<StreamEvent>
   )
   const total: Usage = { input: 0, output: 0 }
 
+  // Some OpenAI models refuse a reasoning effort together with function tools on
+  // chat completions and ask for 'none'; the reply carries on that way.
+  let sent = req
   for (let round = 1; ; round++) {
-    const init: RequestInit = {
+    const init = (): RequestInit => ({
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...headers(req) },
-      body: JSON.stringify(body(req, wire)),
+      headers: { 'Content-Type': 'application/json', ...headers(sent) },
+      body: JSON.stringify(body(sent, wire)),
       signal: req.signal,
+    })
+    let res: Response
+    try {
+      res = await request(url(req, req.provider.chatPath), init(), req)
+    } catch (err) {
+      const refused = err instanceof Error && /reasoning_effort/i.test(err.message) && /tools?/i.test(err.message)
+      if (anthropic || !refused || !sent.params?.effort || sent.params.effort === 'none') throw err
+      sent = { ...sent, params: { ...sent.params, effort: 'none' } }
+      res = await request(url(req, req.provider.chatPath), init(), req)
     }
-    const res = await request(url(req, req.provider.chatPath), init, req)
     const turn = anthropic ? anthropicTurn() : openaiTurn()
     for await (const data of sseData(res)) {
       if (!data || data === '[DONE]') continue
