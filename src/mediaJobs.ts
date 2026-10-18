@@ -93,6 +93,9 @@ async function call(
     if (Array.isArray(json.errors) && json.errors[0]) message = json.errors[0].message ?? json.errors[0]
     if (json.base_resp?.status_msg) message = json.base_resp.status_msg
     if (typeof message !== 'string') message = JSON.stringify(message)
+    // A bare "Validation failed" says nothing; what came with it names the field.
+    const { error: _error, message: _message, ...rest } = json
+    if (typeof json.error === 'string' && Object.keys(rest).length) message = `${message} ${JSON.stringify(rest)}`
   } catch {
     // not JSON
   }
@@ -498,6 +501,11 @@ function bflQueue(model: string, key: string, input: object): Queue {
   }
 }
 
+// Fields some Krea models require, filled in when the options leave them out.
+const KREA_DEFAULTS: Record<string, object> = {
+  'image/z-image/z-image': { aspect_ratio: '16:9', resolution: '1K' },
+}
+
 // Krea: one endpoint per model under its kind (image/, video/, enhance/,
 // audio/), a job polled until done; a waiting job can be deleted.
 function kreaQueue(job: Job, key: string, input: object): Queue {
@@ -507,7 +515,7 @@ function kreaQueue(job: Job, key: string, input: object): Queue {
   const jobUrl = (ticket: any) => ticket.job_id && `${base}/jobs/${ticket.job_id}`
   return {
     submit: `${base}/generate/${path}`,
-    body: input,
+    body: { ...KREA_DEFAULTS[path], ...input },
     headers: { Authorization: `Bearer ${key}` },
     statusUrl: jobUrl,
     cancel: (ticket) => jobUrl(ticket) && { url: jobUrl(ticket), method: 'DELETE' },
