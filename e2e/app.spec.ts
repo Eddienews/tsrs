@@ -540,6 +540,29 @@ test('a reply\'s page in the preview finds its pictures in the project folder', 
   expect(width).toBe(1)
 })
 
+test('a slash or the Commands menu calls installed skills, tools and prompts', async ({ page }) => {
+  await connect(page)
+  const field = page.locator('.composer textarea')
+  await field.fill('/')
+  const list = page.getByRole('listbox', { name: 'Comandos' })
+  await expect(list.getByRole('group', { name: 'Ferramentas do TSRS' })).toBeVisible()
+  await expect(list.getByRole('group', { name: 'Prompts salvos' })).toBeVisible()
+  // Typing narrows it; Enter puts the start of the request in the field.
+  await field.pressSequentially('apis')
+  await expect(list.getByRole('option')).toHaveCount(1)
+  await field.press('Enter')
+  await expect(field).toHaveValue('Use as APIs abertas para ')
+  await expect(list).toHaveCount(0)
+  // A slash in the middle of a message is just text.
+  await field.fill('veja /api')
+  await expect(list).toHaveCount(0)
+  // The Commands button lists the same, to browse.
+  await field.fill('')
+  await page.locator('.composer').getByRole('button', { name: 'Comandos' }).click()
+  await page.getByRole('option', { name: /\/motion/ }).click()
+  await expect(field).toHaveValue('Faça um vídeo motion de 10 s em 1920x1080 sobre ')
+})
+
 test('a snippet in an explanation does not make a project folder', async ({ page }) => {
   await connect(page)
   await send(page, 'primeira')

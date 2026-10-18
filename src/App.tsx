@@ -34,6 +34,7 @@ import {
 } from './autoBackup'
 import BackupOffer from './BackupOffer'
 import { setLanguage, t } from './i18n'
+import { composerCommands } from './commands'
 import { OPEN_API_TOOLS, runOpenApiTool } from './openApis'
 import { FileContext, PreviewContext } from './Markdown'
 import MessageView, { ContextReset } from './MessageView'
@@ -438,8 +439,11 @@ export default function App() {
   const [showExtensions, setShowExtensions] = useState(false)
   // Installed plugins, for their commands in the prompt list.
   const [plugins, setPlugins] = useState<Plugin[]>([])
+  // ...and the skills, for the /commands of the message field.
+  const [installedSkills, setInstalledSkills] = useState<Skill[]>([])
   const reloadPlugins = useCallback(() => {
     listPlugins().then(setPlugins, () => setPlugins([]))
+    listSkills().then(setInstalledSkills, () => setInstalledSkills([]))
   }, [])
   useEffect(reloadPlugins, [reloadPlugins])
 
@@ -2832,6 +2836,13 @@ export default function App() {
         onAttach={attach}
         onRemoveAttachment={(id) => setAttachments((list) => list.filter((a) => a.id !== id))}
         prompts={[...settings.prompts, ...commandPrompts(enabledPlugins(plugins, settings))]}
+        commands={composerCommands({
+          skills: enabledSkills(installedSkills, settings),
+          pluginPrompts: commandPrompts(enabledPlugins(plugins, settings)),
+          prompts: settings.prompts,
+          mcpServers: settings.mcpServers.filter((server) => server.url),
+          projects: !!foldersRoot,
+        })}
         onRunChain={runChain}
         agents={settings.personas}
         onInsertPrompt={(text) => setDraft((d) => (d.trim() ? `${d}\n${text}` : text))}

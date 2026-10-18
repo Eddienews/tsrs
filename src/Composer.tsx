@@ -1,4 +1,4 @@
-import { ArrowUp, AudioLines, BookMarked, Clapperboard, FileText, FileType2, Film, ImageIcon, Loader2, Mic, Paperclip, Square, Telescope, Upload, X } from 'lucide-react'
+import { ArrowUp, AudioLines, BookMarked, Clapperboard, SquareSlash, FileText, FileType2, Film, ImageIcon, Loader2, Mic, Paperclip, Square, Telescope, Upload, X } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,6 +8,7 @@ import type { Dictation } from './dictation'
 import { t } from './i18n'
 import { fillPrompt, promptFields } from './prompts'
 import { chainSteps, insertMention, mentionMatches, mentionQuery } from './agents'
+import { GROUPS, slashMatches, slashQuery, type ComposerCommand } from './commands'
 import type { Attachment, MediaKind, Persona, SavedPrompt } from './types'
 
 const MAX_HEIGHT = 240
@@ -33,6 +34,8 @@ interface Props {
   onRunChain?: (steps: string[]) => void
   // Agents that can be called with @name.
   agents?: Persona[]
+  // Skills, plugin commands, tools, MCP servers and prompts, called with /name.
+  commands?: ComposerCommand[]
   onManagePrompts: () => void
   dictation: Dictation
   // The next message asks for this kind of media instead of a reply.
@@ -99,6 +102,52 @@ function PromptFiller({ prompt, onUse }: { prompt: SavedPrompt; onUse: (steps: s
   )
 }
 
+// Commands by group, each group under its name; `active` is highlighted.
+function CommandList({
+  commands,
+  active,
+  onPick,
+}: {
+  commands: ComposerCommand[]
+  active?: ComposerCommand
+  onPick: (command: ComposerCommand) => void
+}) {
+  return (
+    <>
+      {GROUPS.map((group) => {
+        const items = commands.filter((c) => c.group === group.id)
+        if (!items.length) return null
+        return (
+          <div key={group.id} role="group" aria-label={group.label()}>
+            <div className="px-2 pb-0.5 pt-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
+              {group.label()}
+            </div>
+            {items.map((command) => (
+              <div
+                key={command.id}
+                role="option"
+                aria-selected={command === active}
+                className={cn(
+                  'cursor-pointer rounded px-2 py-1.5 text-sm',
+                  command === active ? 'bg-accent text-accent-foreground' : 'hover:bg-accent',
+                )}
+                // Keeps the field focused, so its blur does not close the list first.
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  onPick(command)
+                }}
+              >
+                <div className="font-mono text-[13px]">/{command.name}</div>
+                <div className="line-clamp-2 text-xs text-muted-foreground">{command.description}</div>
+              </div>
+            ))}
+          </div>
+        )
+      })}
+    </>
+  )
+}
+
 export default function Composer(p: Props) {
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -110,9 +159,44 @@ export default function Composer(p: Props) {
   const [mention, setMention] = useState<{ query: string; active: number } | null>(null)
   const suggestions = mention ? mentionMatches(mention.query, p.agents ?? []).slice(0, 6) : []
 
+  // The /name being typed, with the highlighted command; and the Commands menu.
+  const [slash, setSlash] = useState<{ query: string; active: number } | null>(null)
+  const [commandsOpen, setCommandsOpen] = useState(false)
+  const allCommands = p.commands ?? []
+  const commandHits = slash ? slashMatches(slash.query, allCommands) : []
+  // Shown in group order, so the arrows move down the list as it reads.
+  const shownCommands = GROUPS.flatMap((g) => commandHits.filter((c) => c.group === g.id))
+
   function track(field: HTMLTextAreaElement) {
-    const query = field.selectionStart === field.selectionEnd ? mentionQuery(field.value.slice(0, field.selectionStart)) : null
+    const collapsed = field.selectionStart === field.selectionEnd
+    const before = field.value.slice(0, field.selectionStart)
+    const query = collapsed ? mentionQuery(before) : null
     setMention(query === null ? null : (m) => ({ query, active: m?.query === query ? m.active : 0 }))
+    const typed = collapsed && allCommands.length ? slashQuery(before) : null
+    setSlash(typed === null ? null : (s) => ({ query: typed, active: s?.query === typed ? s.active : 0 }))
+  }
+
+  // A command's text replaces the /name; a prompt with fields is filled first.
+  function runCommand(command: ComposerCommand) {
+    const field = fieldRef.current
+    const caret = field?.selectionStart ?? p.value.length
+    const rest = p.value.startsWith('/') ? p.value.slice(caret) : p.value
+    setSlash(null)
+    setCommandsOpen(false)
+    const prompt = command.prompt
+    if (prompt && (fieldsOf(prompt).length || prompt.steps?.some((s) => s.trim()))) {
+      p.onChange(rest.trimStart())
+      setPicked(prompt)
+      setPromptsOpen(true)
+      return
+    }
+    const text = command.text + rest.replace(/^ /, '')
+    p.onChange(text)
+    requestAnimationFrame(() => {
+      field?.focus()
+      const at = command.text.length
+      field?.setSelectionRange(at, at)
+    })
   }
 
   function pick(agent: Persona) {
@@ -244,6 +328,20 @@ export default function Composer(p: Props) {
             ))}
           </div>
         )}
+        {shownCommands.length > 0 && slash && (
+          <div
+            id="command-suggestions"
+            role="listbox"
+            aria-label={t('Comandos')}
+            className="menu absolute bottom-full left-2 z-20 mb-1 max-h-80 w-96 max-w-[calc(100%-1rem)] overflow-y-auto rounded-md border bg-popover p-1 shadow-md"
+          >
+            <CommandList
+              commands={shownCommands}
+              active={shownCommands[Math.min(slash.active, shownCommands.length - 1)]}
+              onPick={runCommand}
+            />
+          </div>
+        )}
         {suggestions.length > 0 && mention && (
           <div
             id="agent-suggestions"
@@ -293,10 +391,13 @@ export default function Composer(p: Props) {
             track(e.target)
           }}
           onSelect={(e) => track(e.currentTarget)}
-          onBlur={() => setMention(null)}
+          onBlur={() => {
+            setMention(null)
+            setSlash(null)
+          }}
           role="combobox"
-          aria-expanded={suggestions.length > 0}
-          aria-controls="agent-suggestions"
+          aria-expanded={suggestions.length > 0 || (shownCommands.length > 0 && !!slash)}
+          aria-controls={slash ? 'command-suggestions' : 'agent-suggestions'}
           aria-autocomplete="list"
           onPaste={(e) => {
             if (e.clipboardData.files.length) {
@@ -305,6 +406,24 @@ export default function Composer(p: Props) {
             }
           }}
           onKeyDown={(e) => {
+            if (shownCommands.length && slash) {
+              const move = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0
+              if (move) {
+                e.preventDefault()
+                setSlash({ ...slash, active: (slash.active + move + shownCommands.length) % shownCommands.length })
+                return
+              }
+              if ((e.key === 'Enter' || e.key === 'Tab') && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault()
+                runCommand(shownCommands[Math.min(slash.active, shownCommands.length - 1)])
+                return
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                setSlash(null)
+                return
+              }
+            }
             if (suggestions.length && mention) {
               const move = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0
               if (move) {
@@ -351,6 +470,24 @@ export default function Composer(p: Props) {
               e.target.value = ''
             }}
           />
+          {allCommands.length > 0 && (
+            <Popover open={commandsOpen} onOpenChange={setCommandsOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs"
+                  title={t('Skills, plugins, ferramentas e prompts instalados (ou digite / no começo da mensagem)')}
+                >
+                  <SquareSlash className="size-4" />
+                  {t('Comandos')}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="menu max-h-96 w-96 overflow-y-auto p-1" role="listbox" aria-label={t('Comandos')}>
+                <CommandList commands={allCommands} onPick={runCommand} />
+              </PopoverContent>
+            </Popover>
+          )}
           <Popover
             open={promptsOpen}
             onOpenChange={(open) => {
