@@ -683,6 +683,9 @@ function aborted(): Error {
   return new DOMException('Aborted', 'AbortError')
 }
 
+// Models (base URL and name) that took tools only with reasoning_effort 'none'.
+const EFFORT_NONE = new Set<string>()
+
 // Streams a reply, running the tools the model calls and sending their
 // results back until it has nothing more to ask for.
 export async function* streamChat(req: ChatRequest): AsyncGenerator<StreamEvent> {
@@ -693,8 +696,14 @@ export async function* streamChat(req: ChatRequest): AsyncGenerator<StreamEvent>
   const total: Usage = { input: 0, output: 0 }
 
   // Some OpenAI models refuse a reasoning effort together with function tools on
-  // chat completions and ask for 'none'; the reply carries on that way.
-  let sent = req
+  // chat completions and ask for 'none', even when none was sent (their default
+  // effort counts). The reply carries on that way, and later replies from the
+  // same model ask for 'none' from the start.
+  const model = `${req.baseUrl}|${req.model}`
+  let sent: ChatRequest =
+    !anthropic && req.tools?.length && EFFORT_NONE.has(model)
+      ? { ...req, params: { ...req.params, effort: 'none' } }
+      : req
   for (let round = 1; ; round++) {
     const init = (): RequestInit => ({
       method: 'POST',
@@ -707,7 +716,8 @@ export async function* streamChat(req: ChatRequest): AsyncGenerator<StreamEvent>
       res = await request(url(req, req.provider.chatPath), init(), req)
     } catch (err) {
       const refused = err instanceof Error && /reasoning_effort/i.test(err.message) && /tools?/i.test(err.message)
-      if (anthropic || !refused || !sent.params?.effort || sent.params.effort === 'none') throw err
+      if (anthropic || !refused || sent.params?.effort === 'none') throw err
+      EFFORT_NONE.add(model)
       sent = { ...sent, params: { ...sent.params, effort: 'none' } }
       res = await request(url(req, req.provider.chatPath), init(), req)
     }

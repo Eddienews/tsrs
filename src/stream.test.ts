@@ -104,6 +104,19 @@ describe('streamChat, OpenAI format', () => {
     expect(JSON.parse(fetch.mock.calls[1][1].body as string).reasoning_effort).toBe('none')
   })
 
+  it('drops to effort none when no effort was set, and remembers it for the model', async () => {
+    const refusal = JSON.stringify({ error: { message: "Function tools with reasoning_effort are not supported for gpt-y in /v1/chat/completions. To use function tools, use /v1/responses or set reasoning_effort to 'none'." } })
+    const ok = () => sse(['data: {"choices":[{"delta":{"content":"ok"}}]}\n\n', 'data: [DONE]\n\n'])
+    const replies = [new Response(refusal, { status: 400 }), ok(), ok()]
+    const fetch = vi.fn(async (_url: string, _init: RequestInit) => replies.shift()!)
+    vi.stubGlobal('fetch', fetch)
+    const tools = [{ name: 'project_write_file', description: 'save', schema: { type: 'object', properties: {} } }]
+    await collect(request('openai', { model: 'gpt-y', tools }))
+    await collect(request('openai', { model: 'gpt-y', tools }))
+    const sentEffort = fetch.mock.calls.map((c) => JSON.parse(c[1].body as string).reasoning_effort)
+    expect(sentEffort).toEqual([undefined, 'none', 'none'])
+  })
+
   it('sends system prompt, parameters and auth header', async () => {
     const fetch = stubFetch(sse(['data: [DONE]\n\n']))
     await collect(

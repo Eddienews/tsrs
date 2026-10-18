@@ -116,6 +116,13 @@ test('drops the reasoning effort when the model refuses it with tools', async ({
   expect(provider.chats.map((c) => c.body.reasoning_effort)).toEqual(['high', 'none'])
 })
 
+test('asks for effort none when the model refuses its own default effort', async ({ page }) => {
+  await connect(page)
+  await send(page, 'responda: modelo exigente sem nível')
+  await expect(reply(page)).toContainText('modelo exigente sem nível')
+  expect(provider.chats.map((c) => c.body.reasoning_effort)).toEqual([undefined, 'none'])
+})
+
 test('sends per-chat parameters and attachments', async ({ page }) => {
   await connect(page)
   await page.getByRole('button', { name: 'Parâmetros' }).click()
