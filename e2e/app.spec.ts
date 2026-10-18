@@ -512,7 +512,7 @@ test('the folder tools are there from the first message, and make the folder whe
   await send(page, 'chame inspect_page {"file":"index.html"}')
   // Offered before the conversation had a folder.
   const names = provider.chats.at(-2)!.body.tools.map((t: any) => t.function.name)
-  expect(names).toEqual(expect.arrayContaining(['find_images', 'get_image', 'inspect_page', 'ui_component_add', 'project_write_file']))
+  expect(names).toEqual(expect.arrayContaining(['find_images', 'get_image', 'inspect_page', 'ui_component_add', 'project_write_file', 'open_api_find', 'open_api_fetch']))
   await expect(reply(page).last()).toContainText('No page named index.html')
   await expect(page.locator('.toolbar .project')).toBeVisible()
 })

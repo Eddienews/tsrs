@@ -123,6 +123,16 @@ manager) and Chrome, Edge or Playwright's Chromium.
   [Leonxlnx](https://github.com/Leonxlnx/taste-skill), MIT), it also draws an
   art direction from a library studied from 247 sites and checks the page
   against its house style. Needs Node 22.
+- **Open APIs** for live data in pages, dashboards and apps: a catalogue of 38
+  free APIs, picked from [public-apis](https://github.com/public-apis/public-apis)
+  and checked to answer without a key, over HTTPS and from the browser (weather,
+  exchange rates, countries and Brazilian data, holidays, museum art, icons,
+  science, books, radio, statistics). Each entry says what its terms allow
+  (any use, with a credit, non-commercial only, per item, or still to check), so
+  the model credits the source and warns before commercial use. For a motion
+  video the data is fetched once and saved in `midia/` with its credit in
+  `CREDITOS.md`, so every render of the MP4 is the same. The catalogue is
+  `src/openApis.ts`.
 - **React components** for projects built with React or Next.js: the model
   searches [cult/ui](https://github.com/nolly-studio/cult-ui) (about 150
   components, MIT) and copies the one it needs into `components/ui/`, with the

@@ -34,6 +34,7 @@ import {
 } from './autoBackup'
 import BackupOffer from './BackupOffer'
 import { setLanguage, t } from './i18n'
+import { OPEN_API_TOOLS, runOpenApiTool } from './openApis'
 import { FileContext, PreviewContext } from './Markdown'
 import MessageView, { ContextReset } from './MessageView'
 import ParamsPanel from './ParamsPanel'
@@ -1661,6 +1662,7 @@ export default function App() {
           ...(canProject && !project ? [projectTools(meta.id, usings[0].model)] : []),
           ...(canProject ? [stockTools(meta.id, usings[0].model)].filter((set): set is ToolSet => !!set) : []),
           ...(canProject ? [designTools(meta.id, usings[0].model, skillsOn.some(isTasteSkill))] : []),
+          ...(canProject ? [openApiTools(meta.id, usings[0].model)] : []),
           ...(canProject ? [uiToolSet(() => ensureProject(meta.id), (files) => projectHistory(meta.id, files, usings[0].model))] : []),
           ...(canProject ? [shortTools(meta.id, first.id, usings[0].model)].filter((set): set is ToolSet => !!set) : []),
         ])
@@ -1875,6 +1877,26 @@ export default function App() {
           { name: 'NOTAS.md', content: historyLine(files, who, new Date()), append: true },
         ])
       },
+    )
+  }
+
+  // Free public APIs for live data; what is fetched to keep goes to midia/, credited.
+  function openApiTools(chatId: string, who: string): ToolSet {
+    return localTools(OPEN_API_TOOLS, t('APIs abertas'), (call, signal) =>
+      runOpenApiTool(
+        call,
+        async (name, content, encoding, credit) => {
+          const project = await ensureProject(chatId)
+          if (!project) throw new Error('This conversation has no project folder to save into.')
+          const written = await saveFiles(project.path, [{ name, content, ...(encoding ? { encoding } : {}) }])
+          await saveFiles(project.path, [
+            { name: 'CREDITOS.md', content: `${credit}\n`, append: true },
+            { name: 'NOTAS.md', content: historyLine(written, who, new Date()), append: true },
+          ])
+          return written.join(', ')
+        },
+        signal,
+      ),
     )
   }
 
