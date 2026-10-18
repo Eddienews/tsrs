@@ -1857,7 +1857,12 @@ export default function App() {
   function projectTools(chatId: string, who: string): ToolSet {
     return localTools(PROJECT_TOOLS, t('Pasta do projeto'), async (call) => {
       const project = findMeta(chatId)?.project ?? (call.name.startsWith('project_write') ? await ensureProject(chatId) : undefined)
-      if (!project) return { content: 'This conversation has no project folder yet: nothing has been saved in it.', isError: true }
+      // Before the first file there is no folder yet: that is not a failure, and saving makes it.
+      if (!project) {
+        return call.name === 'project_list_files'
+          ? { content: 'The project folder is empty: it is made when the first file is saved with project_write_file. Go ahead and save.', isError: false }
+          : { content: `There is no ${String((call.input as { file?: string })?.file ?? 'such file')} yet: the project folder is empty until a file is saved with project_write_file.`, isError: true }
+      }
       return runProjectTool(project, call, (written) => {
         const wrote = turnWrites.current.get(chatId) ?? new Set<string>()
         written.forEach((name) => wrote.add(name))
