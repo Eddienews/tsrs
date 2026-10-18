@@ -147,6 +147,14 @@ export async function startMockProvider(): Promise<MockProvider> {
         .end(JSON.stringify({ error: { message: 'mock failure' } }))
     }
 
+    // Like gpt-6.1-sol on chat completions: no reasoning effort with function tools.
+    const lastText = String(body.messages.at(-1)?.content ?? '')
+    if (lastText.includes('modelo exigente') && body.reasoning_effort && body.reasoning_effort !== 'none') {
+      return res
+        .writeHead(400, { ...CORS, 'Content-Type': 'application/json' })
+        .end(JSON.stringify({ error: { message: "Function tools with reasoning_effort are not supported for gpt-6.1-sol in /v1/chat/completions. To use function tools, use /v1/responses or set reasoning_effort to 'none'." } }))
+    }
+
     res.writeHead(200, { ...CORS, 'Content-Type': 'text/event-stream' })
     const last = body.messages.at(-1)
     // Asked about the project folder, the mock reads or writes a file in it.
