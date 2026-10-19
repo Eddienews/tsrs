@@ -1475,6 +1475,10 @@ export default function App() {
           target: job.target,
           kind: job.kind,
           prompt: reply.imagePrompt ?? '',
+          // Images attached to the request, for sources that edit from them.
+          images: (history.at(-1)?.attachments ?? [])
+            .filter((a) => a.kind === 'image' && a.data)
+            .map(({ mime, data }) => ({ mime, data })),
           signal: abort.signal,
           onProgress: (mediaProgress) => patchReply((m) => ({ ...m, mediaProgress })),
         })
@@ -1493,7 +1497,7 @@ export default function App() {
           void saveToProject(
             meta.id,
             [{ name: `midia/${attachment.name}`, content: made.data, encoding: 'base64' }],
-            sourceName(job.target.source),
+            sourceName(job.target.source, job.kind),
           ).then((saved) => {
             const file = saved?.written[0]
             if (!saved || !file) return
