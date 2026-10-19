@@ -1,5 +1,5 @@
 import { locale, t } from './i18n'
-import { mediaService, PIPER, type MediaService, type MediaTarget } from './media'
+import { COMFY, mediaService, PIPER, type MediaService, type MediaTarget } from './media'
 import { ELEVEN_PRICES, elevenSpeechPrice } from './mediaPrice'
 import { connection } from './providers'
 import { generateImage } from './stream'
@@ -727,6 +727,27 @@ async function geminiSpeech(
   return { mime: 'audio/wav', data: audio.data }
 }
 
+// Music or a sound effect from ComfyUI on this computer, through the TSRS
+// server (ComfyUI does not answer the browser). Options: seconds, bpm, bars, seed.
+async function comfyAudio(job: Job, options: Record<string, unknown>): Promise<GeneratedMedia> {
+  let res: Response
+  try {
+    res = await fetch('/__tsrs/comfy/audio', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...options, prompt: job.prompt }),
+      signal: job.signal,
+    })
+  } catch (err) {
+    if (job.signal?.aborted) throw err
+    throw new Error(t('O servidor do TSRS não respondeu. Abra o TSRS pelo npm run dev.'))
+  }
+  if (res.status === 404) throw new Error(t('O servidor do TSRS não respondeu. Abra o TSRS pelo npm run dev.'))
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok || !json.data) throw new Error(json.error ?? t('{name} não devolveu nenhum arquivo.', { name: 'ComfyUI' }))
+  return { mime: json.mime ?? 'audio/flac', data: json.data, cost: 0 }
+}
+
 export async function generateMedia(job: Job): Promise<GeneratedMedia> {
   if (job.target.source === PIPER) {
     if (job.kind !== 'audio') throw new Error(t('O Piper só faz voz.'))
@@ -734,6 +755,10 @@ export async function generateMedia(job: Job): Promise<GeneratedMedia> {
     return { ...(await speakLocally(job.prompt, job.target.model)), cost: 0 }
   }
   const options = parseOptions(job.target.options)
+  if (job.target.source === COMFY) {
+    if (job.kind !== 'audio') throw new Error(t('O ComfyUI local só faz música e efeitos sonoros aqui.'))
+    return comfyAudio(job, options)
+  }
   const service = mediaService(job.target.source)
   if (!service) {
     // A chat provider: images from OpenAI or Gemini, Veo videos from Gemini,

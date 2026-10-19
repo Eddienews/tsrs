@@ -1051,6 +1051,11 @@ export const en: Record<string, string> = {
     'Downloading local Whisper: {loaded} of {total} MB',
   'Piper (local, grátis)': 'Piper (local, free)',
   'O Piper só faz voz.': 'Piper only makes speech.',
+  'ComfyUI local (Stable Audio 3)': 'Local ComfyUI (Stable Audio 3)',
+  'O ComfyUI local só faz música e efeitos sonoros aqui.': 'Local ComfyUI only makes music and sound effects here.',
+  'O servidor do TSRS não respondeu. Abra o TSRS pelo npm run dev.': 'The TSRS server did not answer. Open TSRS with npm run dev.',
+  'Música e efeitos sonoros feitos neste computador pelo ComfyUI (porta 8188, ou TSRS_COMFYUI), com os modelos do modelo de fluxo Stable Audio 3 Medium. Sem chave e sem custo; o arquivo vai para a pasta midia/ do projeto. Opções: seconds, bpm, bars, seed. Precisa do TSRS aberto pelo npm run dev.':
+    'Music and sound effects made on this computer by ComfyUI (port 8188, or TSRS_COMFYUI), with the models of the Stable Audio 3 Medium workflow template. No key and no cost; the file goes to the project\'s midia/ folder. Options: seconds, bpm, bars, seed. Needs TSRS opened with npm run dev.',
 
   // Making ElevenLabs voices
   'Criar voz…': 'Create voice…',

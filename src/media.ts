@@ -165,14 +165,18 @@ function providerModel(provider: Provider | undefined, kind: MediaKind): string 
 export function mediaSources(kind: MediaKind): { id: string; name: string }[] {
   const providers = PROVIDERS.filter((p) => providerModel(p, kind))
   const services = MEDIA_SERVICES.filter((s) => kind in s.models)
-  return (kind === 'image' ? [...providers, ...services] : [...services, ...providers]).map(
+  const sources = (kind === 'image' ? [...providers, ...services] : [...services, ...providers]).map(
     ({ id, name }) => ({ id, name }),
   )
+  // ComfyUI on this computer comes last, so 'auto' keeps using a key added
+  // for audio; it is chosen by hand.
+  return kind === 'audio' ? [...sources, { id: COMFY, name: sourceName(COMFY) }] : sources
 }
 
 // The default model of a source for a kind ('' when there is none).
 export function defaultModel(source: string, kind: MediaKind): string {
   if (source === PIPER) return kind === 'audio' ? defaultPiperVoice(locale()) : ''
+  if (source === COMFY) return kind === 'audio' ? COMFY_AUDIO_MODEL : ''
   const service = mediaService(source)
   if (service) return service.models[kind] ?? ''
   return providerModel(PROVIDERS.find((p) => p.id === source), kind)
@@ -180,7 +184,7 @@ export function defaultModel(source: string, kind: MediaKind): string {
 
 function hasKey(settings: Settings, source: string): boolean {
   // Piper runs on this computer and needs no key.
-  if (source === PIPER) return true
+  if (source === PIPER || source === COMFY) return true
   if (mediaService(source)) return !!settings.mediaKeys[source]?.trim()
   const provider = PROVIDERS.find((p) => p.id === source)
   const conn = settings.providers[source]
@@ -204,7 +208,7 @@ export function mediaSource(
   const choice: MediaChoice = settings.media[kind]
   if (choice.source === 'auto') {
     const found = mediaSources(kind).find(
-      (s) => hasKey(settings, s.id) && defaultModel(s.id, kind),
+      (s) => s.id !== COMFY && hasKey(settings, s.id) && defaultModel(s.id, kind),
     )
     return found ? { source: found.id, model: defaultModel(found.id, kind), options: '' } : null
   }
@@ -235,6 +239,11 @@ export function mediaProblem(settings: Settings, kind: MediaKind): string {
 // Piper's voices run in the browser, with files kept by the TSRS server.
 export const PIPER = 'piper'
 
+// Music and sound effects from ComfyUI on this computer (Stable Audio 3
+// Medium), asked through the TSRS server; no key and no cost per file.
+export const COMFY = 'comfyui'
+export const COMFY_AUDIO_MODEL = 'stable_audio_3_medium'
+
 export const READER_SOURCES = [PIPER, 'elevenlabs', 'openai', 'gemini', 'minimax', 'cartesia']
 
 // Who reads replies aloud now, or null for the browser's own voices (also
@@ -249,5 +258,6 @@ export function readerSource(settings: Settings, locked: boolean): MediaTarget |
 
 export function sourceName(source: string): string {
   if (source === PIPER) return t('Piper (local, grátis)')
+  if (source === COMFY) return t('ComfyUI local (Stable Audio 3)')
   return mediaService(source)?.name ?? PROVIDERS.find((p) => p.id === source)?.name ?? source
 }
