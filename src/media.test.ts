@@ -84,9 +84,11 @@ describe('mediaSource', () => {
     expect(mediaSource(withKeys(['openai'], { elevenlabs: 'e' }), 'audio', false)?.source).toBe('elevenlabs')
   })
 
-  it('offers the local ComfyUI for audio only, chosen by hand and with no key', () => {
+  it('offers the local ComfyUI for audio and images, chosen by hand and with no key', () => {
     expect(mediaSources('audio').at(-1)?.id).toBe(COMFY)
-    expect(mediaSources('image').some((s) => s.id === COMFY)).toBe(false)
+    expect(mediaSources('image').at(-1)?.id).toBe(COMFY)
+    expect(mediaSources('video').some((s) => s.id === COMFY)).toBe(false)
+    expect(mediaSource(settingsWith({}), 'image', false)).toBeNull()
     // 'auto' does not pick it: ComfyUI may not be running.
     expect(mediaSource(settingsWith({}), 'audio', false)).toBeNull()
     const settings = settingsWith({})
@@ -472,7 +474,19 @@ describe('generateMedia', () => {
     expect(calls[0]).toMatchObject({ method: 'POST', body: { prompt: 'um gato', seconds: 20, bpm: 96 } })
     routes = [[/comfy/, () => json({ error: 'ComfyUI is not answering at http://127.0.0.1:8188.' }, 502)]]
     await expect(run(settingsWith({}), target, 'audio')).rejects.toThrow('ComfyUI is not answering')
-    await expect(run(settingsWith({}), target, 'image')).rejects.toThrow()
+    await expect(run(settingsWith({}), target, 'video')).rejects.toThrow('vídeo')
+  })
+
+  it('makes an image with the local ComfyUI, sending the attached images to edit from', async () => {
+    routes.push([/^\/__tsrs\/comfy\/image$/, () => json({ mime: 'image/png', data: 'AQID', seed: 3, model: 'qwen-image-edit-2511' })])
+    const target = { source: COMFY, model: 'z-image-turbo', options: '{"width": 1024}' }
+    const images = [1, 2, 3, 4].map((n) => ({ mime: 'image/png', data: `img${n}` }))
+    const done = generateMedia({ settings: settingsWith({}), target, kind: 'image', prompt: 'troque o fundo', images })
+    expect(await done).toEqual({ mime: 'image/png', data: 'AQID', cost: 0 })
+    expect(calls[0].body).toEqual({ width: 1024, prompt: 'troque o fundo', images: images.slice(0, 3) })
+    // Only text: no images in the request.
+    await generateMedia({ settings: settingsWith({}), target, kind: 'image', prompt: 'um gato' })
+    expect(calls[1].body).toEqual({ width: 1024, prompt: 'um gato' })
   })
 
   it('says when a key is refused or the options are not JSON', async () => {

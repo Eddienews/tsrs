@@ -51,7 +51,7 @@ const OPTION_EXAMPLES: Record<string, Partial<Record<MediaKind, string>>> = {
   minimax: { video: '{"resolution": "768P", "duration": 6}' },
   cartesia: { audio: '{"language": "es"}' },
   xai: { video: '{"duration": 6}' },
-  comfyui: { audio: '{"seconds": 30, "bpm": 120}' },
+  comfyui: { audio: '{"seconds": 30, "bpm": 120}', image: '{"width": 1344, "height": 768}' },
 }
 
 function isJsonObject(text: string): boolean {
@@ -185,7 +185,14 @@ function KindChoice(props: Props & { kind: MediaKind }) {
           )
         )}
       </div>
-      {choice.source === COMFY && (
+      {choice.source === COMFY && kind === 'image' && (
+        <p className={hint}>
+          {t(
+            'Imagens feitas neste computador pelo ComfyUI (porta 8188, ou TSRS_COMFYUI), sem chave e sem custo. Só com texto, usa o Z-Image Turbo; com até 3 imagens anexadas ao pedido, usa o Qwen-Image-Edit-2511 para editar a partir delas. Precisa dos modelos desses modelos de fluxo no ComfyUI. Opções: width, height, seed. A imagem vai para a pasta midia/ do projeto. Precisa do TSRS aberto pelo npm run dev.',
+          )}
+        </p>
+      )}
+      {choice.source === COMFY && kind === 'audio' && (
         <p className={hint}>
           {t(
             'Música e efeitos sonoros feitos neste computador pelo ComfyUI (porta 8188, ou TSRS_COMFYUI), com os modelos do modelo de fluxo Stable Audio 3 Medium. Sem chave e sem custo; o arquivo vai para a pasta midia/ do projeto. Opções: seconds, bpm, bars, seed. Precisa do TSRS aberto pelo npm run dev.',

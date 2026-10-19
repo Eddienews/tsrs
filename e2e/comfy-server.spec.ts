@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { audioGraph, audioPrompt, comfyStatus, makeAudio } from '../server/comfy.mjs'
+import { audioGraph, audioPrompt, comfyStatus, makeAudio, makeImage } from '../server/comfy.mjs'
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
@@ -70,4 +70,77 @@ test('says which Stable Audio 3 files ComfyUI is missing', async () => {
     ok: false,
     missing: ['stable_audio_3_medium.safetensors'],
   })
+})
+
+// A fake ComfyUI with the image models, recording what it was sent.
+function imageComfy(files: { unets: string[]; loras?: string[] }) {
+  const sent: { graph?: any; uploads: string[] } = { uploads: [] }
+  const lists: Record<string, [string, string[]]> = {
+    UNETLoader: ['unet_name', files.unets],
+    CLIPLoader: ['clip_name', ['qwen_3_4b_fp8_mixed.safetensors', 'qwen_2.5_vl_7b_fp8_scaled.safetensors']],
+    VAELoader: ['vae_name', ['ae.safetensors', 'qwen_image_vae.safetensors']],
+    LoraLoaderModelOnly: ['lora_name', files.loras ?? []],
+  }
+  const fetchImpl = async (url: string, init: any) => {
+    const node = /object_info\/(\w+)$/.exec(url)?.[1]
+    if (node) return json({ [node]: { input: { required: { [lists[node][0]]: [lists[node][1]] } } } })
+    if (url.endsWith('/upload/image')) {
+      const file = init.body.get('image') as File
+      sent.uploads.push(`${file.name}:${file.type}:${init.body.get('subfolder')}`)
+      return json({ name: file.name, subfolder: 'tsrs', type: 'input' })
+    }
+    if (url.endsWith('/prompt')) {
+      sent.graph = JSON.parse(init.body).prompt
+      return json({ prompt_id: 'p' })
+    }
+    if (url.endsWith('/history/p')) {
+      return json({ p: { status: { status_str: 'success' }, outputs: { 21: { images: [{ filename: 'i.png', subfolder: 'tsrs-image', type: 'output' }] } } } })
+    }
+    if (url.includes('/view?')) return new Response(new Uint8Array([9, 9]))
+    throw new TypeError('fetch failed')
+  }
+  return { fetchImpl, sent }
+}
+
+test('makes an image from text with Z-Image Turbo, whatever precision is installed', async () => {
+  const { fetchImpl, sent } = imageComfy({ unets: ['z_image_turbo_int8_convrot.safetensors'] })
+  const made = await makeImage({ prompt: 'a red bicycle', width: 1000, height: 700, seed: 1 }, fetchImpl, async () => {})
+  expect(made).toEqual({ mime: 'image/png', data: 'CQk=', seed: 1, model: 'z-image-turbo' })
+  expect(sent.graph[1].inputs.unet_name).toBe('z_image_turbo_int8_convrot.safetensors')
+  expect(sent.graph[2].inputs.clip_name).toBe('qwen_3_4b_fp8_mixed.safetensors')
+  // Sizes are rounded to multiples of 16.
+  expect(sent.graph[7].inputs).toEqual({ width: 1008, height: 704, batch_size: 1 })
+  expect(sent.uploads).toEqual([])
+})
+
+test('edits from up to 3 attached images with Qwen-Image-Edit, fast with the Lightning LoRA', async () => {
+  const { fetchImpl, sent } = imageComfy({
+    unets: ['z_image_turbo_bf16.safetensors', 'qwen_image_edit_2511_bf16.safetensors'],
+    loras: ['Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors'],
+  })
+  const images = ['AQ==', 'Ag==', 'Aw==', 'BA=='].map((data) => ({ mime: 'image/png', data }))
+  const made = await makeImage({ prompt: 'same characters, new pose', images, seed: 2 }, fetchImpl, async () => {})
+  expect(made.model).toBe('qwen-image-edit-2511')
+  expect(sent.uploads).toHaveLength(3)
+  expect(sent.uploads[0]).toMatch(/^ref-\d+-0\.png:image\/png:tsrs$/)
+  expect(sent.graph[1].inputs.unet_name).toBe('qwen_image_edit_2511_bf16.safetensors')
+  expect(sent.graph[12].inputs.image).toMatch(/^tsrs\/ref-\d+-2\.png$/)
+  expect(sent.graph[14].inputs.image3).toEqual(['12', 0])
+  expect(sent.graph[19].inputs).toMatchObject({ model: ['6', 0], steps: 4, cfg: 1 })
+  // Without the LoRA: the template's 40 steps.
+  const slow = imageComfy({ unets: ['qwen_image_edit_2511_fp8.safetensors'] })
+  await makeImage({ prompt: 'x', images: images.slice(0, 1) }, slow.fetchImpl, async () => {})
+  expect(slow.sent.graph[6]).toBeUndefined()
+  expect(slow.sent.graph[19].inputs).toMatchObject({ model: ['5', 0], steps: 40, cfg: 4 })
+})
+
+test('says which image model ComfyUI lacks and refuses other reference formats', async () => {
+  const none = imageComfy({ unets: [] })
+  await expect(makeImage({ prompt: 'x' }, none.fetchImpl, async () => {})).rejects.toThrow('no Z-Image Turbo model')
+  await expect(makeImage({ prompt: 'x', images: [{ mime: 'image/png', data: 'AQ==' }] }, none.fetchImpl, async () => {})).rejects.toThrow(
+    'no Qwen-Image-Edit-2511 model',
+  )
+  const qwen = imageComfy({ unets: ['qwen_image_edit_2511_bf16.safetensors'] })
+  await expect(makeImage({ prompt: 'x', images: [{ mime: 'image/gif', data: 'AQ==' }] }, qwen.fetchImpl, async () => {})).rejects.toThrow('PNG')
+  await expect(makeImage({ prompt: ' ' }, qwen.fetchImpl, async () => {})).rejects.toThrow('Describe')
 })

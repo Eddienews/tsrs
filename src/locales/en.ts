@@ -1052,7 +1052,11 @@ export const en: Record<string, string> = {
   'Piper (local, grátis)': 'Piper (local, free)',
   'O Piper só faz voz.': 'Piper only makes speech.',
   'ComfyUI local (Stable Audio 3)': 'Local ComfyUI (Stable Audio 3)',
-  'O ComfyUI local só faz música e efeitos sonoros aqui.': 'Local ComfyUI only makes music and sound effects here.',
+  'O ComfyUI local não faz vídeo aqui.': 'Local ComfyUI does not make video here.',
+  'ComfyUI local (Z-Image / Qwen Edit)': 'Local ComfyUI (Z-Image / Qwen Edit)',
+  'ComfyUI local': 'Local ComfyUI',
+  'Imagens feitas neste computador pelo ComfyUI (porta 8188, ou TSRS_COMFYUI), sem chave e sem custo. Só com texto, usa o Z-Image Turbo; com até 3 imagens anexadas ao pedido, usa o Qwen-Image-Edit-2511 para editar a partir delas. Precisa dos modelos desses modelos de fluxo no ComfyUI. Opções: width, height, seed. A imagem vai para a pasta midia/ do projeto. Precisa do TSRS aberto pelo npm run dev.':
+    'Images made on this computer by ComfyUI (port 8188, or TSRS_COMFYUI), with no key and no cost. With text only it uses Z-Image Turbo; with up to 3 images attached to the request it uses Qwen-Image-Edit-2511 to edit from them. Needs the models of those workflow templates in ComfyUI. Options: width, height, seed. The image goes to the project\'s midia/ folder. Needs TSRS opened with npm run dev.',
   'O servidor do TSRS não respondeu. Abra o TSRS pelo npm run dev.': 'The TSRS server did not answer. Open TSRS with npm run dev.',
   'Música e efeitos sonoros feitos neste computador pelo ComfyUI (porta 8188, ou TSRS_COMFYUI), com os modelos do modelo de fluxo Stable Audio 3 Medium. Sem chave e sem custo; o arquivo vai para a pasta midia/ do projeto. Opções: seconds, bpm, bars, seed. Precisa do TSRS aberto pelo npm run dev.':
     'Music and sound effects made on this computer by ComfyUI (port 8188, or TSRS_COMFYUI), with the models of the Stable Audio 3 Medium workflow template. No key and no cost; the file goes to the project\'s midia/ folder. Options: seconds, bpm, bars, seed. Needs TSRS opened with npm run dev.',

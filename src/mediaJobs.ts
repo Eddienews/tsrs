@@ -25,6 +25,8 @@ interface Job {
   target: MediaTarget
   kind: MediaKind
   prompt: string
+  // Images attached to the request, for sources that edit from references.
+  images?: { mime: string; data: string }[]
   signal?: AbortSignal
   // Progress to show while waiting, such as '47%'.
   onProgress?: (text: string) => void
@@ -727,15 +729,18 @@ async function geminiSpeech(
   return { mime: 'audio/wav', data: audio.data }
 }
 
-// Music or a sound effect from ComfyUI on this computer, through the TSRS
-// server (ComfyUI does not answer the browser). Options: seconds, bpm, bars, seed.
-async function comfyAudio(job: Job, options: Record<string, unknown>): Promise<GeneratedMedia> {
+// Music, a sound effect or an image from ComfyUI on this computer, through the
+// TSRS server (ComfyUI does not answer the browser). Audio options: seconds,
+// bpm, bars, seed. Image options: width, height, seed; attached images make
+// it an edit (Qwen-Image-Edit) instead of an image from text (Z-Image).
+async function comfyMedia(job: Job, options: Record<string, unknown>): Promise<GeneratedMedia> {
+  const images = job.kind === 'image' ? (job.images ?? []).filter((i) => i.data).slice(0, 3) : []
   let res: Response
   try {
-    res = await fetch('/__tsrs/comfy/audio', {
+    res = await fetch(`/__tsrs/comfy/${job.kind}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...options, prompt: job.prompt }),
+      body: JSON.stringify({ ...options, prompt: job.prompt, ...(images.length ? { images } : {}) }),
       signal: job.signal,
     })
   } catch (err) {
@@ -745,7 +750,7 @@ async function comfyAudio(job: Job, options: Record<string, unknown>): Promise<G
   if (res.status === 404) throw new Error(t('O servidor do TSRS não respondeu. Abra o TSRS pelo npm run dev.'))
   const json = await res.json().catch(() => ({}))
   if (!res.ok || !json.data) throw new Error(json.error ?? t('{name} não devolveu nenhum arquivo.', { name: 'ComfyUI' }))
-  return { mime: json.mime ?? 'audio/flac', data: json.data, cost: 0 }
+  return { mime: json.mime ?? (job.kind === 'image' ? 'image/png' : 'audio/flac'), data: json.data, cost: 0 }
 }
 
 export async function generateMedia(job: Job): Promise<GeneratedMedia> {
@@ -756,8 +761,8 @@ export async function generateMedia(job: Job): Promise<GeneratedMedia> {
   }
   const options = parseOptions(job.target.options)
   if (job.target.source === COMFY) {
-    if (job.kind !== 'audio') throw new Error(t('O ComfyUI local só faz música e efeitos sonoros aqui.'))
-    return comfyAudio(job, options)
+    if (job.kind === 'video') throw new Error(t('O ComfyUI local não faz vídeo aqui.'))
+    return comfyMedia(job, options)
   }
   const service = mediaService(job.target.source)
   if (!service) {
