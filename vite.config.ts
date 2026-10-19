@@ -9,6 +9,7 @@ import { tsrsBackups } from './server/backups-plugin.mjs'
 import { tsrsModels } from './server/models-plugin.mjs'
 import { agendaForServer } from './server/agenda.mjs'
 import { tsrsExtensions } from './server/extensions-plugin.mjs'
+import { tsrsComfy } from './server/comfy-plugin.mjs'
 
 export default defineConfig({
   // tsrsRenderer: the "Gerar MP4" button's renderer, on npm run dev and vite preview.
@@ -17,7 +18,8 @@ export default defineConfig({
   // tsrsExtensions: skills, plugins and the schedule, kept on disk.
   // tsrsBackups: a copy of conversations and settings on disk, made automatically.
   // tsrsModels: Whisper and Piper files, downloaded once and kept on disk.
-  plugins: [react(), tailwindcss(), tsrsRenderer(), tsrsVersion(), tsrsProjects(), tsrsBackups(), tsrsModels(), tsrsExtensions(process.env.VITEST ? undefined : (server) => agendaForServer(server).handle)],
+  // tsrsComfy: music and sound effects from the local ComfyUI (Stable Audio 3).
+  plugins: [react(), tailwindcss(), tsrsRenderer(), tsrsVersion(), tsrsProjects(), tsrsBackups(), tsrsModels(), tsrsComfy(), tsrsExtensions(process.env.VITEST ? undefined : (server) => agendaForServer(server).handle)],
   // Imported only when a chat is exported as HTML; listed so the dev server
   // does not discover it mid-session and reload the page.
   // The local voices' libraries, listed for the same reason: found only when

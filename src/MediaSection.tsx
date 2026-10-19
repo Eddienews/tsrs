@@ -13,6 +13,7 @@ import {
   MEDIA_SERVICES,
   mediaService,
   mediaSources,
+  COMFY,
   PIPER,
   READER_SOURCES,
   sourceName,
@@ -50,6 +51,7 @@ const OPTION_EXAMPLES: Record<string, Partial<Record<MediaKind, string>>> = {
   minimax: { video: '{"resolution": "768P", "duration": 6}' },
   cartesia: { audio: '{"language": "es"}' },
   xai: { video: '{"duration": 6}' },
+  comfyui: { audio: '{"seconds": 30, "bpm": 120}' },
 }
 
 function isJsonObject(text: string): boolean {
@@ -183,6 +185,13 @@ function KindChoice(props: Props & { kind: MediaKind }) {
           )
         )}
       </div>
+      {choice.source === COMFY && (
+        <p className={hint}>
+          {t(
+            'Música e efeitos sonoros feitos neste computador pelo ComfyUI (porta 8188, ou TSRS_COMFYUI), com os modelos do modelo de fluxo Stable Audio 3 Medium. Sem chave e sem custo; o arquivo vai para a pasta midia/ do projeto. Opções: seconds, bpm, bars, seed. Precisa do TSRS aberto pelo npm run dev.',
+          )}
+        </p>
+      )}
       {choice.source !== 'auto' && !fallback && !choice.model && (
         <p className="text-xs text-warning">{t('Este serviço não tem modelo padrão para isso: informe um.')}</p>
       )}

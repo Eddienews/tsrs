@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mediaSource, type MediaTarget } from './media'
+import { COMFY, mediaSource, mediaSources, type MediaTarget } from './media'
 import { fetchMedia, findMediaUrl, generateMedia } from './mediaJobs'
 import { defaultSettings } from './storage'
 import type { MediaKind, Settings } from './types'
@@ -82,6 +82,17 @@ describe('mediaSource', () => {
     })
     // A media service key, added for that, comes first.
     expect(mediaSource(withKeys(['openai'], { elevenlabs: 'e' }), 'audio', false)?.source).toBe('elevenlabs')
+  })
+
+  it('offers the local ComfyUI for audio only, chosen by hand and with no key', () => {
+    expect(mediaSources('audio').at(-1)?.id).toBe(COMFY)
+    expect(mediaSources('image').some((s) => s.id === COMFY)).toBe(false)
+    // 'auto' does not pick it: ComfyUI may not be running.
+    expect(mediaSource(settingsWith({}), 'audio', false)).toBeNull()
+    const settings = settingsWith({})
+    const chosen = { ...settings, media: { ...settings.media, audio: { source: COMFY, model: '', options: '{"bpm":90}' } } }
+    expect(mediaSource(chosen, 'audio', false)).toEqual({ source: COMFY, model: 'stable_audio_3_medium', options: '{"bpm":90}' })
+    expect(mediaSource(chosen, 'audio', true)).toBeNull()
   })
 
   it('needs a model for a source chosen by hand that has no default', () => {
@@ -452,6 +463,16 @@ describe('generateMedia', () => {
       body: { model: 'grok-imagine-video-1.5', prompt: 'um gato' },
       headers: { Authorization: 'Bearer xk' },
     })
+  })
+
+  it('makes music with the local ComfyUI through the TSRS server, at no cost', async () => {
+    routes.push([/^\/__tsrs\/comfy\/audio$/, () => json({ mime: 'audio/flac', data: 'AQID', seed: 7 })])
+    const target = { source: COMFY, model: 'stable_audio_3_medium', options: '{"seconds": 20, "bpm": 96, "prompt": "ignored"}' }
+    expect(await run(settingsWith({}), target, 'audio')).toEqual({ mime: 'audio/flac', data: 'AQID', cost: 0 })
+    expect(calls[0]).toMatchObject({ method: 'POST', body: { prompt: 'um gato', seconds: 20, bpm: 96 } })
+    routes = [[/comfy/, () => json({ error: 'ComfyUI is not answering at http://127.0.0.1:8188.' }, 502)]]
+    await expect(run(settingsWith({}), target, 'audio')).rejects.toThrow('ComfyUI is not answering')
+    await expect(run(settingsWith({}), target, 'image')).rejects.toThrow()
   })
 
   it('says when a key is refused or the options are not JSON', async () => {
