@@ -1190,4 +1190,28 @@ export const en: Record<string, string> = {
   'Usar uma pasta que já existe': 'Use a folder that already exists',
   'A conversa passa a ler e gravar nela, inclusive o DESIGN.md e a pasta midia/.':
     'The conversation then reads and writes there, DESIGN.md and the midia/ folder included.',
+  // Afinar agente
+  'Propondo versões do prompt…': 'Proposing versions of the prompt…',
+  'Testando a versão {n} de {total}…': 'Testing version {n} of {total}…',
+  'Dando notas às respostas…': 'Scoring the answers…',
+  Atual: 'Current',
+  'Afinar {name}': 'Tune {name}',
+  'O TSRS propõe versões do prompt deste agente, testa todas na mesma tarefa e dá uma nota a cada resposta. Nada muda até você adotar uma.':
+    "TSRS proposes versions of this agent's prompt, tests them all on the same task and scores each answer. Nothing changes until you adopt one.",
+  'Tarefa de teste': 'Test task',
+  'Um pedido típico para este agente': 'A typical request for this agent',
+  'O que uma boa resposta precisa ter': 'What a good answer needs',
+  'Ex.: em português, no máximo 5 tópicos, cita a fonte, termina com o próximo passo':
+    'E.g.: in English, at most 5 points, cites the source, ends with the next step',
+  'Versões novas': 'New versions',
+  'Testar versões': 'Test versions',
+  '{calls} chamadas a {model} ({provider}). As ferramentas do agente não rodam no teste.':
+    "{calls} calls to {model} ({provider}). The agent's tools do not run in the test.",
+  'Ocultar prompt': 'Hide prompt',
+  'Ver prompt': 'Show prompt',
+  Adotar: 'Adopt',
+  'Voltar ao prompt anterior': 'Back to the previous prompt',
+  Afinar: 'Tune',
+  'O modelo não devolveu as versões em JSON.': 'The model did not return the versions as JSON.',
+  'O modelo não propôs nenhuma versão.': 'The model did not propose any version.',
 }

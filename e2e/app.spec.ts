@@ -215,6 +215,35 @@ test('compares a reply with other models side by side', async ({ page }) => {
   await expect(columns).toHaveCount(4)
 })
 
+test('tunes an agent: tries a new version on a task, scores both, adopts and goes back', async ({ page }) => {
+  await connect(page)
+  await page.getByRole('button', { name: 'Biblioteca' }).click()
+  await page.getByRole('button', { name: 'Nova persona' }).click()
+  await page.getByLabel('Nome').fill('Pirata')
+  await page.getByLabel('Prompt de sistema').fill('Fale como um pirata.')
+  await page.getByRole('button', { name: 'Afinar' }).click()
+  await page.getByLabel('Tarefa de teste').fill('Explique o que é DNS')
+  await page.getByLabel('O que uma boa resposta precisa ter').fill('Uma frase, no tom de pirata')
+  await page.getByRole('combobox').filter({ hasText: '3' }).selectOption('1')
+  await expect(page.getByText('4 chamadas a mock-a')).toBeVisible()
+  await page.getByRole('button', { name: 'Testar versões' }).click()
+
+  const results = page.getByTestId('tune-results')
+  await expect(results).toContainText('Pirata breve')
+  await expect(results).toContainText('9/10')
+  await expect(results).toContainText('curta e no tom')
+  await expect(results).toContainText('4/10')
+  // The current prompt and the new one each answered the task, with no tools.
+  const probes = provider.chats.filter((c) => c.body.messages.at(-1).content === 'Explique o que é DNS')
+  expect(probes.map((c) => c.body.messages[0].content)).toEqual(['Fale como um pirata.', 'Fale como um pirata, em uma frase.'])
+
+  await results.getByRole('button', { name: 'Adotar' }).click()
+  await expect(page.getByLabel('Prompt de sistema')).toHaveValue('Fale como um pirata, em uma frase.')
+  await page.getByRole('button', { name: 'Voltar ao prompt anterior' }).click()
+  await expect(page.getByLabel('Prompt de sistema')).toHaveValue('Fale como um pirata.')
+  await expect(page.getByRole('button', { name: 'Voltar ao prompt anterior' })).toHaveCount(0)
+})
+
 test('applies a persona and inserts a saved prompt', async ({ page }) => {
   await connect(page)
   await page.getByRole('button', { name: 'Biblioteca' }).click()
