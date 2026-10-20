@@ -51,7 +51,7 @@ export function proposePrompt(system: string, task: string, criteria: string, co
   return [
     '## Agent tuning: propose variants',
     `Below are the instructions (system prompt) of an AI agent, a task it must do, and what a good answer needs. Propose ${count} improved versions of the instructions. Each version makes one clear, different change (a rule added, a step reordered, a format fixed, an ambiguity removed) aimed at the criteria; keep what already works, the agent's language and its purpose.`,
-    'Answer only with a JSON block:',
+    'Answer only with a JSON block. Each "system" is the complete instructions with that change applied, never the original text unchanged; use only these three fields:',
     '```json\n{"variants":[{"label":"short name","change":"what changed, one line","system":"the full new instructions"}]}\n```',
     `<instructions>\n${system.trim() || '(empty)'}\n</instructions>`,
     `<task>\n${task.trim()}\n</task>`,
@@ -74,11 +74,15 @@ export function judgePrompt(task: string, criteria: string, answers: string[]): 
 // The JSON object in a reply: the first ```json block, or the whole reply.
 function jsonOf(reply: string): any {
   const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(reply)
-  const body = fenced ? fenced[1] : reply.slice(reply.indexOf('{'), reply.lastIndexOf('}') + 1)
-  return JSON.parse(body)
+  const text = fenced ? fenced[1] : reply
+  // Small local models leave stray characters around the object (a backtick before the closing fence, a word
+  // after it), so read from the first { to the last }.
+  return JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1))
 }
 
-export function parseVariants(reply: string, count: number): Variant[] {
+// `current` drops versions that only repeat the current instructions (a small model may describe a change it
+// did not make).
+export function parseVariants(reply: string, count: number, current?: string): Variant[] {
   let data: any
   try {
     data = jsonOf(reply)
@@ -87,6 +91,7 @@ export function parseVariants(reply: string, count: number): Variant[] {
   }
   const list: Variant[] = (Array.isArray(data?.variants) ? data.variants : [])
     .filter((v: any) => typeof v?.system === 'string' && v.system.trim())
+    .filter((v: any) => current === undefined || v.system.trim() !== current.trim())
     .slice(0, count)
     .map((v: any, i: number) => ({
       label: String(v.label || `V${i + 1}`).slice(0, 60),
@@ -124,7 +129,7 @@ export async function tuneAgent(req: TuneRequest, currentLabel: string): Promise
     completeText({ ...req.conn, model: req.model, system, messages: [{ role: 'user', content }], params: req.params, signal: req.signal })
 
   req.onStep?.({ kind: 'propose' })
-  const variants = parseVariants(await ask('', proposePrompt(req.system, req.task, req.criteria, req.count)), req.count)
+  const variants = parseVariants(await ask('', proposePrompt(req.system, req.task, req.criteria, req.count)), req.count, req.system)
   const versions: Variant[] = [{ label: currentLabel, change: '', system: req.system }, ...variants]
 
   const candidates: Candidate[] = []

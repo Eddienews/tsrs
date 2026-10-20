@@ -7,8 +7,8 @@ import type { Message } from './types'
 export const SUMMARY_PROMPT =
   'Summarize the conversation so far so that it can continue without the original messages. ' +
   'Keep every decision, fact, name, number, constraint, open question and piece of code still ' +
-  'relevant, and what the user is trying to achieve. Write in the language of the conversation, ' +
-  'as a structured summary, without addressing the user.'
+  'relevant, and what the user is trying to achieve. Write it in the same language the messages are ' +
+  'written in (do not translate them into English), as a structured summary, without addressing the user.'
 
 // What the model needs to see: the messages after the latest summary or
 // cleared context, with the summary when that is what came last.

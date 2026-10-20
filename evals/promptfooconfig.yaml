@@ -1,0 +1,16 @@
+# Regression tests for the prompts TSRS sends on its own (agent tuning, conversation summary).
+# The cases are generated from the source by evals/export-cases.mjs. Runs on a local Ollama model by
+# default (no key, no cost; a 4B model fits an 8 GB GPU); pick another provider with --providers, e.g. --providers openai:gpt-4.1-mini.
+#   npm run evals          (then: npx promptfoo@0.124.1 view)
+description: TSRS built-in prompts
+prompts:
+  - '{{prompt}}'
+providers:
+  # local Ollama without the model's reasoning in the output (OLLAMA_MODEL picks the model)
+  - id: file://ollama-provider.mjs
+    config:
+      temperature: 0
+      num_ctx: 8192
+evaluateOptions:
+  maxConcurrency: 1
+tests: file://cases.generated.json
