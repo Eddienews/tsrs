@@ -48,10 +48,24 @@ const newSeed = (seed) => (Number.isInteger(seed) ? seed : Math.floor(Math.rando
 const ROUND = (n) => Math.max(64, Math.min(4096, Math.round(n / 16) * 16))
 const FORMATS = ['image/png', 'image/jpeg', 'image/webp']
 
+// Asks sd-server to drop a job nobody waits for any more. It only drops
+// queued jobs (a running one finishes, refused with 409), so failures are
+// ignored.
+async function cancel(fetchImpl, base, id) {
+  try {
+    await fetchImpl(`${base}/sdcpp/v1/jobs/${encodeURIComponent(id)}/cancel`, { method: 'POST' })
+  } catch {
+    // sd-server went away: there is nothing left to cancel.
+  }
+}
+
+const stopped = () => new Error('The image was stopped.')
+
 // One image from text; with 1 to 3 attached images they go as references,
 // which an edit model (Qwen-Image-Edit, Flux Kontext) edits from. Returns
-// base64 PNG, the seed and the model sd-server has loaded.
-export async function makeImage(job, fetchImpl = fetch, wait = sleep) {
+// base64 PNG, the seed and the model sd-server has loaded. `signal` aborts
+// when the user stops: polling ends and the job is cancelled on sd-server.
+export async function makeImage(job, fetchImpl = fetch, wait = sleep, signal) {
   const prompt = String(job.prompt ?? '').trim()
   if (!prompt) throw new Error('Describe the image to make.')
   const images = Array.isArray(job.images) ? job.images.slice(0, 3) : []
@@ -63,6 +77,7 @@ export async function makeImage(job, fetchImpl = fetch, wait = sleep) {
   if (!(info.supported_modes ?? []).includes('img_gen')) {
     throw new Error(`The model sd-server has loaded (${info.model?.stem ?? '?'}) does not make images.`)
   }
+  if (signal?.aborted) throw stopped()
   const seed = newSeed(job.seed)
   const queued = await (
     await ask(fetchImpl, `${base}/sdcpp/v1/img_gen`, {
@@ -82,6 +97,10 @@ export async function makeImage(job, fetchImpl = fetch, wait = sleep) {
   const started = Date.now()
   for (;;) {
     await wait(1000)
+    if (signal?.aborted) {
+      await cancel(fetchImpl, base, queued.id)
+      throw stopped()
+    }
     const run = await (await ask(fetchImpl, `${base}/sdcpp/v1/jobs/${encodeURIComponent(queued.id)}`)).json()
     if (run.status === 'completed') {
       const data = run.result?.images?.[0]?.b64_json
@@ -91,6 +110,9 @@ export async function makeImage(job, fetchImpl = fetch, wait = sleep) {
     if (run.status === 'failed' || run.status === 'cancelled') {
       throw new Error(`sd-server: ${run.error?.message ?? `the run was ${run.status}`}`.slice(0, 400))
     }
-    if (Date.now() - started > MAX_WAIT_MS) throw new Error('sd-server took more than 15 minutes.')
+    if (Date.now() - started > MAX_WAIT_MS) {
+      await cancel(fetchImpl, base, queued.id)
+      throw new Error('sd-server took more than 15 minutes.')
+    }
   }
 }

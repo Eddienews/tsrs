@@ -6,12 +6,16 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 // A fake sd-server: capabilities, a job queue and the job's states in turn,
 // recording what it was sent.
 function sdServer(states: object[], modes = ['img_gen']) {
-  const sent: { body?: any; polls: number } = { polls: 0 }
+  const sent: { body?: any; polls: number; cancelled: string[] } = { polls: 0, cancelled: [] }
   const fetchImpl = async (url: string, init?: RequestInit) => {
     if (url.endsWith('/sdcpp/v1/capabilities')) return json({ model: { stem: 'z_image_turbo-Q4_K' }, supported_modes: modes })
     if (url.endsWith('/sdcpp/v1/img_gen')) {
       sent.body = JSON.parse(String(init?.body))
       return json({ id: 'job_1', status: 'queued', poll_url: '/sdcpp/v1/jobs/job_1' }, 202)
+    }
+    if (url.endsWith('/sdcpp/v1/jobs/job_1/cancel')) {
+      sent.cancelled.push('job_1')
+      return json({ id: 'job_1', status: 'cancelled' })
     }
     if (url.endsWith('/sdcpp/v1/jobs/job_1')) return json(states[Math.min(sent.polls++, states.length - 1)])
     throw new TypeError('fetch failed')
@@ -50,6 +54,23 @@ test('reports a failed job, a model that makes no images and an sd-server that i
   }
   await expect(makeImage({ prompt: 'a' }, down, async () => {})).rejects.toThrow('sd-server is not answering at http://127.0.0.1:1234')
   expect(await sdcppStatus(down)).toMatchObject({ ok: false })
+})
+
+test('stops waiting and cancels the job on sd-server when the user stops', async () => {
+  const { fetchImpl, sent } = sdServer([{ status: 'queued' }, { status: 'generating' }, done])
+  const stop = new AbortController()
+  // Stopped while waiting for the second poll.
+  const wait = async () => {
+    if (sent.polls === 1) stop.abort()
+  }
+  await expect(makeImage({ prompt: 'a' }, fetchImpl, wait, stop.signal)).rejects.toThrow('stopped')
+  expect(sent.polls).toBe(1)
+  expect(sent.cancelled).toEqual(['job_1'])
+  // Stopped before the job was queued: nothing is sent.
+  const early = sdServer([done])
+  await expect(makeImage({ prompt: 'a' }, early.fetchImpl, async () => {}, AbortSignal.abort())).rejects.toThrow('stopped')
+  expect(early.sent.body).toBeUndefined()
+  expect(early.sent.cancelled).toEqual([])
 })
 
 test('says what sd-server has loaded, and when another program holds its port', async () => {

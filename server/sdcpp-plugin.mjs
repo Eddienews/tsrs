@@ -33,9 +33,18 @@ export function tsrsSdcpp() {
       const path = new URL(req.url ?? '/', 'http://tsrs.local').pathname
       try {
         if (req.method === 'GET' && path === '/status') return send(res, 200, await sdcppStatus())
-        if (req.method === 'POST' && path === '/image') return send(res, 200, await makeImage(await body(req)))
+        if (req.method === 'POST' && path === '/image') {
+          // The browser's Stop closes the connection before the answer: stop
+          // waiting, and cancel the job on sd-server if it is still queued.
+          const gone = new AbortController()
+          res.on('close', () => {
+            if (!res.writableEnded) gone.abort()
+          })
+          return send(res, 200, await makeImage(await body(req), fetch, undefined, gone.signal))
+        }
         next()
       } catch (error) {
+        if (res.destroyed) return
         send(res, 502, { error: error instanceof Error ? error.message : String(error) })
       }
     })
