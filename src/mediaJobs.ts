@@ -1,5 +1,5 @@
 import { locale, t } from './i18n'
-import { COMFY, mediaService, PIPER, type MediaService, type MediaTarget } from './media'
+import { COMFY, mediaService, PIPER, SDCPP, type MediaService, type MediaTarget } from './media'
 import { ELEVEN_PRICES, elevenSpeechPrice } from './mediaPrice'
 import { connection } from './providers'
 import { generateImage } from './stream'
@@ -733,11 +733,18 @@ async function geminiSpeech(
 // TSRS server (ComfyUI does not answer the browser). Audio options: seconds,
 // bpm, bars, seed. Image options: width, height, seed; attached images make
 // it an edit (Qwen-Image-Edit) instead of an image from text (Z-Image).
-async function comfyMedia(job: Job, options: Record<string, unknown>): Promise<GeneratedMedia> {
+// stable-diffusion.cpp's sd-server is asked the same way, for images only:
+// attached images go to it as references, for an edit model to use.
+async function localMedia(
+  job: Job,
+  options: Record<string, unknown>,
+  service: 'comfy' | 'sdcpp',
+): Promise<GeneratedMedia> {
+  const name = service === 'comfy' ? 'ComfyUI' : 'sd-server'
   const images = job.kind === 'image' ? (job.images ?? []).filter((i) => i.data).slice(0, 3) : []
   let res: Response
   try {
-    res = await fetch(`/__tsrs/comfy/${job.kind}`, {
+    res = await fetch(`/__tsrs/${service}/${job.kind}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...options, prompt: job.prompt, ...(images.length ? { images } : {}) }),
@@ -749,7 +756,7 @@ async function comfyMedia(job: Job, options: Record<string, unknown>): Promise<G
   }
   if (res.status === 404) throw new Error(t('O servidor do TSRS não respondeu. Abra o TSRS pelo npm run dev.'))
   const json = await res.json().catch(() => ({}))
-  if (!res.ok || !json.data) throw new Error(json.error ?? t('{name} não devolveu nenhum arquivo.', { name: 'ComfyUI' }))
+  if (!res.ok || !json.data) throw new Error(json.error ?? t('{name} não devolveu nenhum arquivo.', { name }))
   return { mime: json.mime ?? (job.kind === 'image' ? 'image/png' : 'audio/flac'), data: json.data, cost: 0 }
 }
 
@@ -762,7 +769,11 @@ export async function generateMedia(job: Job): Promise<GeneratedMedia> {
   const options = parseOptions(job.target.options)
   if (job.target.source === COMFY) {
     if (job.kind === 'video') throw new Error(t('O ComfyUI local não faz vídeo aqui.'))
-    return comfyMedia(job, options)
+    return localMedia(job, options, 'comfy')
+  }
+  if (job.target.source === SDCPP) {
+    if (job.kind !== 'image') throw new Error(t('O stable-diffusion.cpp local só faz imagens aqui.'))
+    return localMedia(job, options, 'sdcpp')
   }
   const service = mediaService(job.target.source)
   if (!service) {

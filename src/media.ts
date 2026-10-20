@@ -168,15 +168,18 @@ export function mediaSources(kind: MediaKind): { id: string; name: string }[] {
   const sources = (kind === 'image' ? [...providers, ...services] : [...services, ...providers]).map(
     ({ id, name }) => ({ id, name }),
   )
-  // ComfyUI on this computer comes last, and 'auto' never picks it (it may
-  // not be running): it is chosen by hand.
-  return kind === 'video' ? sources : [...sources, { id: COMFY, name: sourceName(COMFY, kind) }]
+  // ComfyUI and stable-diffusion.cpp on this computer come last, and 'auto'
+  // never picks them (they may not be running): they are chosen by hand.
+  if (kind === 'video') return sources
+  const local = kind === 'image' ? [COMFY, SDCPP] : [COMFY]
+  return [...sources, ...local.map((id) => ({ id, name: sourceName(id, kind) }))]
 }
 
 // The default model of a source for a kind ('' when there is none).
 export function defaultModel(source: string, kind: MediaKind): string {
   if (source === PIPER) return kind === 'audio' ? defaultPiperVoice(locale()) : ''
   if (source === COMFY) return kind === 'audio' ? COMFY_AUDIO_MODEL : kind === 'image' ? COMFY_IMAGE_MODEL : ''
+  if (source === SDCPP) return kind === 'image' ? SDCPP_IMAGE_MODEL : ''
   const service = mediaService(source)
   if (service) return service.models[kind] ?? ''
   return providerModel(PROVIDERS.find((p) => p.id === source), kind)
@@ -184,7 +187,7 @@ export function defaultModel(source: string, kind: MediaKind): string {
 
 function hasKey(settings: Settings, source: string): boolean {
   // Piper runs on this computer and needs no key.
-  if (source === PIPER || source === COMFY) return true
+  if (source === PIPER || source === COMFY || source === SDCPP) return true
   if (mediaService(source)) return !!settings.mediaKeys[source]?.trim()
   const provider = PROVIDERS.find((p) => p.id === source)
   const conn = settings.providers[source]
@@ -208,7 +211,7 @@ export function mediaSource(
   const choice: MediaChoice = settings.media[kind]
   if (choice.source === 'auto') {
     const found = mediaSources(kind).find(
-      (s) => s.id !== COMFY && hasKey(settings, s.id) && defaultModel(s.id, kind),
+      (s) => s.id !== COMFY && s.id !== SDCPP && hasKey(settings, s.id) && defaultModel(s.id, kind),
     )
     return found ? { source: found.id, model: defaultModel(found.id, kind), options: '' } : null
   }
@@ -246,6 +249,12 @@ export const COMFY = 'comfyui'
 export const COMFY_AUDIO_MODEL = 'stable_audio_3_medium'
 export const COMFY_IMAGE_MODEL = 'z-image-turbo'
 
+// Images from stable-diffusion.cpp's sd-server on this computer, also asked
+// through the TSRS server; it makes them with whatever model it was started
+// with, on GPUs ComfyUI may not reach (Vulkan).
+export const SDCPP = 'sdcpp'
+export const SDCPP_IMAGE_MODEL = 'sd-server'
+
 export const READER_SOURCES = [PIPER, 'elevenlabs', 'openai', 'gemini', 'minimax', 'cartesia']
 
 // Who reads replies aloud now, or null for the browser's own voices (also
@@ -261,5 +270,6 @@ export function readerSource(settings: Settings, locked: boolean): MediaTarget |
 export function sourceName(source: string, kind?: MediaKind): string {
   if (source === PIPER) return t('Piper (local, grátis)')
   if (source === COMFY) return kind === 'image' ? t('ComfyUI local (Z-Image / Qwen Edit)') : kind === 'audio' ? t('ComfyUI local (Stable Audio 3)') : t('ComfyUI local')
+  if (source === SDCPP) return t('stable-diffusion.cpp local (sd-server)')
   return mediaService(source)?.name ?? PROVIDERS.find((p) => p.id === source)?.name ?? source
 }
