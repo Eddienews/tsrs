@@ -1,5 +1,15 @@
-import { expect, test } from 'vitest'
-import { fenceName, filesFromReply, historyLine, mediaName, mediaNote, pathIn, projectNote, projectNotes } from './projects'
+import { expect, test, vi } from 'vitest'
+import {
+  fenceName,
+  filesFromReply,
+  historyLine,
+  mediaName,
+  mediaNote,
+  pathIn,
+  projectNote,
+  projectNotes,
+  runProjectTool,
+} from './projects'
 
 const fence = (info: string, code: string) => '```' + info + '\n' + code + '\n```'
 
@@ -85,4 +95,25 @@ test('the model is told what is in midia/ and to use the real files', () => {
   expect(note).toContain('- midia/launch-pulse-trilha.mp3\n- midia/logo.png')
   expect(note).toContain('src="midia/logo.png"')
   expect(note).toContain('do not redraw a logo')
+})
+
+test('project_write_file adds to the end of a file with append', async () => {
+  const fetch = vi.fn(async (_url: string, init: RequestInit) => {
+    const files = JSON.parse(init.body as string).files
+    return new Response(JSON.stringify({ written: files.map((f: { name: string }) => f.name) }))
+  })
+  vi.stubGlobal('fetch', fetch)
+  const project = { name: 'p', path: '/p' } as Parameters<typeof runProjectTool>[0]
+  const call = (input: object) => ({ id: 'w', name: 'project_write_file', input })
+  const first = await runProjectTool(project, call({ file: 'a.html', content: '<html>' }), () => {})
+  const next = await runProjectTool(project, call({ file: 'a.html', content: '</html>', append: true }), () => {})
+  vi.unstubAllGlobals()
+
+  const sent = fetch.mock.calls.map((c) => JSON.parse(c[1].body as string).files[0])
+  expect(sent).toEqual([
+    { name: 'a.html', content: '<html>', append: false },
+    { name: 'a.html', content: '</html>', append: true },
+  ])
+  expect(first.content).toBe('Saved a.html.')
+  expect(next.content).toBe('Added to a.html.')
 })
