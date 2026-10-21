@@ -99,6 +99,36 @@ const MAX_ROUNDS = 12
 // The Messages API requires max_tokens; streaming makes a generous cap safe.
 const ANTHROPIC_MAX_TOKENS = 64000
 
+// Times a reply may be retried after the output limit cut a tool call short.
+const MAX_RECOVERIES = 2
+
+// Told to the model when the output limit cut off a tool call, which is then
+// never run: a long file written in one call would only hit the limit again.
+function cutNote(names: string[]): string {
+  const list = [...new Set(names.filter(Boolean))].join(', ') || 'a tool'
+  const files = names.includes('project_write_file')
+    ? ' Write a long file in parts of a few hundred lines: the first with project_write_file, ' +
+      'each of the others with project_write_file and append: true.'
+    : ''
+  return (
+    `The output token limit cut off your last reply while it was calling ${list}; that call ` +
+    `was not run and nothing from it was saved. Do it again in smaller pieces, each tool call ` +
+    `well under the limit.${files}`
+  )
+}
+
+// Adds a note from the app as the next user message; Anthropic wants the
+// roles to alternate, so it joins a user message already at the end.
+function addNote(wire: any[], text: string, anthropic: boolean) {
+  const last = wire.at(-1)
+  if (anthropic && last?.role === 'user') {
+    const content = typeof last.content === 'string' ? [{ type: 'text', text: last.content }] : last.content
+    wire[wire.length - 1] = { ...last, content: [...content, { type: 'text', text }] }
+  } else {
+    wire.push({ role: 'user', content: anthropic ? [{ type: 'text', text }] : text })
+  }
+}
+
 function url(conn: Connection, path: string): string {
   const target = conn.baseUrl.replace(/\/+$/, '') + path
   return conn.proxy ? `${conn.proxy.replace(/\/+$/, '')}/${target}` : target
@@ -826,6 +856,7 @@ export async function* streamChat(req: ChatRequest): AsyncGenerator<StreamEvent>
     )
   let wire = convert()
   const total: Usage = { input: 0, output: 0 }
+  let recovered = 0
 
   for (let round = 1; ; round++) {
     const send = () =>
@@ -851,12 +882,21 @@ export async function* streamChat(req: ChatRequest): AsyncGenerator<StreamEvent>
       res = await send()
     }
     const turn = anthropic ? anthropicTurn() : responses ? responsesTurn() : openaiTurn()
+    let cut = false
     for await (const data of sseData(res)) {
       if (!data || data === '[DONE]') continue
       const event = JSON.parse(data)
       if (event.error) throw new Error(event.error.message ?? JSON.stringify(event.error))
-      yield* turn.decode(event)
+      for (const decoded of turn.decode(event)) {
+        if (decoded.type === 'truncated') cut = true
+        else yield decoded
+      }
     }
+    // A tool call the limit cut off can't run; the model gets to redo it in
+    // smaller pieces instead of the reply ending with nothing saved.
+    const unfinished = cut && turn.stop !== 'tools' ? turn.calls() : []
+    const recover = unfinished.length > 0 && recovered < MAX_RECOVERIES
+    if (cut && !recover) yield { type: 'truncated' }
 
     total.input += turn.usage.input
     total.output += turn.usage.output
@@ -870,13 +910,22 @@ export async function* streamChat(req: ChatRequest): AsyncGenerator<StreamEvent>
     }
 
     const calls = turn.stop === 'tools' ? turn.calls() : []
-    if (turn.stop !== 'pause' && !calls.length) return
+    if (turn.stop !== 'pause' && !calls.length && !recover) return
     if (round === (req.maxRounds ?? MAX_ROUNDS)) {
       throw new Error(
         t('O modelo pediu ferramentas {count} vezes seguidas; a resposta foi interrompida.', {
           count: req.maxRounds ?? MAX_ROUNDS,
         }),
       )
+    }
+    if (recover) {
+      recovered++
+      addNote(wire, cutNote(unfinished.map((c) => c.name)), anthropic)
+      yield {
+        type: 'text',
+        text: `\n\n_${t('O limite de saída cortou uma ferramenta no meio; o modelo vai refazer em partes menores.')}_\n\n`,
+      }
+      continue
     }
     wire.push(...turn.message())
 

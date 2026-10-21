@@ -288,12 +288,15 @@ export const PROJECT_TOOLS: ToolDef[] = [
     name: 'project_write_file',
     description:
       'Create or replace a file in the project folder with its complete content. Folders in ' +
-      'the path are created.',
+      'the path are created. A long file (more than about 1,500 lines) goes in parts, since one ' +
+      'reply has an output limit: write the first part, then add each of the others with ' +
+      'append: true.',
     schema: {
       type: 'object',
       properties: {
         file: { type: 'string', description: 'Path inside the project, such as index.html.' },
-        content: { type: 'string', description: 'The whole file.' },
+        content: { type: 'string', description: 'The whole file, or the next part of it with append.' },
+        append: { type: 'boolean', description: 'Add content to the end of the file instead of replacing it.' },
       },
       required: ['file', 'content'],
     },
@@ -399,6 +402,7 @@ export async function runProjectTool(
     old_text?: string
     new_text?: string
     all?: boolean
+    append?: boolean
   }
   try {
     if (call.name === 'project_list_files') {
@@ -457,9 +461,10 @@ export async function runProjectTool(
       }
     }
     if (call.name === 'project_write_file') {
-      const written = await saveFiles(project.path, [{ name: input.file, content: input.content ?? '' }])
+      const append = !!input.append
+      const written = await saveFiles(project.path, [{ name: input.file, content: input.content ?? '', append }])
       onWrite(written)
-      return { content: `Saved ${written.join(', ')}.`, isError: false }
+      return { content: `${append ? 'Added to' : 'Saved'} ${written.join(', ')}.`, isError: false }
     }
     return { content: `No tool named ${call.name}.`, isError: true }
   } catch (error) {

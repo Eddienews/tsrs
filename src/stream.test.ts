@@ -461,6 +461,73 @@ describe('tools', () => {
     ])
   })
 
+  // An Anthropic turn the output limit stops in the middle of a tool call.
+  const cutWrite = () =>
+    data(
+      { type: 'message_start', message: { usage: { input_tokens: 10 } } },
+      { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'w1', name: 'project_write_file', input: {} } },
+      { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '{"file":"index.html","content":"<html>' } },
+      { type: 'message_delta', delta: { stop_reason: 'max_tokens' }, usage: { output_tokens: 64000 } },
+    )
+
+  it('asks the model to redo in parts a tool call the output limit cut off', async () => {
+    const bodies = stubRounds(
+      cutWrite(),
+      data(
+        { type: 'message_start', message: { usage: { input_tokens: 20 } } },
+        { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+        { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'em partes' } },
+        { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 3 } },
+      ),
+    )
+    const run = vi.fn(async () => ({ content: 'ok', isError: false }))
+    const events = await collect(request('anthropic', { tools, runTool: run }))
+
+    expect(run).not.toHaveBeenCalled()
+    expect(events.some((e) => e.type === 'truncated')).toBe(false)
+    expect(events.filter((e) => e.type === 'text').map((e) => e.text).join('')).toMatch(/partes menores.*em partes/s)
+    const [, second] = bodies()
+    // The cut-off call is left out; the note joins the user's message.
+    expect(second.messages).toHaveLength(1)
+    const note = second.messages[0].content.at(-1)
+    expect(note.type).toBe('text')
+    expect(note.text).toMatch(/project_write_file.*not run.*append: true/s)
+  })
+
+  it('stops retrying after two cut-off tool calls and reports the cut', async () => {
+    const bodies = stubRounds(cutWrite(), cutWrite(), cutWrite())
+    const events = await collect(request('anthropic', { tools, runTool }))
+
+    expect(bodies()).toHaveLength(3)
+    expect(events.filter((e) => e.type === 'truncated')).toHaveLength(1)
+  })
+
+  it('redoes a chat-completions tool call the length limit cut off', async () => {
+    const bodies = stubRounds(
+      data(
+        { choices: [{ delta: { tool_calls: [{ index: 0, id: 'c1', function: { name: 'project_write_file', arguments: '{"file":"a.html","content":"<ht' } }] } }] },
+        { choices: [{ delta: {}, finish_reason: 'length' }] },
+      ),
+      data({ choices: [{ delta: { content: 'ok' } }] }),
+    )
+    await collect(request('openai', { tools, runTool }))
+
+    const [, second] = bodies()
+    expect(second.messages.at(-1)).toEqual({ role: 'user', content: expect.stringMatching(/not run/) })
+  })
+
+  it('still reports a reply cut off in its text', async () => {
+    stubRounds(
+      data(
+        { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+        { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'muito' } },
+        { type: 'message_delta', delta: { stop_reason: 'max_tokens' } },
+      ),
+    )
+    const events = await collect(request('anthropic', { tools, runTool }))
+    expect(events.filter((e) => e.type === 'truncated')).toHaveLength(1)
+  })
+
   it('shows the model the pictures a tool returns', async () => {
     const shot = { content: 'looked', isError: false, images: [{ mime: 'image/jpeg', data: 'AAAA' }] }
     const anthropic = stubRounds(
