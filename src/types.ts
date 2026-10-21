@@ -351,6 +351,8 @@ export interface McpServer {
 export interface ModelInfo {
   // Context window in tokens.
   context?: number
+  // Most tokens one request may write, reasoning included.
+  maxOutput?: number
   // US dollars per million tokens.
   inputPrice?: number
   outputPrice?: number

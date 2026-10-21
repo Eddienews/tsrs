@@ -79,6 +79,8 @@ export const en: Record<string, string> = {
     'Reply cut short: the output token limit was reached.',
   'O limite de saída cortou uma ferramenta no meio; o modelo vai refazer em partes menores.':
     'The output limit cut a tool call short; the model will redo it in smaller pieces.',
+  'O raciocínio usou todo o limite de saída sem escrever nada; o modelo vai tentar de novo, pensando menos.':
+    'The reasoning used up the whole output limit without writing anything; the model will try again, thinking less.',
   'Versão anterior': 'Previous version',
   'Próxima versão': 'Next version',
   Editar: 'Edit',

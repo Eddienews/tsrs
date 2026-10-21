@@ -1558,6 +1558,7 @@ export default function App() {
           showThinking: settings.showThinking,
           // Automatic caching is a feature of Anthropic's own API.
           promptCache: settings.promptCache && via.id === 'anthropic',
+          maxOutput: info.maxOutput,
           async runTool(call) {
             if (!toolset) throw new Error(`No tool named ${call.name}.`)
             if (!toolset.autoApprove(call.name)) {
