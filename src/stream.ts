@@ -79,6 +79,8 @@ export interface ChatRequest extends Connection {
   showThinking?: boolean
   // Let the provider cache the prompt (Anthropic).
   promptCache?: boolean
+  // The model's output limit, when the provider reported it.
+  maxOutput?: number
 }
 
 export type StreamEvent =
@@ -97,10 +99,26 @@ export type StreamEvent =
 const MAX_ROUNDS = 12
 
 // The Messages API requires max_tokens; streaming makes a generous cap safe.
+// Reasoning counts toward it, so the cap is the model's whole output limit:
+// the one the Models API reported, else 128k for the Claude 5 family and 64k
+// for older models.
 const ANTHROPIC_MAX_TOKENS = 64000
+
+export function anthropicMaxTokens(model: string, reported?: number): number {
+  if (reported && reported > 0) return reported
+  const major = /claude-(?:opus|sonnet|haiku|fable|mythos)-(\d+)/.exec(model)?.[1]
+  return major && Number(major) >= 5 ? 128000 : ANTHROPIC_MAX_TOKENS
+}
 
 // Times a reply may be retried after the output limit cut a tool call short.
 const MAX_RECOVERIES = 2
+
+// Told to the model when its reasoning used up the whole output limit before
+// it wrote anything; tried once, since each attempt can cost the whole limit.
+const THINKING_NOTE =
+  'Your reasoning used up the whole output token limit before you wrote anything, so nothing ' +
+  'was produced. Keep the reasoning short this time and start on the work right away; write ' +
+  'long files in parts with the tools.'
 
 // Told to the model when the output limit cut off a tool call, which is then
 // never run: a long file written in one call would only hit the limit again.
@@ -475,7 +493,7 @@ function body(req: ChatRequest, wire: unknown[]): unknown {
     ]
     return {
       model: req.model,
-      max_tokens: params.maxTokens ?? ANTHROPIC_MAX_TOKENS,
+      max_tokens: params.maxTokens ?? anthropicMaxTokens(req.model, req.maxOutput),
       ...(req.system ? { system: req.system } : {}),
       messages: wire,
       stream: true,
@@ -857,6 +875,7 @@ export async function* streamChat(req: ChatRequest): AsyncGenerator<StreamEvent>
   let wire = convert()
   const total: Usage = { input: 0, output: 0 }
   let recovered = 0
+  let rethought = false
 
   for (let round = 1; ; round++) {
     const send = () =>
@@ -883,6 +902,7 @@ export async function* streamChat(req: ChatRequest): AsyncGenerator<StreamEvent>
     }
     const turn = anthropic ? anthropicTurn() : responses ? responsesTurn() : openaiTurn()
     let cut = false
+    let wrote = false
     for await (const data of sseData(res)) {
       if (!data || data === '[DONE]') continue
       const event = JSON.parse(data)
@@ -890,12 +910,15 @@ export async function* streamChat(req: ChatRequest): AsyncGenerator<StreamEvent>
       for (const decoded of turn.decode(event)) {
         if (decoded.type === 'truncated') cut = true
         else yield decoded
+        if (decoded.type === 'text' || decoded.type === 'tool') wrote = true
       }
     }
     // A tool call the limit cut off can't run; the model gets to redo it in
     // smaller pieces instead of the reply ending with nothing saved.
     const unfinished = cut && turn.stop !== 'tools' ? turn.calls() : []
-    const recover = unfinished.length > 0 && recovered < MAX_RECOVERIES
+    // Reasoning alone can use up the limit; one more try, told to think less.
+    const thoughtOnly = cut && !wrote && !unfinished.length && !rethought
+    const recover = (unfinished.length > 0 && recovered < MAX_RECOVERIES) || thoughtOnly
     if (cut && !recover) yield { type: 'truncated' }
 
     total.input += turn.usage.input
@@ -917,6 +940,15 @@ export async function* streamChat(req: ChatRequest): AsyncGenerator<StreamEvent>
           count: req.maxRounds ?? MAX_ROUNDS,
         }),
       )
+    }
+    if (recover && thoughtOnly) {
+      rethought = true
+      addNote(wire, THINKING_NOTE, anthropic)
+      yield {
+        type: 'text',
+        text: `_${t('O raciocínio usou todo o limite de saída sem escrever nada; o modelo vai tentar de novo, pensando menos.')}_\n\n`,
+      }
+      continue
     }
     if (recover) {
       recovered++
@@ -982,6 +1014,8 @@ function infoOf(model: any): ModelInfo {
     price === undefined || Number.isNaN(Number(price)) ? undefined : Number(price) * 1_000_000
   return {
     context: model.max_input_tokens ?? model.context_length ?? model.context_window,
+    // Anthropic's Models API; OpenRouter, per provider.
+    maxOutput: model.max_tokens ?? model.top_provider?.max_completion_tokens,
     inputPrice: perMillion(model.pricing?.prompt),
     outputPrice: perMillion(model.pricing?.completion),
   }
