@@ -54,7 +54,51 @@ export function isVideo(file: File): boolean {
   return file.type.startsWith('video/') || /\.(mp4|m4v|webm|mov|mkv|ogv)$/i.test(file.name)
 }
 
-export async function readAttachment(file: File): Promise<Attachment> {
+// Photos past the limit are made smaller instead of refused: image models
+// scale references to about one megapixel anyway. The longest side goes down
+// to 3072 px (then 2048) as a JPEG, or PNG/WebP when the photo has
+// transparency. GIFs and SVGs are not resized.
+const RESIZABLE = /^image\/(png|jpeg|webp|avif|bmp|heic|heif)$/
+const SIDES = [3072, 2048]
+
+export type ImageResizer = (file: Blob, maxSide: number) => Promise<Blob>
+
+// Draws the image smaller in the browser; keeps the alpha channel of PNG and WebP.
+async function canvasResize(file: Blob, maxSide: number): Promise<Blob> {
+  const bitmap = await createImageBitmap(file)
+  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height))
+  const canvas = new OffscreenCanvas(Math.round(bitmap.width * scale), Math.round(bitmap.height * scale))
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('canvas')
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  bitmap.close()
+  const keepAlpha = file.type === 'image/png' || file.type === 'image/webp'
+  const pixels = keepAlpha ? context.getImageData(0, 0, canvas.width, canvas.height).data : undefined
+  const transparent = !!pixels && pixels.some((value, i) => i % 4 === 3 && value < 255)
+  return canvas.convertToBlob(transparent ? { type: 'image/webp', quality: 0.92 } : { type: 'image/jpeg', quality: 0.9 })
+}
+
+// A smaller copy of a photo that passes the limit, named for its new type,
+// or null when it cannot be made small enough.
+export async function shrinkImage(file: File, resize: ImageResizer = canvasResize): Promise<File | null> {
+  if (!RESIZABLE.test(file.type)) return null
+  for (const side of SIDES) {
+    let smaller: Blob
+    try {
+      smaller = await resize(file, side)
+    } catch {
+      return null
+    }
+    if (smaller.size <= MAX_ATTACHMENT_BYTES) {
+      const extension = smaller.type === 'image/webp' ? 'webp' : smaller.type === 'image/png' ? 'png' : 'jpg'
+      const name = (file.name || t('colado')).replace(/\.[^.]+$/, '') + `.${extension}`
+      return new File([smaller], name, { type: smaller.type })
+    }
+  }
+  return null
+}
+
+export async function readAttachment(file: File, resize?: ImageResizer): Promise<Attachment> {
   const base = { id: crypto.randomUUID(), name: file.name || t('colado') }
   if (isVideo(file)) {
     const { videoFrames } = await import('./videoFrames')
@@ -67,6 +111,8 @@ export async function readAttachment(file: File): Promise<Attachment> {
     return { ...base, mime: audio, kind: 'audio', data: await base64(file) }
   }
   if (file.size > MAX_ATTACHMENT_BYTES) {
+    const smaller = file.type.startsWith('image/') ? await shrinkImage(file, resize) : null
+    if (smaller) return { ...base, name: smaller.name, mime: smaller.type, kind: 'image', data: await base64(smaller) }
     throw new Error(t('"{name}" passa de 10 MB.', { name: file.name }))
   }
   if (file.type.startsWith('image/')) {

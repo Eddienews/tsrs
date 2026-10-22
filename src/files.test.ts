@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import vendas from '../e2e/fixtures/vendas.xlsx?inline'
-import { buildBackup, chatToMarkdown, fileName, parseBackup, readAttachment } from './files'
+import { buildBackup, chatToMarkdown, fileName, MAX_ATTACHMENT_BYTES, parseBackup, readAttachment } from './files'
 import type { Chat } from './types'
 
 // The sample workbook's bytes, imported by Vite as a data URL.
@@ -96,5 +96,26 @@ describe('readAttachment', () => {
   it('rejects other binary files', async () => {
     const binary = new File([new Uint8Array([0, 1, 0])], 'a.bin')
     await expect(readAttachment(binary)).rejects.toThrow('não é imagem')
+  })
+
+  it('makes a photo past 10 MB smaller instead of refusing it', async () => {
+    const big = new File([new Uint8Array(MAX_ATTACHMENT_BYTES + 1)], 'folha.personagem.png', { type: 'image/png' })
+    const sides: number[] = []
+    // 3072 px is still too large; 2048 px fits.
+    const resize = async (_: Blob, side: number) => {
+      sides.push(side)
+      return new Blob([new Uint8Array(side === 3072 ? MAX_ATTACHMENT_BYTES + 1 : 3)], { type: 'image/jpeg' })
+    }
+    const image = await readAttachment(big, resize)
+    expect(sides).toEqual([3072, 2048])
+    expect(image).toMatchObject({ name: 'folha.personagem.jpg', mime: 'image/jpeg', kind: 'image', data: 'AAAA' })
+    // Never small enough, a resize that fails, a GIF and a PDF: refused as before.
+    const huge = async () => new Blob([new Uint8Array(MAX_ATTACHMENT_BYTES + 1)], { type: 'image/jpeg' })
+    await expect(readAttachment(big, huge)).rejects.toThrow('passa de 10 MB')
+    await expect(readAttachment(big, () => Promise.reject(new Error('decode')))).rejects.toThrow('passa de 10 MB')
+    const gif = new File([new Uint8Array(MAX_ATTACHMENT_BYTES + 1)], 'a.gif', { type: 'image/gif' })
+    await expect(readAttachment(gif, resize)).rejects.toThrow('passa de 10 MB')
+    const pdf = new File([new Uint8Array(MAX_ATTACHMENT_BYTES + 1)], 'a.pdf', { type: 'application/pdf' })
+    await expect(readAttachment(pdf, resize)).rejects.toThrow('passa de 10 MB')
   })
 })

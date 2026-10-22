@@ -2,6 +2,8 @@ import { spawnSync } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
+import { randomBytes } from 'node:crypto'
+import zlib from 'node:zlib'
 import { join } from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import { startMockMcp } from './mock-mcp'
@@ -141,6 +143,48 @@ test('sends per-chat parameters and attachments', async ({ page }) => {
     { type: 'image_url', image_url: { url: 'data:image/png;base64,iVBORw==' } },
   ])
   await expect(page.locator('.message.user img')).toBeVisible()
+})
+
+// A PNG of random pixels, which does not compress: 2400×1800 is about 13 MB.
+function noisePng(width: number, height: number): Buffer {
+  const chunk = (type: string, data: Buffer) => {
+    const body = Buffer.concat([Buffer.from(type, 'ascii'), data])
+    const length = Buffer.alloc(4)
+    length.writeUInt32BE(data.length)
+    const crc = Buffer.alloc(4)
+    crc.writeUInt32BE(zlib.crc32(body))
+    return Buffer.concat([length, body, crc])
+  }
+  const header = Buffer.alloc(13)
+  header.writeUInt32BE(width, 0)
+  header.writeUInt32BE(height, 4)
+  header.set([8, 2, 0, 0, 0], 8) // 8-bit RGB
+  const rows = randomBytes((width * 3 + 1) * height)
+  for (let y = 0; y < height; y++) rows[y * (width * 3 + 1)] = 0
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunk('IHDR', header),
+    chunk('IDAT', zlib.deflateSync(rows, { level: 1 })),
+    chunk('IEND', Buffer.alloc(0)),
+  ])
+}
+
+test('makes a photo past 10 MB smaller instead of refusing it', async ({ page }) => {
+  await connect(page)
+  const png = noisePng(2400, 1800)
+  expect(png.length).toBeGreaterThan(10 * 1024 * 1024)
+  await page.locator('.composer input[type=file]').setInputFiles([{ name: 'folha.png', mimeType: 'image/png', buffer: png }])
+  await expect(page.locator('.composer .chip')).toHaveCount(1)
+  await expect(page.locator('.composer .chip')).toContainText('folha.jpg')
+  await send(page, 'veja a folha')
+  const parts = provider.chats[0].body.messages.at(-1).content
+  const url: string = parts.find((p: any) => p.type === 'image_url').image_url.url
+  expect(url.startsWith('data:image/jpeg;base64,')).toBe(true)
+  const bytes = Buffer.from(url.split(',')[1], 'base64')
+  expect(bytes.length).toBeLessThan(10 * 1024 * 1024)
+  // JPEG keeps the size when it fits under 3072 px.
+  const size = /\xff\xc0..\x08(..)(..)/s.exec(bytes.toString('latin1'))
+  expect(size && [size[2], size[1]].map((s) => Buffer.from(s, 'latin1').readUInt16BE())).toEqual([2400, 1800])
 })
 
 test('keeps earlier versions after an edit and a regeneration', async ({ page }) => {
