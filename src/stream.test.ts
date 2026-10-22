@@ -461,6 +461,119 @@ describe('tools', () => {
     ])
   })
 
+  // An Anthropic turn the output limit stops in the middle of a tool call.
+  const cutWrite = () =>
+    data(
+      { type: 'message_start', message: { usage: { input_tokens: 10 } } },
+      { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'w1', name: 'project_write_file', input: {} } },
+      { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '{"file":"index.html","content":"<html>' } },
+      { type: 'message_delta', delta: { stop_reason: 'max_tokens' }, usage: { output_tokens: 64000 } },
+    )
+
+  it('asks the model to redo in parts a tool call the output limit cut off', async () => {
+    const bodies = stubRounds(
+      cutWrite(),
+      data(
+        { type: 'message_start', message: { usage: { input_tokens: 20 } } },
+        { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+        { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'em partes' } },
+        { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 3 } },
+      ),
+    )
+    const run = vi.fn(async () => ({ content: 'ok', isError: false }))
+    const events = await collect(request('anthropic', { tools, runTool: run }))
+
+    expect(run).not.toHaveBeenCalled()
+    expect(events.some((e) => e.type === 'truncated')).toBe(false)
+    expect(events.filter((e) => e.type === 'text').map((e) => e.text).join('')).toMatch(/partes menores.*em partes/s)
+    const [, second] = bodies()
+    // The cut-off call is left out; the note joins the user's message.
+    expect(second.messages).toHaveLength(1)
+    const note = second.messages[0].content.at(-1)
+    expect(note.type).toBe('text')
+    expect(note.text).toMatch(/project_write_file.*not run.*append: true/s)
+  })
+
+  it('stops retrying after two cut-off tool calls and reports the cut', async () => {
+    const bodies = stubRounds(cutWrite(), cutWrite(), cutWrite())
+    const events = await collect(request('anthropic', { tools, runTool }))
+
+    expect(bodies()).toHaveLength(3)
+    expect(events.filter((e) => e.type === 'truncated')).toHaveLength(1)
+  })
+
+  it('redoes a chat-completions tool call the length limit cut off', async () => {
+    const bodies = stubRounds(
+      data(
+        { choices: [{ delta: { tool_calls: [{ index: 0, id: 'c1', function: { name: 'project_write_file', arguments: '{"file":"a.html","content":"<ht' } }] } }] },
+        { choices: [{ delta: {}, finish_reason: 'length' }] },
+      ),
+      data({ choices: [{ delta: { content: 'ok' } }] }),
+    )
+    await collect(request('openai', { tools, runTool }))
+
+    const [, second] = bodies()
+    expect(second.messages.at(-1)).toEqual({ role: 'user', content: expect.stringMatching(/not run/) })
+  })
+
+  it('still reports a reply cut off in its text', async () => {
+    stubRounds(
+      data(
+        { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+        { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'muito' } },
+        { type: 'message_delta', delta: { stop_reason: 'max_tokens' } },
+      ),
+    )
+    const events = await collect(request('anthropic', { tools, runTool }))
+    expect(events.filter((e) => e.type === 'truncated')).toHaveLength(1)
+  })
+
+  // An Anthropic turn whose reasoning used up the whole limit.
+  const thoughtOut = () =>
+    data(
+      { type: 'message_start', message: { usage: { input_tokens: 10 } } },
+      { type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '', signature: '' } },
+      { type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'hmm' } },
+      { type: 'message_delta', delta: { stop_reason: 'max_tokens' }, usage: { output_tokens: 128000 } },
+    )
+
+  it('tries once more, thinking less, when reasoning used up the limit', async () => {
+    const bodies = stubRounds(
+      thoughtOut(),
+      data(
+        { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+        { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'feito' } },
+        { type: 'message_delta', delta: { stop_reason: 'end_turn' } },
+      ),
+    )
+    const events = await collect(request('anthropic', { tools, runTool }))
+
+    expect(events.some((e) => e.type === 'truncated')).toBe(false)
+    const [, second] = bodies()
+    expect(second.messages).toHaveLength(1)
+    expect(second.messages[0].content.at(-1).text).toMatch(/reasoning used up.*short/s)
+  })
+
+  it('gives up after one retry when reasoning uses up the limit again', async () => {
+    const bodies = stubRounds(thoughtOut(), thoughtOut())
+    const events = await collect(request('anthropic', { tools, runTool }))
+
+    expect(bodies()).toHaveLength(2)
+    expect(events.filter((e) => e.type === 'truncated')).toHaveLength(1)
+  })
+
+  it('asks for the output limit the provider reported, else one by model family', async () => {
+    const send = async (model: string, maxOutput?: number) => {
+      const fetch = stubFetch(sse(['data: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}\n\n']))
+      await collect(request('anthropic', { model, maxOutput }))
+      return sentBody(fetch).max_tokens
+    }
+    expect(await send('claude-opus-5-5')).toBe(128000)
+    expect(await send('claude-haiku-4-5-20251001')).toBe(64000)
+    expect(await send('claude-sonnet-5-5', 96000)).toBe(96000)
+    expect(await send('claude-opus-5-5', 0)).toBe(128000)
+  })
+
   it('shows the model the pictures a tool returns', async () => {
     const shot = { content: 'looked', isError: false, images: [{ mime: 'image/jpeg', data: 'AAAA' }] }
     const anthropic = stubRounds(
@@ -680,7 +793,7 @@ describe('listModels', () => {
         data: [
           { id: 'models/b' },
           { id: 'a', context_length: 1000, pricing: { prompt: '0.000002', completion: '0.00001' } },
-          { id: 'c', max_input_tokens: 5 },
+          { id: 'c', max_input_tokens: 5, max_tokens: 128000 },
         ],
       }),
     )
@@ -690,6 +803,7 @@ describe('listModels', () => {
     expect(list.info.a.inputPrice).toBeCloseTo(2)
     expect(list.info.a.outputPrice).toBeCloseTo(10)
     expect(list.info.c.context).toBe(5)
+    expect(list.info.c.maxOutput).toBe(128000)
     expect(list.info.b).toEqual({})
   })
 
