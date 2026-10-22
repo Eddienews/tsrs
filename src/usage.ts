@@ -22,6 +22,7 @@ export function modelInfo(settings: Settings, providerId: string, model: string)
   const known = knownModel(model)
   return {
     context: reported.context ?? known.context,
+    maxOutput: reported.maxOutput,
     inputPrice: reported.inputPrice ?? known.inputPrice,
     outputPrice: reported.outputPrice ?? known.outputPrice,
     cacheReadPrice: cacheReadPrice(providerId, reported, known),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { contextResetMark, sinceSummary, withSummary } from './summary'
+import { SUMMARY_PROMPT, contextResetMark, sinceSummary, withSummary } from './summary'
 import type { Message } from './types'
 
 const m = (id: string, fields: Partial<Message> = {}): Message => ({
@@ -36,5 +36,10 @@ describe('summaries', () => {
     expect(withSummary('Seja breve.', undefined)).toBe('Seja breve.')
     expect(withSummary('Seja breve.', 'Tudo')).toMatch(/^Seja breve\.\n\n.*\n\nTudo$/s)
     expect(withSummary('', 'Tudo')).toMatch(/^Summary.*Tudo$/s)
+  })
+
+  it('asks for the summary in the language of the messages', () => {
+    // Small local models otherwise answer in the language of this (English) instruction.
+    expect(SUMMARY_PROMPT).toMatch(/same language the messages are written in/)
   })
 })

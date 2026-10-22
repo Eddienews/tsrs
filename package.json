@@ -13,7 +13,8 @@
     "test:e2e": "playwright test",
     "proxy": "node proxy/cors-proxy.mjs",
     "render": "node render/render.mjs",
-    "render:serve": "node render/serve.mjs"
+    "render:serve": "node render/serve.mjs",
+    "evals": "node evals/export-cases.mjs && npx promptfoo@0.124.1 eval -c evals/promptfooconfig.yaml"
   },
   "dependencies": {
     "@diffusionstudio/piper-wasm": "1.0.0",

@@ -8,3 +8,9 @@ extensoes
 backups
 modelos
 *.tsbuildinfo
+
+# prompt evals (generated)
+evals/cases.generated.json
+
+evals/results*.json
+evals/*.log

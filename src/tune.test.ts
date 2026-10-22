@@ -18,6 +18,13 @@ describe('tune', () => {
     ])
     expect(parseVariants(text, 1)).toHaveLength(1)
     expect(() => parseVariants('sem json', 2)).toThrow('O modelo não devolveu as versões em JSON.')
+    // A version that only repeats the current instructions is dropped.
+    const same = '{"variants":[{"label":"Igual","system":"Seja útil."},{"label":"Nova","system":"Seja útil e breve."}]}'
+    expect(parseVariants(same, 2, 'Seja útil.').map((v) => v.label)).toEqual(['Nova'])
+    // A stray backtick before the closing fence (seen with a 4B local model) still parses.
+    expect(parseVariants('```json\n{"variants":[{"label":"A","system":"Seja breve."}]}`\n```', 1)).toEqual([
+      { label: 'A', change: '', system: 'Seja breve.' },
+    ])
     expect(() => parseVariants('{"variants":[]}', 2)).toThrow('O modelo não propôs nenhuma versão.')
   })
 
