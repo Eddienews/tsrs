@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { COMFY, mediaSource, mediaSources, type MediaTarget } from './media'
+import { COMFY, mediaSource, mediaSources, SDCPP, type MediaTarget } from './media'
 import { fetchMedia, findMediaUrl, generateMedia } from './mediaJobs'
 import { defaultSettings } from './storage'
 import type { MediaKind, Settings } from './types'
@@ -86,7 +86,7 @@ describe('mediaSource', () => {
 
   it('offers the local ComfyUI for audio and images, chosen by hand and with no key', () => {
     expect(mediaSources('audio').at(-1)?.id).toBe(COMFY)
-    expect(mediaSources('image').at(-1)?.id).toBe(COMFY)
+    expect(mediaSources('image').slice(-2).map((s) => s.id)).toEqual([COMFY, SDCPP])
     expect(mediaSources('video').some((s) => s.id === COMFY)).toBe(false)
     expect(mediaSource(settingsWith({}), 'image', false)).toBeNull()
     // 'auto' does not pick it: ComfyUI may not be running.
@@ -95,6 +95,17 @@ describe('mediaSource', () => {
     const chosen = { ...settings, media: { ...settings.media, audio: { source: COMFY, model: '', options: '{"bpm":90}' } } }
     expect(mediaSource(chosen, 'audio', false)).toEqual({ source: COMFY, model: 'stable_audio_3_medium', options: '{"bpm":90}' })
     expect(mediaSource(chosen, 'audio', true)).toBeNull()
+  })
+
+  it('offers the local stable-diffusion.cpp for images only, chosen by hand and with no key', () => {
+    expect(mediaSources('audio').some((s) => s.id === SDCPP)).toBe(false)
+    expect(mediaSources('video').some((s) => s.id === SDCPP)).toBe(false)
+    const settings = settingsWith({})
+    // 'auto' does not pick it: sd-server may not be running.
+    expect(mediaSource(settings, 'image', false)).toBeNull()
+    const chosen = { ...settings, media: { ...settings.media, image: { source: SDCPP, model: '', options: '' } } }
+    expect(mediaSource(chosen, 'image', false)).toEqual({ source: SDCPP, model: 'sd-server', options: '' })
+    expect(mediaSource(chosen, 'image', true)).toBeNull()
   })
 
   it('needs a model for a source chosen by hand that has no default', () => {
@@ -487,6 +498,18 @@ describe('generateMedia', () => {
     // Only text: no images in the request.
     await generateMedia({ settings: settingsWith({}), target, kind: 'image', prompt: 'um gato' })
     expect(calls[1].body).toEqual({ width: 1024, prompt: 'um gato' })
+  })
+
+  it('makes an image with the local stable-diffusion.cpp through the TSRS server, at no cost', async () => {
+    routes.push([/^\/__tsrs\/sdcpp\/image$/, () => json({ mime: 'image/png', data: 'AQID', seed: 5, model: 'z_image_turbo-Q4_K' })])
+    const target = { source: SDCPP, model: 'sd-server', options: '{"width": 768, "seed": 5}' }
+    const images = [1, 2, 3, 4].map((n) => ({ mime: 'image/png', data: `img${n}` }))
+    const done = generateMedia({ settings: settingsWith({}), target, kind: 'image', prompt: 'troque o fundo', images })
+    expect(await done).toEqual({ mime: 'image/png', data: 'AQID', cost: 0 })
+    expect(calls[0]).toMatchObject({ method: 'POST', body: { width: 768, seed: 5, prompt: 'troque o fundo', images: images.slice(0, 3) } })
+    routes = [[/sdcpp/, () => json({ error: 'sd-server is not answering at http://127.0.0.1:1234.' }, 502)]]
+    await expect(run(settingsWith({}), target, 'image')).rejects.toThrow('sd-server is not answering')
+    await expect(run(settingsWith({}), target, 'audio')).rejects.toThrow('só faz imagens')
   })
 
   it('says when a key is refused or the options are not JSON', async () => {
