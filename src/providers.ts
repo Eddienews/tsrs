@@ -195,6 +195,41 @@ export const PROVIDERS: Provider[] = [
     keyRequired: false,
     efforts: [],
   },
+  // Coding agents installed on this computer, started by the TSRS server in the
+  // conversation's project folder with their own login and plan. The base URL
+  // is the command; models are the agent's own aliases.
+  {
+    id: 'claude-code',
+    name: 'Claude Code (CLI)',
+    format: 'cli',
+    cli: 'claude',
+    baseUrl: 'claude',
+    chatPath: '',
+    modelsPath: '',
+    headers: {},
+    keyRequired: false,
+    defaultModels: ['default', 'opus', 'sonnet', 'haiku'],
+    maxTokensField: 'max_tokens',
+    efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+    temperature: false,
+    streamUsage: false,
+  },
+  {
+    id: 'codex-cli',
+    name: 'Codex (CLI)',
+    format: 'cli',
+    cli: 'codex',
+    baseUrl: 'codex',
+    chatPath: '',
+    modelsPath: '',
+    headers: {},
+    keyRequired: false,
+    defaultModels: ['default'],
+    maxTokensField: 'max_tokens',
+    efforts: ['low', 'medium', 'high'],
+    temperature: false,
+    streamUsage: false,
+  },
   {
     // Azure's v1 API speaks the OpenAI format at the resource's own address,
     // with the key in an api-key header; the model is the deployment's name.
@@ -230,7 +265,8 @@ export function usesProxy(settings: Settings, provider: Provider): boolean {
 // What a request to the provider needs, with the proxy when it goes through one.
 export function connection(settings: Settings, providerId: string): Connection {
   const provider = getProvider(providerId)
-  const { baseUrl, apiKey } = settings.providers[provider.id]
+  const { baseUrl, apiKey, cliAccess } = settings.providers[provider.id]
+  if (provider.format === 'cli') return { provider, baseUrl, apiKey: '', access: cliAccess ?? 'edit' }
   const proxy = usesProxy(settings, provider) ? settings.proxyUrl.trim() : ''
   return { provider, baseUrl, apiKey, ...(proxy ? { proxy } : {}) }
 }

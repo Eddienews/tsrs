@@ -63,19 +63,85 @@ function browserError(code: string): string {
   )
 }
 
-// Records speech and hands over the text, one recording per toggle.
+// How long a pause ends what is said, in hands-free voice mode.
+export const SILENCE_MS = 1500
+// Hands-free: gives up when nothing is said for this long.
+export const NOTHING_SAID_MS = 15_000
+// Loudness (RMS of the samples, 0 to 1) above which the microphone hears speech.
+export const SPEECH_LEVEL = 0.02
+// Hands-free: the longest a single turn may last, for a room that is never quiet.
+export const LONGEST_TURN_MS = 120_000
+
+// Decides, sample by sample, when the speaker has finished: after speech, a
+// pause of `silence` ms; with no speech at all, after `nothing` ms; and in
+// any case after `longest` ms.
+export function silenceTracker(
+  start: number,
+  silence = SILENCE_MS,
+  nothing = NOTHING_SAID_MS,
+  level = SPEECH_LEVEL,
+  longest = LONGEST_TURN_MS,
+) {
+  let heard = false
+  let lastSound = start
+  return {
+    get heard() {
+      return heard
+    },
+    push(rms: number, now: number): 'stop' | null {
+      if (now - start >= longest) return 'stop'
+      if (rms >= level) {
+        heard = true
+        lastSound = now
+        return null
+      }
+      if (heard && now - lastSound >= silence) return 'stop'
+      if (!heard && now - start >= nothing) return 'stop'
+      return null
+    },
+  }
+}
+
+// Watches the microphone's loudness and calls `stop` when the speaker is done.
+function watchSilence(stream: MediaStream, stop: () => void) {
+  const Context = window.AudioContext ?? (window as any).webkitAudioContext
+  if (!Context) return { heard: () => true, close: () => {} }
+  const context: AudioContext = new Context()
+  const analyser = context.createAnalyser()
+  analyser.fftSize = 2048
+  context.createMediaStreamSource(stream).connect(analyser)
+  const samples = new Float32Array(analyser.fftSize)
+  const tracker = silenceTracker(Date.now())
+  const timer = setInterval(() => {
+    analyser.getFloatTimeDomainData(samples)
+    let sum = 0
+    for (const sample of samples) sum += sample * sample
+    if (tracker.push(Math.sqrt(sum / samples.length), Date.now()) === 'stop') stop()
+  }, 100)
+  return {
+    heard: () => tracker.heard,
+    close: () => {
+      clearInterval(timer)
+      void context.close().catch(() => {})
+    },
+  }
+}
+
+// Records speech and hands over the text, one recording per toggle. With
+// `autoStop` (hands-free voice mode) a recording ends by itself at a pause.
 export function useDictation(
   settings: Settings,
   locked: boolean,
   onText: (text: string) => void,
+  options: { autoStop?: boolean } = {},
 ): Dictation {
   const [state, setState] = useState<DictationState>('idle')
   const [error, setError] = useState('')
   const [progress, setProgress] = useState('')
   const stopRef = useRef<(() => void) | null>(null)
   const source = dictationSource(settings, locked)
-  const latest = useRef({ settings, onText })
-  latest.current = { settings, onText }
+  const latest = useRef({ settings, onText, autoStop: !!options.autoStop })
+  latest.current = { settings, onText, autoStop: !!options.autoStop }
 
   async function startApi(providerId: string) {
     let stream: MediaStream
@@ -95,9 +161,18 @@ export function useDictation(
       return
     }
     const chunks: Blob[] = []
+    const silence = latest.current.autoStop
+      ? watchSilence(stream, () => recorder.state === 'recording' && recorder.stop())
+      : null
     recorder.ondataavailable = (event) => chunks.push(event.data)
     recorder.onstop = async () => {
       stream.getTracks().forEach((track) => track.stop())
+      silence?.close()
+      // Nothing was said: transcribing silence only makes up words.
+      if (silence && !silence.heard()) {
+        setState('idle')
+        return
+      }
       setState('transcribing')
       const { settings } = latest.current
       try {
@@ -128,14 +203,27 @@ export function useDictation(
     recognition.lang = locale()
     recognition.continuous = true
     recognition.interimResults = false
+    // Hands-free, a pause after what was said ends the recognition.
+    let pause: ReturnType<typeof setTimeout> | undefined
     recognition.onresult = (event: any) => {
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i]
         if (result.isFinal) latest.current.onText(String(result[0].transcript).trim())
       }
+      if (latest.current.autoStop) {
+        clearTimeout(pause)
+        pause = setTimeout(() => recognition.stop(), SILENCE_MS)
+      }
     }
-    recognition.onerror = (event: any) => setError(browserError(event.error))
-    recognition.onend = () => setState('idle')
+    recognition.onerror = (event: any) => {
+      // Hands-free, a turn with nothing said simply ends.
+      if (latest.current.autoStop && event.error === 'no-speech') return
+      setError(browserError(event.error))
+    }
+    recognition.onend = () => {
+      clearTimeout(pause)
+      setState('idle')
+    }
     recognition.start()
     stopRef.current = () => recognition.stop()
     setState('recording')

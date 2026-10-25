@@ -18,6 +18,8 @@ import type { AutoBackupState } from './autoBackup'
 import { DEFAULT_WHISPER, downloadedBytes, WHISPER_MB, WHISPER_SIZES, whisperRepo, type WhisperSize } from './localVoiceInfo'
 import { LANGUAGES, locale, t, type Language } from './i18n'
 import { EyeButton } from './EyeButton'
+import CliProviderFields from './CliProviderFields'
+import { ObsidianFields, SectionsFields } from './WorkspaceSettings'
 import { connection, PROVIDERS, usesProxy } from './providers'
 import { listModels } from './stream'
 import MediaSection from './MediaSection'
@@ -247,6 +249,10 @@ export default function SettingsDialog(props: Props) {
                       {conn.apiKey && <span className={badge}>{t('chave salva')}</span>}
                       {locked && <span className={badge}>{t('bloqueada')}</span>}
                     </div>
+                    {provider.format === 'cli' ? (
+                      <CliProviderFields provider={provider} conn={conn} onPatch={(fields) => patch(provider.id, fields)} />
+                    ) : (
+                    <>
                     <div className="space-y-1.5">
                       <Label htmlFor={`key-${provider.id}`}>
                         {provider.keyRequired ? t('Chave de API') : t('Chave de API (opcional)')}
@@ -320,6 +326,8 @@ export default function SettingsDialog(props: Props) {
                       </span>
                     </div>
                     )}
+                    </>
+                    )}
                   </div>
                 )
               })}
@@ -332,6 +340,7 @@ export default function SettingsDialog(props: Props) {
 
             {section === 'general' && (
               <div className="space-y-5">
+                <ObsidianFields settings={settings} onChange={onChange} />
                 <Choice<Language>
                   label={t('Idioma')}
                   value={settings.language}
@@ -519,6 +528,7 @@ export default function SettingsDialog(props: Props) {
                   ]}
                   onChange={(density) => setAppearance({ density })}
                 />
+                <SectionsFields settings={settings} onChange={onChange} />
               </div>
             )}
 

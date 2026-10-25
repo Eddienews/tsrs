@@ -185,6 +185,33 @@ manager) and Chrome, Edge or Playwright's Chromium.
   the tab closed, optionally with your own web search, skills and plugins'
   HTTP tools; the answers land in a conversation.
 
+### Studio
+- **Coding agents on your computer**: Claude Code and Codex answer in a
+  conversation like any other model, through their own command line, login and
+  plan. They work in the conversation's project folder with their own tools
+  (their commands and file edits show in the reply), and later messages carry
+  on the same session. Settings choose the command and what the agent may do
+  there: only read, edit files, or full access.
+- **Mission Control** (Painel do dia): today's replies, tokens and cost, a list
+  of what to get done today, the schedule's runs, the production board by stage
+  with what is due this week, the coding agents and how much of their plan's
+  limit is used, and the recent work. TSRS can open on it.
+- **Production board**: a card per episode, ad or video, moved through the
+  stages of making it (script, takes, edit, render, review, published, or your
+  own columns). Cards link to a conversation, show their due date and count the
+  takes in their project folder (`takes/*.json`). Kept in
+  `projetos/_producao/quadro.json`, with the previous version beside it.
+- **Agent table**: agents from the library work on one task together, each in
+  its role, in up to three rounds where everyone reads what the others wrote;
+  a coordinator writes the result. Each agent uses its own model, coding agents
+  included. The run is kept as `mesa.md` in its folder and can become a
+  conversation.
+- **Voice conversation**: hands-free; speak, and at a pause it is sent, the
+  reply is read aloud and the microphone opens again.
+- **Obsidian**: conversations kept as notes in your vault, with the model,
+  dates and tags as properties, saved by hand or after every reply.
+- Sidebar sections you don't use can be hidden.
+
 ### Costs, privacy and sync
 - Tokens and estimated cost per reply, per conversation and per day and model
   (usage view); prompt caching on Anthropic; a price you type for models the app
@@ -214,6 +241,8 @@ only accept requests from TSRS itself:
 | `/__tsrs/projects` | Project folders: save, list, read and serve the files of a conversation | `projetos/` (`TSRS_PROJECTS`) |
 | `/__tsrs/render` | Renders motion compositions to MP4 | `renders/` or the project's `videos/` (`TSRS_RENDERS`) |
 | `/__tsrs/ext` | Skills, plugins, own tools by HTTP, web search and page reading, schedule | `extensoes/` (`TSRS_EXTENSIONS`) |
+| `/__tsrs/cli` | Starts Claude Code or Codex in a conversation's folder and relays what they print | the conversation's project folder |
+| `/__tsrs/board` | The production board, and the takes counted in a project folder | `projetos/_producao/` |
 
 Nothing is ever deleted for real: removed skills and plugins go to
 `extensoes/_removidas/`, and a video never overwrites another. A static build
@@ -263,6 +292,12 @@ Azure OpenAI (your resource's v1 endpoint, with deployments typed by name),
 Ollama and LM Studio (local), and any endpoint compatible with OpenAI's chat API
 ("Custom").
 
+Claude Code and Codex, installed on the same computer, are providers too
+(`format: 'cli'`): the base URL is the command, the server starts it in the
+conversation's project folder (`server/cli.mjs`) and the app reads its events
+(`src/cliAgents.ts`). They use their own login and plan, so TSRS shows their
+tokens but no price.
+
 Each provider is one row in `src/providers.ts`: base URL, paths, headers (with
 `{apiKey}` as a placeholder) and the API format (`openai` or `anthropic`). An
 OpenAI-compatible provider needs no new code.
@@ -283,6 +318,11 @@ hosts it allows (`--allow host` adds more).
 | `src/projects.ts`, `server/projects.mjs` | Project folders |
 | `src/extensions.ts`, `server/extensions.mjs` | Skills, plugins and own tools |
 | `src/agenda.ts`, `server/agenda.mjs` | Schedule |
+| `src/cliAgents.ts`, `server/cli.mjs` | Claude Code and Codex as providers |
+| `src/board.ts`, `src/BoardView.tsx`, `server/board.mjs` | Production board |
+| `src/agentTable.ts`, `src/TableView.tsx` | Agent table |
+| `src/mission.ts`, `src/MissionView.tsx` | Mission Control |
+| `src/voiceLoop.ts`, `src/obsidian.ts` | Voice conversation, Obsidian notes |
 | `src/webSearch.ts`, `src/research.ts`, `server/search.mjs` | Own web search and deep research |
 | `render/` | Motion contract, MP4 renderer and its Vite plugin |
 | `src/media.ts`, `src/mediaJobs.ts`, `src/mediaPrice.ts` | Media services, jobs and prices |
@@ -308,8 +348,11 @@ model, canvas) and messages, read when the conversation opens.
   not supported.
 - The preview runs generated code isolated from the app but with network
   access; React and Mermaid load libraries from public CDNs.
-- Project folders, video rendering, skills, plugins, own search and the schedule
-  need the local server (`npm run dev`); the schedule needs the computer on.
+- Project folders, video rendering, skills, plugins, own search, the schedule,
+  the coding agents, the production board and Obsidian notes need the local
+  server (`npm run dev`); the schedule needs the computer on.
+- A coding agent with full access runs any command on your computer without
+  asking. Keep it to folders and projects you trust.
 - Tool results are third-party text sent to the model; keep permission requests
   on for servers you do not trust, and install plugins only from people you trust.
 

@@ -2,6 +2,7 @@ import { t } from './i18n'
 import type {
   Attachment,
   ChatParams,
+  CliAccess,
   ModelInfo,
   Part,
   Provider,
@@ -18,6 +19,8 @@ export interface Connection {
   apiKey: string
   // Local proxy the request goes through, for providers without CORS.
   proxy?: string
+  // What a coding agent ('cli' provider) may do in the project folder.
+  access?: CliAccess
 }
 
 export interface RequestMessage {
@@ -81,6 +84,8 @@ export interface ChatRequest extends Connection {
   promptCache?: boolean
   // The model's output limit, when the provider reported it.
   maxOutput?: number
+  // For a coding agent: the conversation it continues and the folder it works in.
+  cli?: { chatId: string; cwd?: string }
 }
 
 export type StreamEvent =
@@ -834,7 +839,7 @@ function responsesTurn(): Turn {
   return turn
 }
 
-async function* sseData(res: Response): AsyncGenerator<string> {
+export async function* sseData(res: Response): AsyncGenerator<string> {
   const reader = res.body!.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
@@ -862,6 +867,12 @@ const RESPONSES = new Set<string>()
 // Streams a reply, running the tools the model calls and sending their
 // results back until it has nothing more to ask for.
 export async function* streamChat(req: ChatRequest): AsyncGenerator<StreamEvent> {
+  // A coding agent on this computer runs its own tools; TSRS only relays it.
+  if (req.provider.format === 'cli') {
+    const { streamCli } = await import('./cliAgents')
+    yield* streamCli(req)
+    return
+  }
   const anthropic = req.provider.format === 'anthropic'
   // Some OpenAI models (gpt-6.1-sol) take function tools only on /responses,
   // whatever the reasoning effort; the model is remembered, so later replies

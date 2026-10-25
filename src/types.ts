@@ -186,6 +186,8 @@ export interface ChatMeta {
   project?: ChatProject
   // The scheduled task whose answers this conversation collects.
   scheduleId?: string
+  // Its note in the Obsidian vault, once saved there, so it keeps one name.
+  obsidianNote?: string
 }
 
 export interface ChatProject {
@@ -286,8 +288,48 @@ export interface Folder {
   personaId?: string
 }
 
-// Wire format spoken by a provider's chat endpoint.
-export type ApiFormat = 'openai' | 'anthropic'
+// An agent table (agentTable.ts): agents from the library working on one task.
+export interface TableMember {
+  personaId: string
+  // What this agent does at this table ("pesquisa referências", "revisa").
+  role: string
+}
+
+export interface AgentTable {
+  id: string
+  name: string
+  members: TableMember[]
+  // The agent that writes the final result; none leaves the last round as it is.
+  coordinatorId?: string
+  // How many times every member speaks (1 to 3).
+  rounds: number
+  // What every member is told about the table's work as a whole.
+  instructions?: string
+}
+
+// A line of Mission Control's list for the day (mission.ts).
+export interface FocusItem {
+  id: string
+  text: string
+  done: boolean
+  // Local date it was added or done, YYYY-MM-DD.
+  day: string
+}
+
+// Pages that take the conversation's place: the day at a glance, the
+// production board and the agent table.
+export type StudioPage = 'mission' | 'board' | 'table'
+
+// What the sidebar can show besides the conversations.
+export type SidebarSection = StudioPage | 'library' | 'tools' | 'extensions' | 'usage'
+
+// Wire format spoken by a provider's chat endpoint; 'cli' is a coding agent
+// installed on this computer, started by the TSRS server (server/cli.mjs).
+export type ApiFormat = 'openai' | 'anthropic' | 'cli'
+
+// The coding agents TSRS can start, and what each may do in the project folder.
+export type CliAgent = 'claude' | 'codex'
+export type CliAccess = 'read' | 'edit' | 'full'
 
 export interface Provider {
   id: string
@@ -334,6 +376,8 @@ export interface Provider {
   // How the provider offers web search (and, for Anthropic, page fetching)
   // run on its own servers; absent when it does not.
   webTools?: 'anthropic' | 'openrouter'
+  // The coding agent behind a 'cli' provider; its base URL is the command.
+  cli?: CliAgent
 }
 
 // A remote MCP server reached over HTTP.
@@ -381,6 +425,8 @@ export interface ProviderSettings {
   listed?: string[]
   modelsCheckedAt?: number
   newModels?: string[]
+  // What a coding agent ('cli' provider) may do in the project folder; 'edit' unless set.
+  cliAccess?: CliAccess
   // Send requests through the local proxy; unset follows `needsProxy`.
   proxy?: boolean
 }
@@ -506,6 +552,17 @@ export interface Settings {
   interpreter?: boolean
   // Whisper's size when dictation runs on this computer ('tiny', 'base', 'small').
   localWhisper?: 'tiny' | 'base' | 'small'
+  // Agent tables: agents from the library that work on a task together.
+  tables?: AgentTable[]
+  // Mission Control's list of what to get done today.
+  focus?: FocusItem[]
+  // Sections left out of the sidebar (studio pages and the footer's).
+  hiddenSections?: SidebarSection[]
+  // Opens on Mission Control instead of a new conversation.
+  startPage?: 'mission'
+  // Conversations kept as notes in an Obsidian vault: the vault's folder, the
+  // folder inside it, and whether every reply updates the note.
+  obsidian?: { vault: string; folder: string; auto: boolean }
   // Present when the API keys are password-protected; the keys are then
   // stored only inside it.
   vault?: Vault

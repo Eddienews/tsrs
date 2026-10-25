@@ -105,6 +105,19 @@ cada seção é a ordem sugerida.
 - [x] Ferramentas de design: imagens abertas com crédito, o modelo olhando a própria página num navegador de verdade, e a taste-skill como skill de exemplo
 - [x] Componentes React do cult/ui copiados para os projetos com os créditos, e o DESIGN.md do projeto enviado em todo pedido
 
+## Feito na terceira fase
+
+- [x] Claude Code e Codex instalados no computador como provedores: trabalham na
+      pasta de projeto da conversa com as próprias ferramentas, login e plano, e
+      continuam a mesma sessão
+- [x] Painel do dia: o dia num relance, com uma lista do que fazer hoje
+- [x] Quadro de produção: cards movidos pelas etapas de um vídeo, ligados a
+      conversas, com prazos e os takes da pasta
+- [x] Mesa de agentes: agentes da Biblioteca trabalhando juntos numa tarefa,
+      cada um no seu papel, em rodadas, com um coordenador
+- [x] Conversa por voz com as mãos livres; seções da barra lateral que podem ser
+      escondidas; conversas guardadas como notas num cofre do Obsidian
+
 ## Próximos
 
 O trabalho planejado fica nas [issues](../../issues), com as etiquetas de
@@ -118,6 +131,9 @@ de fora até agora, por falta de API oficial ou de suporte ao navegador:
 
 ## A confirmar com provedor real
 
+- [ ] Claude Code e Codex pelo app no Windows, macOS e Linux (os formatos dos
+      eventos foram conferidos no Windows; o app foi testado com substitutos)
+- [ ] A conversa por voz com um microfone de verdade e cada tipo de ditado
 - [ ] MCP com um servidor remoto de verdade (só rodou com o servidor de teste)
 - [ ] Resumo do raciocínio na Anthropic
 - [ ] Cache de prompt na Anthropic (conferir "do cache" no rodapé da resposta)

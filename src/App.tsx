@@ -9,6 +9,9 @@ import { fileTranscriber, transcribeWith, useDictation } from './dictation'
 import { branchAt, patchMessage, switchVersion, versions, type Branch } from './branches'
 import ChatTopBar from './ChatTopBar'
 import type { PaletteAction } from './CommandPalette'
+import { voiceStep, type VoicePhase } from './voiceLoop'
+import { noteContent, noteName, vaultFolder } from './obsidian'
+import { tableReply, type TableTurn } from './agentTable'
 import Composer from './Composer'
 import { deriveKey, newSalt, seal, unseal } from './crypto'
 import {
@@ -33,7 +36,7 @@ import {
   type BackupMeta,
 } from './autoBackup'
 import BackupOffer from './BackupOffer'
-import { setLanguage, t } from './i18n'
+import { locale, setLanguage, t } from './i18n'
 import { composerCommands } from './commands'
 import { OPEN_API_TOOLS, runOpenApiTool } from './openApis'
 import { FileContext, PreviewContext } from './Markdown'
@@ -103,7 +106,7 @@ import { connection, getProvider, PROVIDERS } from './providers'
 import { modelsDue, withFreshModels, withoutNewModels } from './modelUpdates'
 import Sidebar from './Sidebar'
 import { comboOf, SHORTCUT_ACTIONS, shortcutsOf } from './shortcuts'
-import { setBrowserVoice, setReader } from './speech'
+import { setBrowserVoice, setReader, speak, speakable, stopSpeaking, useAnySpeaking } from './speech'
 import type { PriceEstimate } from './mediaPrice'
 import { chime } from './sound'
 import {
@@ -169,6 +172,8 @@ import type {
   Reference,
   PersonaTools,
   Settings,
+  StudioPage,
+  AgentTable,
   ToolPart,
 } from './types'
 import {
@@ -194,6 +199,9 @@ const chunks = {
   ExtensionsDialog: () => import('./ExtensionsDialog'),
   UnlockDialog: () => import('./UnlockDialog'),
   UsageView: () => import('./UsageView'),
+  BoardView: () => import('./BoardView'),
+  TableView: () => import('./TableView'),
+  MissionView: () => import('./MissionView'),
 }
 const CanvasPanel = lazy(chunks.CanvasPanel)
 const CommandPalette = lazy(chunks.CommandPalette)
@@ -208,6 +216,9 @@ const AgendaTab = lazy(() => import('./AgendaTab'))
 const FolderDialog = lazy(() => import('./FolderDialog'))
 const UnlockDialog = lazy(chunks.UnlockDialog)
 const UsageView = lazy(chunks.UsageView)
+const BoardView = lazy(chunks.BoardView)
+const TableView = lazy(chunks.TableView)
+const MissionView = lazy(chunks.MissionView)
 const PREFETCH_DELAY = 2000
 
 const TITLE_LENGTH = 60
@@ -240,7 +251,10 @@ function blocker(settings: Settings, locked: boolean): Blocker | null {
   const conn = settings.providers[provider.id]
   if (!conn.baseUrl) {
     return {
-      text: t('Informe a URL base de {provider} nas configurações.', { provider: provider.name }),
+      text:
+        provider.format === 'cli'
+          ? t('Informe o comando de {provider} nas configurações.', { provider: provider.name })
+          : t('Informe a URL base de {provider} nas configurações.', { provider: provider.name }),
       fix: 'settings',
     }
   }
@@ -254,6 +268,14 @@ function blocker(settings: Settings, locked: boolean): Blocker | null {
   }
   if (!settings.model) return { text: t('Escolha ou digite um modelo.'), fix: 'settings' }
   return null
+}
+
+// What a coding agent is told besides the conversation's own instructions.
+function cliNote(system: string, folder?: string): string {
+  const note = folder
+    ? `You are answering inside TSRS, a chat app. Your working folder is the conversation's project folder (${folder}); files the user attached are in its midia/ folder. Use your own tools there.`
+    : 'You are answering inside TSRS, a chat app.'
+  return system ? `${system}\n\n${note}` : note
 }
 
 // How a generated file is named in the text sent to the model.
@@ -511,6 +533,8 @@ export default function App() {
   }, [importAgenda])
   const [showPalette, setShowPalette] = useState(false)
   const [showUsage, setShowUsage] = useState(false)
+  // A studio page in the conversation's place (board, agent table, Mission Control).
+  const [page, setPage] = useState<StudioPage | null>(() => (settings.startPage === 'mission' ? 'mission' : null))
   // The conversation list, when it is a drawer on a narrow screen.
   const [showDrawer, setShowDrawer] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -571,9 +595,16 @@ export default function App() {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const provider = getProvider(settings.providerId)
-  const dictation = useDictation(settings, locked, (text) =>
-    setDraft((d) => (d.trim() ? `${d.trimEnd()} ${text}` : text)),
+  // Hands-free voice conversation: listen, send, read the reply aloud, listen again.
+  const [voiceMode, setVoiceMode] = useState(false)
+  const [voicePhase, setVoicePhase] = useState<VoicePhase>('listen')
+  const dictation = useDictation(
+    settings,
+    locked,
+    (text) => setDraft((d) => (d.trim() ? `${d.trimEnd()} ${text}` : text)),
+    { autoStop: voiceMode },
   )
+  const anySpeaking = useAnySpeaking()
   const active = metas.find((c) => c.id === activeId) ?? null
   // Undefined while the active conversation's messages are being read.
   const messages = activeId ? threads[activeId] : undefined
@@ -1308,6 +1339,42 @@ export default function App() {
     if (id === artifactId) setArtifactId(rest.at(-1)?.id ?? null)
   }
 
+  useEffect(() => {
+    if (!voiceMode) return
+    // A microphone that cannot be used ends the voice mode instead of retrying forever.
+    if (dictation.error || !dictation.available) {
+      setVoiceMode(false)
+      return
+    }
+    const step = voiceStep({ phase: voicePhase, dictation: dictation.state, streaming, speaking: anySpeaking, draft })
+    if (step === 'listen') dictation.toggle()
+    else if (step === 'send') {
+      if (send()) setVoicePhase('wait')
+      else setVoiceMode(false)
+    } else if (step === 'speak') {
+      const reply = messages?.at(-1)
+      if (reply?.role === 'assistant' && !reply.error && reply.content.trim()) {
+        speak(reply.id, speakable(reply.content), locale())
+        setVoicePhase('speak')
+      } else {
+        setVoicePhase('listen')
+      }
+    } else if (step === 'next') setVoicePhase('listen')
+    // send() and the dictation change every render; the phase decides.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceMode, voicePhase, dictation.state, dictation.error, streaming, anySpeaking, draft])
+
+  function toggleVoiceMode() {
+    if (voiceMode) {
+      setVoiceMode(false)
+      if (dictation.state === 'recording') dictation.toggle()
+      stopSpeaking()
+      return
+    }
+    setVoicePhase('listen')
+    setVoiceMode(true)
+  }
+
   function runAction(action: PaletteAction) {
     if (action === 'new') selectChat(null)
     else if (action === 'temporary') {
@@ -1318,10 +1385,52 @@ export default function App() {
     else if (action === 'tools') setShowTools(true)
     else if (action === 'library') setShowLibrary(true)
     else if (action === 'settings') setShowSettings(true)
-    else if (action === 'usage') setShowUsage(true)
+    else if (action === 'usage') openPage('usage')
+    else if (action === 'board') openPage('board')
+    else if (action === 'table') openPage('table')
+    else if (action === 'mission') openPage('mission')
     else if (action === 'theme') toggleTheme()
     else if (action === 'clear') clearContext()
     else lock()
+  }
+
+  // Keeps an agent table's run as a conversation, in the run's folder, and opens it.
+  function saveTableRun(run: { table: AgentTable; task: string; turns: TableTurn[]; project?: ChatProject }) {
+    const now = Date.now()
+    const result = run.turns.find((turn) => turn.round === 0) ?? run.turns.at(-1)
+    const meta: ChatMeta = {
+      id: crypto.randomUUID(),
+      title: `${run.table.name}: ${run.task.replace(/\s+/g, ' ').slice(0, TITLE_LENGTH)}`,
+      createdAt: now,
+      updatedAt: now,
+      changedAt: now,
+      providerId: settings.providerId,
+      model: settings.model,
+      ...(run.project ? { project: run.project } : {}),
+    }
+    const thread: Message[] = [
+      { id: crypto.randomUUID(), role: 'user', content: run.task, createdAt: now },
+      {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: tableReply(run.turns),
+        createdAt: now + 1,
+        agentName: run.table.name,
+        ...(result ? { providerId: result.providerId, model: result.model } : {}),
+      },
+    ]
+    commitMetas([meta, ...metasRef.current])
+    commitThreads({ ...threadsRef.current, [meta.id]: thread })
+    storeMeta(meta)
+    storeThread(meta.id, thread)
+    void selectChat(meta.id)
+  }
+
+  // Shows the usage or a studio page where the conversation was.
+  function openPage(which: StudioPage | 'usage') {
+    setShowDrawer(false)
+    setShowUsage(which === 'usage')
+    setPage(which === 'usage' ? null : which)
   }
 
   async function selectChat(id: string | null) {
@@ -1338,6 +1447,7 @@ export default function App() {
     }
     setShowDrawer(false)
     setShowUsage(false)
+    setPage(null)
     setActiveId(id)
     setVersionsAt(null)
     const meta = findMeta(id)
@@ -1440,6 +1550,9 @@ export default function App() {
     const remember = settings.memory && !meta.temporary
     if (remember) system = withMemories(system, settings.memories)
     system = withSummary(system, recent.summary)
+    // A coding agent gets the conversation's own instructions, not the notes
+    // about TSRS's tools: it works with its own tools, in the project folder.
+    const agentSystem = system
     // Comparing models would let each of them change the same canvas.
     const sharedCanvas = !media && !targets ? meta.canvas : undefined
     if (sharedCanvas) system = `${system ? `${system}\n\n` : ''}${CANVAS_NOTE}`
@@ -1537,10 +1650,20 @@ export default function App() {
           parts: m.parts?.map((p) => (p.type === 'tool' && p.id === id ? { ...p, ...fields } : p)),
         }))
       try {
+        const cliRun = via.format === 'cli'
+        // The agent works in the conversation's project folder, made now if needed.
+        const cliFolder =
+          cliRun && settings.projects !== false && !meta.temporary
+            ? (await ensureProject(meta.id).catch(() => null))?.path
+            : undefined
         const stream = streamChat({
           ...connection(settings, via.id),
           model: using.model,
-          system: settings.previewHint ? withPreviewHint(system, t('Abrir preview')) : system,
+          system: cliRun
+            ? cliNote(agentSystem, cliFolder)
+            : settings.previewHint
+              ? withPreviewHint(system, t('Abrir preview'))
+              : system,
           messages: withFiles(
             withCanvasText(withKnowledge(toRequest(recent.messages), references), sharedCanvas),
             contextFiles,
@@ -1551,7 +1674,8 @@ export default function App() {
             effort: via.efforts.includes(callParams.effort ?? '') ? callParams.effort : undefined,
           },
           signal: abort.signal,
-          tools: toolset?.defs,
+          tools: cliRun ? undefined : toolset?.defs,
+          ...(cliRun ? { cli: { chatId: meta.id, ...(cliFolder ? { cwd: cliFolder } : {}) } } : {}),
           webSearch: (tools.webSearch || researching) && !!via.webTools && !webSet,
           webFetch: (tools.webFetch || researching) && via.webTools === 'anthropic' && !webSet,
           ...(researching ? { maxRounds: RESEARCH_ROUNDS } : {}),
@@ -1726,8 +1850,29 @@ export default function App() {
 
     // A temporary conversation is listed nowhere, so its title is not worth a request.
     const titled = settings.autoTitle && !meta.temporary
+    // The Obsidian note follows the conversation; the first one waits for the title.
+    const note = () => completed && !meta.temporary && settings.obsidian?.auto && void saveNote(meta.id, false)
     if (completed && !targets && !media && titled && history.length === 1) {
-      titleChat(meta.id, connection(settings, usings[0].providerId))
+      void titleChat(meta.id, connection(settings, usings[0].providerId)).finally(note)
+    } else note()
+  }
+
+  // Writes the conversation as a note in the Obsidian vault, under the name it
+  // got the first time.
+  async function saveNote(chatId: string, asked: boolean) {
+    const options = settings.obsidian
+    const meta = findMeta(chatId)
+    if (!options?.vault || !meta) return
+    try {
+      const thread = threadsRef.current[chatId] ?? (await loadThread(chatId))
+      const folder = await openProject({ path: vaultFolder(options.vault, options.folder ?? 'TSRS') })
+      const name = meta.obsidianNote ?? noteName(findMeta(chatId)?.title ?? meta.title)
+      await saveFiles(folder.path, [{ name, content: noteContent({ ...(findMeta(chatId) ?? meta), messages: thread }) }])
+      if (!meta.obsidianNote) updateChat(chatId, { obsidianNote: name })
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err)
+      if (asked) alert(t('Não foi possível salvar no Obsidian: {error}', { error }))
+      else setToolProblems([t('Não foi possível salvar no Obsidian: {error}', { error })])
     }
   }
 
@@ -2165,6 +2310,8 @@ export default function App() {
     const meta = findMeta(id)
     const [question, answer] = threadsRef.current[id] ?? []
     if (!meta || !answer?.content) return
+    // Starting a coding agent just for a title is slow: the provisional one stays.
+    if (conn.provider.format === 'cli') return
     try {
       const raw = await completeText({
         ...conn,
@@ -2626,7 +2773,10 @@ export default function App() {
     <Sidebar
       chats={listed}
       folders={settings.folders}
-      activeId={showUsage ? null : activeId}
+      activeId={showUsage || page ? null : activeId}
+      page={showUsage ? null : page}
+      hidden={settings.hiddenSections}
+      onSaveNote={settings.obsidian?.vault ? (chat) => void saveNote(chat.id, true) : undefined}
       theme={settings.appearance.theme}
       onSelect={selectChat}
       onUpdateChat={updateChat}
@@ -2652,14 +2802,51 @@ export default function App() {
         if (what === 'library') setShowLibrary(true)
         else if (what === 'tools') setShowTools(true)
         else if (what === 'extensions') setShowExtensions(true)
-        else if (what === 'usage') setShowUsage(true)
+        else if (what === 'usage' || what === 'board' || what === 'mission' || what === 'table') openPage(what)
         else setShowSettings(true)
       }}
       onToggleTheme={toggleTheme}
     />
   )
 
-  const chat = showUsage ? (
+  const chat = page === 'mission' ? (
+    <Suspense fallback={null}>
+      <MissionView
+        settings={settings}
+        onChange={setSettings}
+        chats={listed}
+        load={loadChats}
+        price={(id, model) => modelInfo(settings, id, model)}
+        onOpenChat={(id) => void selectChat(id)}
+        onNewChat={() => void selectChat(null)}
+        onOpenPage={openPage}
+        onBack={() => setPage(null)}
+        showMenu={isMobile}
+        onMenu={() => setShowDrawer(true)}
+      />
+    </Suspense>
+  ) : page === 'table' ? (
+    <Suspense fallback={null}>
+      <TableView
+        settings={settings}
+        onChange={setSettings}
+        onSaveChat={saveTableRun}
+        onBack={() => setPage(null)}
+        showMenu={isMobile}
+        onMenu={() => setShowDrawer(true)}
+      />
+    </Suspense>
+  ) : page === 'board' ? (
+    <Suspense fallback={null}>
+      <BoardView
+        chats={listed}
+        onOpenChat={(id) => void selectChat(id)}
+        onBack={() => setPage(null)}
+        showMenu={isMobile}
+        onMenu={() => setShowDrawer(true)}
+      />
+    </Suspense>
+  ) : showUsage ? (
     <Suspense fallback={null}>
       <UsageView
         load={loadChats}
@@ -2836,6 +3023,8 @@ export default function App() {
       <Composer
         value={draft}
         onChange={setDraft}
+        voiceMode={voiceMode}
+        onToggleVoice={dictation.available ? toggleVoiceMode : undefined}
         onSend={() => send()}
         onStop={() => abortRef.current?.abort()}
         streaming={streaming}

@@ -1,4 +1,8 @@
 import {
+  Columns3,
+  Gauge,
+  NotebookPen,
+  Users,
   Archive,
   ArchiveRestore,
   BarChart3,
@@ -41,7 +45,7 @@ import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { t } from './i18n'
 import { allTags, hasTag, parseTags, withTag } from './tags'
-import type { ChatMeta, Folder } from './types'
+import type { ChatMeta, Folder, SidebarSection, StudioPage } from './types'
 import { versionDetails, versionLabel } from './version'
 import { activeProfile, profileName, switchProfile } from './profiles'
 import { ACTIVE_PROFILE, loadProfiles } from './storage'
@@ -67,7 +71,13 @@ interface Props {
   onEditFolder: (folder: Folder) => void
   // Starts a conversation inside the folder.
   onNewInFolder: (folder: Folder) => void
-  onOpen: (what: 'library' | 'tools' | 'extensions' | 'usage' | 'settings') => void
+  onOpen: (what: 'library' | 'tools' | 'extensions' | 'usage' | 'settings' | StudioPage) => void
+  // The studio page open in the conversation's place, if any.
+  page?: StudioPage | null
+  // Sections the user chose not to show.
+  hidden?: SidebarSection[]
+  // Saves the conversation as a note in the Obsidian vault, when one is set.
+  onSaveNote?: (chat: ChatMeta) => void
   onToggleTheme: () => void
 }
 
@@ -278,6 +288,12 @@ export default function Sidebar(props: Props) {
                 <FileCode />
                 {t('Exportar HTML')}
               </DropdownMenuItem>
+              {props.onSaveNote && (
+                <DropdownMenuItem onSelect={() => props.onSaveNote?.(chat)}>
+                  <NotebookPen />
+                  {t('Salvar no Obsidian')}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
@@ -365,13 +381,25 @@ export default function Sidebar(props: Props) {
     )
   }
 
-  const footer = [
-    ['library', Library, t('Biblioteca')],
-    ['tools', Wrench, t('Ferramentas')],
-    ['extensions', Puzzle, t('Extensões')],
-    ['usage', BarChart3, t('Uso')],
-    ['settings', SettingsIcon, t('Configurações')],
-  ] as const
+  // The studio's own pages, above the conversations.
+  const shown = (key: string) => !props.hidden?.includes(key as SidebarSection)
+  const studio = (
+    [
+      ['mission', Gauge, t('Painel do dia')],
+      ['board', Columns3, t('Quadro de produção')],
+      ['table', Users, t('Mesa de agentes')],
+    ] as [StudioPage, typeof Columns3, string][]
+  ).filter(([key]) => shown(key))
+
+  const footer = (
+    [
+      ['library', Library, t('Biblioteca')],
+      ['tools', Wrench, t('Ferramentas')],
+      ['extensions', Puzzle, t('Extensões')],
+      ['usage', BarChart3, t('Uso')],
+      ['settings', SettingsIcon, t('Configurações')],
+    ] as const
+  ).filter(([key]) => shown(key))
 
   return (
     <aside className="sidebar flex h-full flex-col bg-sidebar text-sidebar-foreground">
@@ -422,6 +450,24 @@ export default function Sidebar(props: Props) {
             <ListChecks className="size-4" />
           </Button>
         </div>
+        {studio.length > 0 && (
+        <nav className="studio-nav flex flex-col gap-0.5" aria-label={t('Estúdio')}>
+          {studio.map(([key, Icon, label]) => (
+            <button
+              key={key}
+              className={cn(
+                'flex items-center gap-2 rounded px-2 py-1 text-left text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground',
+                props.page === key && 'bg-sidebar-accent font-medium text-sidebar-foreground',
+              )}
+              aria-current={props.page === key ? 'page' : undefined}
+              onClick={() => props.onOpen(key)}
+            >
+              <Icon className="size-4 shrink-0" />
+              {label}
+            </button>
+          ))}
+        </nav>
+        )}
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
