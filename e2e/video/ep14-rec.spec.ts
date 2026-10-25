@@ -13,7 +13,7 @@ const ep = new Episode(14)
 
 const PROJECTS = process.env.TSRS_PROJECTS ?? '/home/claude/tsrs/projetos'
 const DEMO = join(SERIE, 'assets', 'demo')
-const AD = join(SERIE, 'ad')
+const AD = join(SERIE, 'ad2')
 // What Runware charged for the real files (absent outside the recording machine).
 const COSTS = existsSync(join(DEMO, 'custos.json')) ? JSON.parse(readFileSync(join(DEMO, 'custos.json'), 'utf8')) : {}
 
@@ -113,7 +113,7 @@ function fillProject(folder: string) {
 function fillComposition(folder: string) {
   fillProject(folder)
   cpSync(join(AD, 'midia', 'plano'), join(folder, 'midia', 'plano'), { recursive: true })
-  cpSync(join(AD, 'midia', 'cafe.jpg'), join(folder, 'midia', 'cafe.jpg'))
+  cpSync(join(AD, 'fonts'), join(folder, 'fonts'), { recursive: true })
   cpSync(join(AD, 'cafe-aurora.html'), join(folder, 'cafe-aurora.html'))
 }
 

@@ -85,12 +85,19 @@ test('records the screen of episode 11', async ({ browser }) => {
       [seletor - 0.3, async (p) => { await frameAt(p, picker(p)); await point(p, picker(p)); await hideFrame(p) }],
       [opus - 0.5, async (p) => {
         await typeIn(p.getByPlaceholder('Buscar ou digitar um modelo…'), 'opus', 90)
-        await frameAt(p, p.getByRole('option', { name: 'opus', exact: true }))
+        // Claude Code's group is further down the list.
+        const option = p.locator('[cmdk-group]', { hasText: 'Claude Code (CLI)' }).getByRole('option', { name: 'opus', exact: true })
+        await option.scrollIntoViewIfNeeded()
+        await option.hover()
+        await frameAt(p, [p.getByText('Claude Code (CLI)', { exact: true }).last(), option])
       }],
       [codex, async (p) => {
         await p.getByPlaceholder('Buscar ou digitar um modelo…').fill('default')
         await p.waitForTimeout(300)
-        await frameAt(p, p.getByRole('option', { name: 'default', exact: true }))
+        const option = p.locator('[cmdk-group]', { hasText: 'Codex (CLI)' }).getByRole('option', { name: 'default', exact: true })
+        await option.scrollIntoViewIfNeeded()
+        await option.hover()
+        await frameAt(p, [p.getByText('Codex (CLI)', { exact: true }).last(), option])
       }],
     ])
   }

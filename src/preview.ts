@@ -217,8 +217,8 @@ function motionBase(): string {
 
 // A composition with the motion runtime in front of its own scripts. It
 // stands still until the preview's timeline seeks it.
-export function motionDocument(code: string, base = motionBase()): string {
-  return withBridge(insertHead(code, motionHead(code, base)))
+export function motionDocument(code: string, base = motionBase(), project?: string): string {
+  return withBridge(insertHead(code, motionHead(code, base)), project)
 }
 
 // The HTML document that renders a code block, or null when the language is
@@ -238,7 +238,8 @@ export function previewDocument(lang: string, code: string, base?: string): stri
     case 'mmd':
       return mermaidDocument(code)
     case 'motion':
-      return motionDocument(code)
+      // The runtime comes from an absolute address; the composition's own files from the project.
+      return motionDocument(code, motionBase(), base)
     case 'js':
       return withBridge(
         `<!doctype html><body><script>${code.replace(/<\/script/gi, '<\\/script')}</script></body>`,

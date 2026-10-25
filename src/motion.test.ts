@@ -82,3 +82,10 @@ test('the preview note explains the motion contract', () => {
     code: '<h1>x</h1>',
   })
 })
+
+test('a composition in a project finds its own files', () => {
+  const html = motionDocument('<!doctype html><html><head></head><body><img src="midia/a.jpg"></body></html>', 'http://app.test/motion/', 'http://app.test/__tsrs/projects/raw/p/')
+  expect(html).toContain('<base href="http://app.test/__tsrs/projects/raw/p/">')
+  expect(html).toContain('src="http://app.test/motion/runtime.js"')
+})
+
