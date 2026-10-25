@@ -1,4 +1,5 @@
 import {
+  Columns3,
   Archive,
   ArchiveRestore,
   BarChart3,
@@ -41,7 +42,7 @@ import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { t } from './i18n'
 import { allTags, hasTag, parseTags, withTag } from './tags'
-import type { ChatMeta, Folder } from './types'
+import type { ChatMeta, Folder, StudioPage } from './types'
 import { versionDetails, versionLabel } from './version'
 import { activeProfile, profileName, switchProfile } from './profiles'
 import { ACTIVE_PROFILE, loadProfiles } from './storage'
@@ -67,7 +68,9 @@ interface Props {
   onEditFolder: (folder: Folder) => void
   // Starts a conversation inside the folder.
   onNewInFolder: (folder: Folder) => void
-  onOpen: (what: 'library' | 'tools' | 'extensions' | 'usage' | 'settings') => void
+  onOpen: (what: 'library' | 'tools' | 'extensions' | 'usage' | 'settings' | StudioPage) => void
+  // The studio page open in the conversation's place, if any.
+  page?: StudioPage | null
   onToggleTheme: () => void
 }
 
@@ -365,6 +368,9 @@ export default function Sidebar(props: Props) {
     )
   }
 
+  // The studio's own pages, above the conversations.
+  const studio: [StudioPage, typeof Columns3, string][] = [['board', Columns3, t('Quadro de produção')]]
+
   const footer = [
     ['library', Library, t('Biblioteca')],
     ['tools', Wrench, t('Ferramentas')],
@@ -422,6 +428,22 @@ export default function Sidebar(props: Props) {
             <ListChecks className="size-4" />
           </Button>
         </div>
+        <nav className="studio-nav flex flex-col gap-0.5" aria-label={t('Estúdio')}>
+          {studio.map(([key, Icon, label]) => (
+            <button
+              key={key}
+              className={cn(
+                'flex items-center gap-2 rounded px-2 py-1 text-left text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground',
+                props.page === key && 'bg-sidebar-accent font-medium text-sidebar-foreground',
+              )}
+              aria-current={props.page === key ? 'page' : undefined}
+              onClick={() => props.onOpen(key)}
+            >
+              <Icon className="size-4 shrink-0" />
+              {label}
+            </button>
+          ))}
+        </nav>
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input

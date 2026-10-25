@@ -169,6 +169,7 @@ import type {
   Reference,
   PersonaTools,
   Settings,
+  StudioPage,
   ToolPart,
 } from './types'
 import {
@@ -194,6 +195,7 @@ const chunks = {
   ExtensionsDialog: () => import('./ExtensionsDialog'),
   UnlockDialog: () => import('./UnlockDialog'),
   UsageView: () => import('./UsageView'),
+  BoardView: () => import('./BoardView'),
 }
 const CanvasPanel = lazy(chunks.CanvasPanel)
 const CommandPalette = lazy(chunks.CommandPalette)
@@ -208,6 +210,7 @@ const AgendaTab = lazy(() => import('./AgendaTab'))
 const FolderDialog = lazy(() => import('./FolderDialog'))
 const UnlockDialog = lazy(chunks.UnlockDialog)
 const UsageView = lazy(chunks.UsageView)
+const BoardView = lazy(chunks.BoardView)
 const PREFETCH_DELAY = 2000
 
 const TITLE_LENGTH = 60
@@ -522,6 +525,8 @@ export default function App() {
   }, [importAgenda])
   const [showPalette, setShowPalette] = useState(false)
   const [showUsage, setShowUsage] = useState(false)
+  // A studio page in the conversation's place (board, agent table, Mission Control).
+  const [page, setPage] = useState<StudioPage | null>(null)
   // The conversation list, when it is a drawer on a narrow screen.
   const [showDrawer, setShowDrawer] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -1329,10 +1334,18 @@ export default function App() {
     else if (action === 'tools') setShowTools(true)
     else if (action === 'library') setShowLibrary(true)
     else if (action === 'settings') setShowSettings(true)
-    else if (action === 'usage') setShowUsage(true)
+    else if (action === 'usage') openPage('usage')
+    else if (action === 'board') openPage('board')
     else if (action === 'theme') toggleTheme()
     else if (action === 'clear') clearContext()
     else lock()
+  }
+
+  // Shows the usage or a studio page where the conversation was.
+  function openPage(which: StudioPage | 'usage') {
+    setShowDrawer(false)
+    setShowUsage(which === 'usage')
+    setPage(which === 'usage' ? null : which)
   }
 
   async function selectChat(id: string | null) {
@@ -1349,6 +1362,7 @@ export default function App() {
     }
     setShowDrawer(false)
     setShowUsage(false)
+    setPage(null)
     setActiveId(id)
     setVersionsAt(null)
     const meta = findMeta(id)
@@ -2653,7 +2667,8 @@ export default function App() {
     <Sidebar
       chats={listed}
       folders={settings.folders}
-      activeId={showUsage ? null : activeId}
+      activeId={showUsage || page ? null : activeId}
+      page={showUsage ? null : page}
       theme={settings.appearance.theme}
       onSelect={selectChat}
       onUpdateChat={updateChat}
@@ -2679,14 +2694,24 @@ export default function App() {
         if (what === 'library') setShowLibrary(true)
         else if (what === 'tools') setShowTools(true)
         else if (what === 'extensions') setShowExtensions(true)
-        else if (what === 'usage') setShowUsage(true)
+        else if (what === 'usage' || what === 'board' || what === 'mission' || what === 'table') openPage(what)
         else setShowSettings(true)
       }}
       onToggleTheme={toggleTheme}
     />
   )
 
-  const chat = showUsage ? (
+  const chat = page === 'board' ? (
+    <Suspense fallback={null}>
+      <BoardView
+        chats={listed}
+        onOpenChat={(id) => void selectChat(id)}
+        onBack={() => setPage(null)}
+        showMenu={isMobile}
+        onMenu={() => setShowDrawer(true)}
+      />
+    </Suspense>
+  ) : showUsage ? (
     <Suspense fallback={null}>
       <UsageView
         load={loadChats}

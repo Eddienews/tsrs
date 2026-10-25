@@ -286,6 +286,10 @@ export interface Folder {
   personaId?: string
 }
 
+// Pages that take the conversation's place: the day at a glance, the
+// production board and the agent table.
+export type StudioPage = 'mission' | 'board' | 'table'
+
 // Wire format spoken by a provider's chat endpoint; 'cli' is a coding agent
 // installed on this computer, started by the TSRS server (server/cli.mjs).
 export type ApiFormat = 'openai' | 'anthropic' | 'cli'

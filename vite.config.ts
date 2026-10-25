@@ -12,6 +12,7 @@ import { tsrsExtensions } from './server/extensions-plugin.mjs'
 import { tsrsComfy } from './server/comfy-plugin.mjs'
 import { tsrsSdcpp } from './server/sdcpp-plugin.mjs'
 import { tsrsCli } from './server/cli-plugin.mjs'
+import { tsrsBoard } from './server/board-plugin.mjs'
 
 export default defineConfig({
   // tsrsRenderer: the "Gerar MP4" button's renderer, on npm run dev and vite preview.
@@ -23,7 +24,8 @@ export default defineConfig({
   // tsrsComfy: music and sound effects from the local ComfyUI (Stable Audio 3).
   // tsrsSdcpp: images from the local stable-diffusion.cpp server (sd-server).
   // tsrsCli: Claude Code and Codex, installed on this computer, answering in a conversation.
-  plugins: [react(), tailwindcss(), tsrsRenderer(), tsrsVersion(), tsrsProjects(), tsrsBackups(), tsrsModels(), tsrsComfy(), tsrsSdcpp(), tsrsCli(), tsrsExtensions(process.env.VITEST ? undefined : (server) => agendaForServer(server).handle)],
+  // tsrsBoard: the production board, kept in the projects folder.
+  plugins: [react(), tailwindcss(), tsrsRenderer(), tsrsVersion(), tsrsProjects(), tsrsBackups(), tsrsModels(), tsrsComfy(), tsrsSdcpp(), tsrsCli(), tsrsBoard(), tsrsExtensions(process.env.VITEST ? undefined : (server) => agendaForServer(server).handle)],
   // Imported only when a chat is exported as HTML; listed so the dev server
   // does not discover it mid-session and reload the page.
   // The local voices' libraries, listed for the same reason: found only when
