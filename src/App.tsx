@@ -9,6 +9,7 @@ import { fileTranscriber, transcribeWith, useDictation } from './dictation'
 import { branchAt, patchMessage, switchVersion, versions, type Branch } from './branches'
 import ChatTopBar from './ChatTopBar'
 import type { PaletteAction } from './CommandPalette'
+import { tableReply, type TableTurn } from './agentTable'
 import Composer from './Composer'
 import { deriveKey, newSalt, seal, unseal } from './crypto'
 import {
@@ -170,6 +171,7 @@ import type {
   PersonaTools,
   Settings,
   StudioPage,
+  AgentTable,
   ToolPart,
 } from './types'
 import {
@@ -196,6 +198,7 @@ const chunks = {
   UnlockDialog: () => import('./UnlockDialog'),
   UsageView: () => import('./UsageView'),
   BoardView: () => import('./BoardView'),
+  TableView: () => import('./TableView'),
 }
 const CanvasPanel = lazy(chunks.CanvasPanel)
 const CommandPalette = lazy(chunks.CommandPalette)
@@ -211,6 +214,7 @@ const FolderDialog = lazy(() => import('./FolderDialog'))
 const UnlockDialog = lazy(chunks.UnlockDialog)
 const UsageView = lazy(chunks.UsageView)
 const BoardView = lazy(chunks.BoardView)
+const TableView = lazy(chunks.TableView)
 const PREFETCH_DELAY = 2000
 
 const TITLE_LENGTH = 60
@@ -1336,9 +1340,42 @@ export default function App() {
     else if (action === 'settings') setShowSettings(true)
     else if (action === 'usage') openPage('usage')
     else if (action === 'board') openPage('board')
+    else if (action === 'table') openPage('table')
     else if (action === 'theme') toggleTheme()
     else if (action === 'clear') clearContext()
     else lock()
+  }
+
+  // Keeps an agent table's run as a conversation, in the run's folder, and opens it.
+  function saveTableRun(run: { table: AgentTable; task: string; turns: TableTurn[]; project?: ChatProject }) {
+    const now = Date.now()
+    const result = run.turns.find((turn) => turn.round === 0) ?? run.turns.at(-1)
+    const meta: ChatMeta = {
+      id: crypto.randomUUID(),
+      title: `${run.table.name}: ${run.task.replace(/\s+/g, ' ').slice(0, TITLE_LENGTH)}`,
+      createdAt: now,
+      updatedAt: now,
+      changedAt: now,
+      providerId: settings.providerId,
+      model: settings.model,
+      ...(run.project ? { project: run.project } : {}),
+    }
+    const thread: Message[] = [
+      { id: crypto.randomUUID(), role: 'user', content: run.task, createdAt: now },
+      {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: tableReply(run.turns),
+        createdAt: now + 1,
+        agentName: run.table.name,
+        ...(result ? { providerId: result.providerId, model: result.model } : {}),
+      },
+    ]
+    commitMetas([meta, ...metasRef.current])
+    commitThreads({ ...threadsRef.current, [meta.id]: thread })
+    storeMeta(meta)
+    storeThread(meta.id, thread)
+    void selectChat(meta.id)
   }
 
   // Shows the usage or a studio page where the conversation was.
@@ -2701,7 +2738,18 @@ export default function App() {
     />
   )
 
-  const chat = page === 'board' ? (
+  const chat = page === 'table' ? (
+    <Suspense fallback={null}>
+      <TableView
+        settings={settings}
+        onChange={setSettings}
+        onSaveChat={saveTableRun}
+        onBack={() => setPage(null)}
+        showMenu={isMobile}
+        onMenu={() => setShowDrawer(true)}
+      />
+    </Suspense>
+  ) : page === 'board' ? (
     <Suspense fallback={null}>
       <BoardView
         chats={listed}

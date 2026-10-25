@@ -1,5 +1,6 @@
 import {
   Columns3,
+  Users,
   Archive,
   ArchiveRestore,
   BarChart3,
@@ -369,7 +370,10 @@ export default function Sidebar(props: Props) {
   }
 
   // The studio's own pages, above the conversations.
-  const studio: [StudioPage, typeof Columns3, string][] = [['board', Columns3, t('Quadro de produção')]]
+  const studio: [StudioPage, typeof Columns3, string][] = [
+    ['board', Columns3, t('Quadro de produção')],
+    ['table', Users, t('Mesa de agentes')],
+  ]
 
   const footer = [
     ['library', Library, t('Biblioteca')],

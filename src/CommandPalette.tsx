@@ -1,6 +1,7 @@
 import {
   Columns3,
   Eraser,
+  Users,
   BarChart3,
   Cpu,
   Library,
@@ -35,6 +36,7 @@ export type PaletteAction =
   | 'settings'
   | 'usage'
   | 'board'
+  | 'table'
   | 'theme'
   | 'lock'
   | 'clear'
@@ -65,6 +67,7 @@ export default function CommandPalette(p: Props) {
     ['library', t('Biblioteca'), Library],
     ['usage', t('Uso'), BarChart3],
     ['board', t('Quadro de produção'), Columns3],
+    ['table', t('Mesa de agentes'), Users],
     ['settings', t('Configurações'), SettingsIcon],
     ['theme', t('Alternar tema'), SunMoon],
   ]

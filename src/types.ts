@@ -286,6 +286,25 @@ export interface Folder {
   personaId?: string
 }
 
+// An agent table (agentTable.ts): agents from the library working on one task.
+export interface TableMember {
+  personaId: string
+  // What this agent does at this table ("pesquisa referências", "revisa").
+  role: string
+}
+
+export interface AgentTable {
+  id: string
+  name: string
+  members: TableMember[]
+  // The agent that writes the final result; none leaves the last round as it is.
+  coordinatorId?: string
+  // How many times every member speaks (1 to 3).
+  rounds: number
+  // What every member is told about the table's work as a whole.
+  instructions?: string
+}
+
 // Pages that take the conversation's place: the day at a glance, the
 // production board and the agent table.
 export type StudioPage = 'mission' | 'board' | 'table'
@@ -519,6 +538,8 @@ export interface Settings {
   interpreter?: boolean
   // Whisper's size when dictation runs on this computer ('tiny', 'base', 'small').
   localWhisper?: 'tiny' | 'base' | 'small'
+  // Agent tables: agents from the library that work on a task together.
+  tables?: AgentTable[]
   // Present when the API keys are password-protected; the keys are then
   // stored only inside it.
   vault?: Vault
