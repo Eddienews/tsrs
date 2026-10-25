@@ -34,7 +34,9 @@ export default defineConfig({
     },
   },
   projects: [
-    { name: 'app', testIgnore: /extensions\.spec/ },
+    { name: 'app', testIgnore: [/extensions\.spec/, /video\//] },
+    // Screen recordings for the video tutorial, run by hand (e2e/video).
+    { name: 'video', testMatch: /video\// },
     // Skills and plugins change what every request carries, so their tests get
     // a server and a folder of their own.
     { name: 'extensions', testMatch: /extensions\.spec/, use: { baseURL: `http://localhost:${EXT_PORT}` } },
