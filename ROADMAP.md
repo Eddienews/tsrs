@@ -106,6 +106,19 @@ each section, the order is the suggested order.
 - [x] Design tools: open images with their credits, the model looking at its page in a real browser, and taste-skill as an example skill
 - [x] React components from cult/ui copied into projects with their credits, and the project's DESIGN.md sent with every request
 
+## Done in the third phase
+
+- [x] Claude Code and Codex installed on the computer as providers: they work in
+      the conversation's project folder with their own tools, login and plan,
+      and carry on the same session
+- [x] Mission Control: the day at a glance, with a list of what to do today
+- [x] Production board: cards moved through the stages of making a video,
+      linked to conversations, with due dates and the takes in their folder
+- [x] Agent table: agents from the library working on one task in their roles,
+      in rounds, with a coordinator
+- [x] Hands-free voice conversation; sidebar sections that can be hidden;
+      conversations kept as notes in an Obsidian vault
+
 ## Next
 
 Planned work lives in the [issues](../../issues), with priority labels; ideas
@@ -119,6 +132,9 @@ lack of an official API or of browser support:
 
 ## To confirm with real providers
 
+- [ ] Claude Code and Codex through the app on Windows, macOS and Linux (their
+      event formats were checked on Windows; the app was tested with stand-ins)
+- [ ] The voice conversation with a real microphone and each kind of dictation
 - [ ] MCP with a real remote server (only run against the test server)
 - [ ] Reasoning summaries on Anthropic
 - [ ] Prompt caching on Anthropic (check "from cache" under the reply)

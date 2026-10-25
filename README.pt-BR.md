@@ -186,6 +186,33 @@ de pacotes) e do Chrome, do Edge ou do Chromium do Playwright.
   a aba fechada, se quiser com a sua busca na web, skills e ferramentas HTTP de
   plugins; as respostas chegam numa conversa.
 
+### Estúdio
+- **Agentes do seu computador**: o Claude Code e o Codex respondem numa
+  conversa como qualquer modelo, pela linha de comando deles, com o login e o
+  plano deles. Trabalham na pasta de projeto da conversa com as próprias
+  ferramentas (os comandos e as edições aparecem na resposta), e as mensagens
+  seguintes continuam a mesma sessão. Nas configurações ficam o comando e o que
+  o agente pode fazer ali: só ler, editar arquivos ou acesso total.
+- **Painel do dia**: respostas, tokens e custo de hoje, uma lista do que fazer
+  hoje, as execuções da agenda, o quadro de produção por etapa com o que vence
+  na semana, os agentes de linha de comando e quanto do limite do plano já foi
+  usado, e o trabalho recente. O TSRS pode abrir nele.
+- **Quadro de produção**: um card por episódio, anúncio ou vídeo, movido pelas
+  etapas (roteiro, takes, montagem, render, revisão, publicado, ou colunas
+  suas). O card se liga a uma conversa, mostra o prazo e conta os takes da pasta
+  do projeto (`takes/*.json`). Fica em `projetos/_producao/quadro.json`, com a
+  versão anterior ao lado.
+- **Mesa de agentes**: agentes da Biblioteca trabalham juntos numa tarefa, cada
+  um no seu papel, em até três rodadas em que todos leem o que os outros
+  escreveram; um coordenador escreve o resultado. Cada agente usa o próprio
+  modelo, inclusive agentes de linha de comando. A rodada fica em `mesa.md` na
+  pasta dela e pode virar conversa.
+- **Conversa por voz**: mãos livres; você fala, na pausa a mensagem vai, a
+  resposta é lida em voz alta e o microfone abre de novo.
+- **Obsidian**: as conversas viram notas no seu cofre, com modelo, datas e
+  etiquetas nas propriedades, salvas pelo menu ou a cada resposta.
+- As seções da barra lateral que você não usa podem ser escondidas.
+
 ### Custos, privacidade e sincronização
 - Tokens e custo estimado por resposta, por conversa e por dia e modelo (tela de
   uso); cache de prompt na Anthropic; preço informado por você para modelos que
@@ -215,6 +242,8 @@ aceitam pedidos do próprio TSRS:
 | `/__tsrs/projects` | Pastas de projeto: gravar, listar, ler e servir os arquivos de uma conversa | `projetos/` (`TSRS_PROJECTS`) |
 | `/__tsrs/render` | Renderiza composições motion em MP4 | `renders/` ou `videos/` do projeto (`TSRS_RENDERS`) |
 | `/__tsrs/ext` | Skills, plugins, ferramentas HTTP, busca na web e leitura de páginas, agenda | `extensoes/` (`TSRS_EXTENSIONS`) |
+| `/__tsrs/cli` | Inicia o Claude Code ou o Codex na pasta da conversa e repassa o que eles escrevem | a pasta de projeto da conversa |
+| `/__tsrs/board` | O quadro de produção, e os takes contados numa pasta de projeto | `projetos/_producao/` |
 
 Nada é apagado de verdade: skills e plugins removidos vão para
 `extensoes/_removidas/`, e um vídeo nunca sobrescreve outro. Um build estático
@@ -259,6 +288,12 @@ OpenAI (o endpoint v1 do seu recurso, com as implantações digitadas pelo nome)
 Ollama e LM Studio (locais) e qualquer endpoint compatível com a API de chat da
 OpenAI ("Custom").
 
+O Claude Code e o Codex, instalados no mesmo computador, também são provedores
+(`format: 'cli'`): a URL base é o comando, o servidor o inicia na pasta de
+projeto da conversa (`server/cli.mjs`) e o app lê os eventos dele
+(`src/cliAgents.ts`). Eles usam o login e o plano próprios, então o TSRS mostra
+os tokens, mas não um preço.
+
 Cada provedor é uma linha em `src/providers.ts`: URL base, caminhos, cabeçalhos
 (com `{apiKey}` no lugar da chave) e o formato da API (`openai` ou `anthropic`).
 Um provedor compatível com a OpenAI não precisa de código novo.
@@ -279,6 +314,11 @@ endereços permitidos (`--allow host` acrescenta outros).
 | `src/projects.ts`, `server/projects.mjs` | Pastas de projeto |
 | `src/extensions.ts`, `server/extensions.mjs` | Skills, plugins e ferramentas próprias |
 | `src/agenda.ts`, `server/agenda.mjs` | Agenda |
+| `src/cliAgents.ts`, `server/cli.mjs` | Claude Code e Codex como provedores |
+| `src/board.ts`, `src/BoardView.tsx`, `server/board.mjs` | Quadro de produção |
+| `src/agentTable.ts`, `src/TableView.tsx` | Mesa de agentes |
+| `src/mission.ts`, `src/MissionView.tsx` | Painel do dia |
+| `src/voiceLoop.ts`, `src/obsidian.ts` | Conversa por voz, notas no Obsidian |
 | `src/webSearch.ts`, `src/research.ts`, `server/search.mjs` | Busca própria e pesquisa profunda |
 | `render/` | Contrato motion, renderizador de MP4 e o plugin dele no Vite |
 | `src/media.ts`, `src/mediaJobs.ts`, `src/mediaPrice.ts` | Serviços de mídia, pedidos e preços |
@@ -305,9 +345,12 @@ modelo, canvas) e as mensagens, lidas quando a conversa abre.
   recursos e prompts do MCP não são suportados.
 - O preview roda o código gerado isolado do app, mas com acesso à rede; React e
   Mermaid carregam bibliotecas de CDNs públicas.
-- Pastas de projeto, renderização de vídeo, skills, plugins, busca própria e
-  agenda precisam do servidor local (`npm run dev`); a agenda precisa do
-  computador ligado.
+- Pastas de projeto, renderização de vídeo, skills, plugins, busca própria,
+  agenda, agentes de linha de comando, quadro de produção e notas no Obsidian
+  precisam do servidor local (`npm run dev`); a agenda precisa do computador
+  ligado.
+- Um agente de linha de comando com acesso total roda qualquer comando no seu
+  computador sem perguntar. Use só em pastas e projetos em que você confia.
 - Resultados de ferramentas são textos de terceiros enviados ao modelo; deixe o
   pedido de permissão ligado para servidores em que não confia e instale
   plugins só de quem você confia.

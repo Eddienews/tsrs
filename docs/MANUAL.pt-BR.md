@@ -27,6 +27,7 @@ Como instalar, configurar e tirar o máximo do TSRS (The Signal Room Studio).
 15. [Receitas: tirando o máximo do TSRS](#15-receitas-tirando-o-máximo-do-tsrs)
 16. [Problemas comuns](#16-problemas-comuns)
 17. [Perguntas frequentes](#17-perguntas-frequentes)
+18. [Estúdio: painel, quadro, mesa e agentes do computador](#18-estúdio-painel-quadro-mesa-e-agentes-do-computador)
 
 ---
 
@@ -796,3 +797,95 @@ Recursos de equipe hospedados estão fora do escopo, de propósito.
 [Issues](https://github.com/Eddienews/tsrs/issues) ou pelas
 [Discussions](https://github.com/Eddienews/tsrs/discussions), em português ou
 inglês. Veja também o [Como contribuir](../CONTRIBUTING.pt-BR.md).
+
+---
+
+## 18. Estúdio: painel, quadro, mesa e agentes do computador
+
+Na barra lateral, logo abaixo de **Nova conversa**, fica o **Estúdio**: três
+páginas que tomam o lugar da conversa. **Conversa** (no alto da página) volta.
+Todas precisam do TSRS servido por `npm run dev`.
+
+### Claude Code e Codex como modelos
+
+Se o Claude Code ou o Codex estão instalados no seu computador, eles aparecem
+na lista de modelos como **Claude Code (CLI)** e **Codex (CLI)**. Eles usam o
+login e o plano que você já tem neles; o TSRS não pede chave.
+
+1. Em **Configurações → Provedores**, no bloco do agente, confira o **Comando**
+   (`claude` ou `codex`; se não estiverem no PATH, cole o caminho completo) e
+   clique em **Verificar**. Aparece a versão e, no Claude Code, quanto do limite
+   do plano já foi usado.
+2. Escolha **O que o agente pode fazer** na pasta do projeto: **Só ler**,
+   **Editar arquivos** (o padrão) ou **Acesso total** (roda qualquer comando
+   sem perguntar; use só em projetos em que você confia).
+3. Escolha o modelo no seletor (`opus`, `sonnet`, `haiku` ou `default` no
+   Claude Code; `default` no Codex usa o modelo do seu `config.toml`).
+
+O agente trabalha na **pasta de projeto da conversa**, com as ferramentas dele:
+os comandos e as edições aparecem na resposta. A segunda mensagem continua a
+mesma sessão do agente; se você editar ou regenerar uma mensagem antiga, ele
+começa uma sessão nova com a conversa inteira. As ferramentas do próprio TSRS
+(canvas, mídia, MCP) não são oferecidas a ele.
+
+> **Dica:** o TSRS mostra os tokens dessas respostas, mas não um preço: quem
+> paga é o plano do agente.
+
+### Painel do dia
+
+O dia num relance: respostas, tokens e custo de hoje e da semana; o **Foco de
+hoje** (uma lista curta do que fazer, que leva para o dia seguinte o que ficou
+aberto); a agenda de hoje; o quadro de produção por etapa com o que vence na
+semana; os agentes de linha de comando; e as conversas recentes. Em
+**Configurações → Aparência** dá para fazer o TSRS **abrir no Painel do dia**.
+
+### Quadro de produção
+
+Um card por episódio, anúncio ou vídeo, nas colunas Roteiro, Takes, Montagem,
+Render, Revisão e Publicado (**Colunas** renomeia, acrescenta e tira colunas
+vazias). Arraste o card ou use as setas dele. Clique no título para editar:
+série ou cliente, idioma, prazo, notas e a **conversa** onde o trabalho
+acontece; **Abrir conversa** leva até ela.
+
+Se a pasta do projeto tiver uma pasta `takes/` com um JSON por take, o card
+mostra quantos estão aprovados e quantos são para refazer:
+
+```json
+{ "line": 3, "mode": "first-frame", "prompt": "…", "seed": 42, "status": "approved" }
+```
+
+`status` é `approved`, `redo` ou `pending`. Quem grava esses arquivos é quem
+gera os takes: um script, um agente de linha de comando ou você.
+
+O quadro fica em `projetos/_producao/quadro.json` (a versão anterior fica ao
+lado, em `quadro.anterior.json`). Card removido vai para **Cards removidos**,
+de onde volta.
+
+### Mesa de agentes
+
+Agentes da Biblioteca trabalhando juntos numa tarefa. Em **Nova mesa**, dê um
+nome, adicione agentes e escreva o **papel** de cada um ("pesquisa
+referências", "escreve a cena", "revisa"), escolha um **coordenador** e quantas
+**rodadas** (até 3). Em cada rodada, cada agente lê a tarefa e tudo o que os
+outros já escreveram; no fim, o coordenador escreve o resultado.
+
+Cada agente responde com o modelo dele (sem modelo próprio, com o escolhido no
+alto). Um agente que usa o Claude Code ou o Codex trabalha na pasta da mesa, e
+pode criar arquivos ali. O registro da rodada fica em `mesa.md` nessa pasta, e
+**Salvar como conversa** transforma o resultado numa conversa para continuar.
+
+### Conversa por voz
+
+O botão de fone, ao lado do microfone, liga a conversa por voz: o microfone
+abre, você fala, e numa pausa de um segundo e meio a mensagem vai; a resposta é
+lida em voz alta e o microfone abre de novo. Clique outra vez para sair. Usa o
+ditado e a voz escolhidos em **Configurações**.
+
+### Notas no Obsidian
+
+Em **Configurações → Geral → Obsidian**, informe a **pasta do cofre** e a pasta
+das notas dentro dele. Cada conversa pode ser salva como nota pelo menu dela
+(**Salvar no Obsidian**) ou, com **Atualizar a nota a cada resposta**, depois de
+cada resposta. A nota leva o modelo, as datas e as etiquetas nas propriedades, e
+mantém o nome que recebeu na primeira vez.
+
