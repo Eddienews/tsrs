@@ -186,6 +186,8 @@ export interface ChatMeta {
   project?: ChatProject
   // The scheduled task whose answers this conversation collects.
   scheduleId?: string
+  // Its note in the Obsidian vault, once saved there, so it keeps one name.
+  obsidianNote?: string
 }
 
 export interface ChatProject {
@@ -317,6 +319,9 @@ export interface FocusItem {
 // Pages that take the conversation's place: the day at a glance, the
 // production board and the agent table.
 export type StudioPage = 'mission' | 'board' | 'table'
+
+// What the sidebar can show besides the conversations.
+export type SidebarSection = StudioPage | 'library' | 'tools' | 'extensions' | 'usage'
 
 // Wire format spoken by a provider's chat endpoint; 'cli' is a coding agent
 // installed on this computer, started by the TSRS server (server/cli.mjs).
@@ -551,6 +556,13 @@ export interface Settings {
   tables?: AgentTable[]
   // Mission Control's list of what to get done today.
   focus?: FocusItem[]
+  // Sections left out of the sidebar (studio pages and the footer's).
+  hiddenSections?: SidebarSection[]
+  // Opens on Mission Control instead of a new conversation.
+  startPage?: 'mission'
+  // Conversations kept as notes in an Obsidian vault: the vault's folder, the
+  // folder inside it, and whether every reply updates the note.
+  obsidian?: { vault: string; folder: string; auto: boolean }
   // Present when the API keys are password-protected; the keys are then
   // stored only inside it.
   vault?: Vault

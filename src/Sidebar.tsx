@@ -1,6 +1,7 @@
 import {
   Columns3,
   Gauge,
+  NotebookPen,
   Users,
   Archive,
   ArchiveRestore,
@@ -44,7 +45,7 @@ import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { t } from './i18n'
 import { allTags, hasTag, parseTags, withTag } from './tags'
-import type { ChatMeta, Folder, StudioPage } from './types'
+import type { ChatMeta, Folder, SidebarSection, StudioPage } from './types'
 import { versionDetails, versionLabel } from './version'
 import { activeProfile, profileName, switchProfile } from './profiles'
 import { ACTIVE_PROFILE, loadProfiles } from './storage'
@@ -73,6 +74,10 @@ interface Props {
   onOpen: (what: 'library' | 'tools' | 'extensions' | 'usage' | 'settings' | StudioPage) => void
   // The studio page open in the conversation's place, if any.
   page?: StudioPage | null
+  // Sections the user chose not to show.
+  hidden?: SidebarSection[]
+  // Saves the conversation as a note in the Obsidian vault, when one is set.
+  onSaveNote?: (chat: ChatMeta) => void
   onToggleTheme: () => void
 }
 
@@ -283,6 +288,12 @@ export default function Sidebar(props: Props) {
                 <FileCode />
                 {t('Exportar HTML')}
               </DropdownMenuItem>
+              {props.onSaveNote && (
+                <DropdownMenuItem onSelect={() => props.onSaveNote?.(chat)}>
+                  <NotebookPen />
+                  {t('Salvar no Obsidian')}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
@@ -371,19 +382,24 @@ export default function Sidebar(props: Props) {
   }
 
   // The studio's own pages, above the conversations.
-  const studio: [StudioPage, typeof Columns3, string][] = [
-    ['mission', Gauge, t('Painel do dia')],
-    ['board', Columns3, t('Quadro de produção')],
-    ['table', Users, t('Mesa de agentes')],
-  ]
+  const shown = (key: string) => !props.hidden?.includes(key as SidebarSection)
+  const studio = (
+    [
+      ['mission', Gauge, t('Painel do dia')],
+      ['board', Columns3, t('Quadro de produção')],
+      ['table', Users, t('Mesa de agentes')],
+    ] as [StudioPage, typeof Columns3, string][]
+  ).filter(([key]) => shown(key))
 
-  const footer = [
-    ['library', Library, t('Biblioteca')],
-    ['tools', Wrench, t('Ferramentas')],
-    ['extensions', Puzzle, t('Extensões')],
-    ['usage', BarChart3, t('Uso')],
-    ['settings', SettingsIcon, t('Configurações')],
-  ] as const
+  const footer = (
+    [
+      ['library', Library, t('Biblioteca')],
+      ['tools', Wrench, t('Ferramentas')],
+      ['extensions', Puzzle, t('Extensões')],
+      ['usage', BarChart3, t('Uso')],
+      ['settings', SettingsIcon, t('Configurações')],
+    ] as const
+  ).filter(([key]) => shown(key))
 
   return (
     <aside className="sidebar flex h-full flex-col bg-sidebar text-sidebar-foreground">
@@ -434,6 +450,7 @@ export default function Sidebar(props: Props) {
             <ListChecks className="size-4" />
           </Button>
         </div>
+        {studio.length > 0 && (
         <nav className="studio-nav flex flex-col gap-0.5" aria-label={t('Estúdio')}>
           {studio.map(([key, Icon, label]) => (
             <button
@@ -450,6 +467,7 @@ export default function Sidebar(props: Props) {
             </button>
           ))}
         </nav>
+        )}
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input

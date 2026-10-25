@@ -1,4 +1,4 @@
-import { ArrowUp, AudioLines, BookMarked, Clapperboard, SquareSlash, FileText, FileType2, Film, ImageIcon, Loader2, Mic, Paperclip, Square, Telescope, Upload, X } from 'lucide-react'
+import { ArrowUp, AudioLines, Headphones, BookMarked, Clapperboard, SquareSlash, FileText, FileType2, Film, ImageIcon, Loader2, Mic, Paperclip, Square, Telescope, Upload, X } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -38,6 +38,9 @@ interface Props {
   commands?: ComposerCommand[]
   onManagePrompts: () => void
   dictation: Dictation
+  // Hands-free voice conversation, offered where dictation works.
+  voiceMode?: boolean
+  onToggleVoice?: () => void
   // The next message asks for this kind of media instead of a reply.
   mediaMode: MediaKind | null
   // Kinds someone can make now, each with its toggle.
@@ -588,12 +591,30 @@ export default function Composer(p: Props) {
             <Telescope className="size-4" />
             <span className="hidden sm:inline">{t('Pesquisa')}</span>
           </Button>
+          {p.onToggleVoice && (
+            <Button
+              variant={p.voiceMode ? 'secondary' : 'ghost'}
+              size="icon"
+              className={cn('ml-auto size-8', p.voiceMode && 'text-primary')}
+              aria-label={p.voiceMode ? t('Sair da conversa por voz') : t('Conversa por voz')}
+              title={
+                p.voiceMode
+                  ? t('Sair da conversa por voz')
+                  : t('Conversa por voz: fale, a resposta é lida em voz alta e o microfone abre de novo')
+              }
+              aria-pressed={!!p.voiceMode}
+              onClick={p.onToggleVoice}
+            >
+              <Headphones className="size-4" />
+            </Button>
+          )}
           {p.dictation.available && (
             <Button
               variant="ghost"
               size="icon"
               className={cn(
-                'ml-auto size-8',
+                !p.onToggleVoice && 'ml-auto',
+                'size-8',
                 p.dictation.state === 'recording' && 'animate-pulse text-destructive',
               )}
               aria-label={p.dictation.state === 'recording' ? t('Parar o ditado') : t('Ditar')}

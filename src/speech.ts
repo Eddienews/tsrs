@@ -222,3 +222,8 @@ export function useSpeaking(id: string): boolean {
 export function useSpeechProblem(id: string): string | undefined {
   return useSyncExternalStore(subscribe, () => (problem?.id === id ? problem.text : undefined))
 }
+
+// Whether any reply is being read aloud now.
+export function useAnySpeaking(): boolean {
+  return useSyncExternalStore(subscribe, () => speaking !== null)
+}

@@ -9,6 +9,8 @@ import { fileTranscriber, transcribeWith, useDictation } from './dictation'
 import { branchAt, patchMessage, switchVersion, versions, type Branch } from './branches'
 import ChatTopBar from './ChatTopBar'
 import type { PaletteAction } from './CommandPalette'
+import { voiceStep, type VoicePhase } from './voiceLoop'
+import { noteContent, noteName, vaultFolder } from './obsidian'
 import { tableReply, type TableTurn } from './agentTable'
 import Composer from './Composer'
 import { deriveKey, newSalt, seal, unseal } from './crypto'
@@ -34,7 +36,7 @@ import {
   type BackupMeta,
 } from './autoBackup'
 import BackupOffer from './BackupOffer'
-import { setLanguage, t } from './i18n'
+import { locale, setLanguage, t } from './i18n'
 import { composerCommands } from './commands'
 import { OPEN_API_TOOLS, runOpenApiTool } from './openApis'
 import { FileContext, PreviewContext } from './Markdown'
@@ -104,7 +106,7 @@ import { connection, getProvider, PROVIDERS } from './providers'
 import { modelsDue, withFreshModels, withoutNewModels } from './modelUpdates'
 import Sidebar from './Sidebar'
 import { comboOf, SHORTCUT_ACTIONS, shortcutsOf } from './shortcuts'
-import { setBrowserVoice, setReader } from './speech'
+import { setBrowserVoice, setReader, speak, speakable, stopSpeaking, useAnySpeaking } from './speech'
 import type { PriceEstimate } from './mediaPrice'
 import { chime } from './sound'
 import {
@@ -532,7 +534,7 @@ export default function App() {
   const [showPalette, setShowPalette] = useState(false)
   const [showUsage, setShowUsage] = useState(false)
   // A studio page in the conversation's place (board, agent table, Mission Control).
-  const [page, setPage] = useState<StudioPage | null>(null)
+  const [page, setPage] = useState<StudioPage | null>(() => (settings.startPage === 'mission' ? 'mission' : null))
   // The conversation list, when it is a drawer on a narrow screen.
   const [showDrawer, setShowDrawer] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -593,9 +595,16 @@ export default function App() {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const provider = getProvider(settings.providerId)
-  const dictation = useDictation(settings, locked, (text) =>
-    setDraft((d) => (d.trim() ? `${d.trimEnd()} ${text}` : text)),
+  // Hands-free voice conversation: listen, send, read the reply aloud, listen again.
+  const [voiceMode, setVoiceMode] = useState(false)
+  const [voicePhase, setVoicePhase] = useState<VoicePhase>('listen')
+  const dictation = useDictation(
+    settings,
+    locked,
+    (text) => setDraft((d) => (d.trim() ? `${d.trimEnd()} ${text}` : text)),
+    { autoStop: voiceMode },
   )
+  const anySpeaking = useAnySpeaking()
   const active = metas.find((c) => c.id === activeId) ?? null
   // Undefined while the active conversation's messages are being read.
   const messages = activeId ? threads[activeId] : undefined
@@ -1330,6 +1339,42 @@ export default function App() {
     if (id === artifactId) setArtifactId(rest.at(-1)?.id ?? null)
   }
 
+  useEffect(() => {
+    if (!voiceMode) return
+    // A microphone that cannot be used ends the voice mode instead of retrying forever.
+    if (dictation.error || !dictation.available) {
+      setVoiceMode(false)
+      return
+    }
+    const step = voiceStep({ phase: voicePhase, dictation: dictation.state, streaming, speaking: anySpeaking, draft })
+    if (step === 'listen') dictation.toggle()
+    else if (step === 'send') {
+      if (send()) setVoicePhase('wait')
+      else setVoiceMode(false)
+    } else if (step === 'speak') {
+      const reply = messages?.at(-1)
+      if (reply?.role === 'assistant' && !reply.error && reply.content.trim()) {
+        speak(reply.id, speakable(reply.content), locale())
+        setVoicePhase('speak')
+      } else {
+        setVoicePhase('listen')
+      }
+    } else if (step === 'next') setVoicePhase('listen')
+    // send() and the dictation change every render; the phase decides.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceMode, voicePhase, dictation.state, dictation.error, streaming, anySpeaking, draft])
+
+  function toggleVoiceMode() {
+    if (voiceMode) {
+      setVoiceMode(false)
+      if (dictation.state === 'recording') dictation.toggle()
+      stopSpeaking()
+      return
+    }
+    setVoicePhase('listen')
+    setVoiceMode(true)
+  }
+
   function runAction(action: PaletteAction) {
     if (action === 'new') selectChat(null)
     else if (action === 'temporary') {
@@ -1805,8 +1850,29 @@ export default function App() {
 
     // A temporary conversation is listed nowhere, so its title is not worth a request.
     const titled = settings.autoTitle && !meta.temporary
+    // The Obsidian note follows the conversation; the first one waits for the title.
+    const note = () => completed && !meta.temporary && settings.obsidian?.auto && void saveNote(meta.id, false)
     if (completed && !targets && !media && titled && history.length === 1) {
-      titleChat(meta.id, connection(settings, usings[0].providerId))
+      void titleChat(meta.id, connection(settings, usings[0].providerId)).finally(note)
+    } else note()
+  }
+
+  // Writes the conversation as a note in the Obsidian vault, under the name it
+  // got the first time.
+  async function saveNote(chatId: string, asked: boolean) {
+    const options = settings.obsidian
+    const meta = findMeta(chatId)
+    if (!options?.vault || !meta) return
+    try {
+      const thread = threadsRef.current[chatId] ?? (await loadThread(chatId))
+      const folder = await openProject({ path: vaultFolder(options.vault, options.folder ?? 'TSRS') })
+      const name = meta.obsidianNote ?? noteName(findMeta(chatId)?.title ?? meta.title)
+      await saveFiles(folder.path, [{ name, content: noteContent({ ...(findMeta(chatId) ?? meta), messages: thread }) }])
+      if (!meta.obsidianNote) updateChat(chatId, { obsidianNote: name })
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err)
+      if (asked) alert(t('Não foi possível salvar no Obsidian: {error}', { error }))
+      else setToolProblems([t('Não foi possível salvar no Obsidian: {error}', { error })])
     }
   }
 
@@ -2709,6 +2775,8 @@ export default function App() {
       folders={settings.folders}
       activeId={showUsage || page ? null : activeId}
       page={showUsage ? null : page}
+      hidden={settings.hiddenSections}
+      onSaveNote={settings.obsidian?.vault ? (chat) => void saveNote(chat.id, true) : undefined}
       theme={settings.appearance.theme}
       onSelect={selectChat}
       onUpdateChat={updateChat}
@@ -2955,6 +3023,8 @@ export default function App() {
       <Composer
         value={draft}
         onChange={setDraft}
+        voiceMode={voiceMode}
+        onToggleVoice={dictation.available ? toggleVoiceMode : undefined}
         onSend={() => send()}
         onStop={() => abortRef.current?.abort()}
         streaming={streaming}
