@@ -1,0 +1,71 @@
+#!/usr/bin/env node
+// A stand-in for Claude Code for the tutorial recordings (episode 11): it answers
+// in stream-json like `claude -p --output-format stream-json`, and really edits
+// index.html in the folder it runs in, as the narration says.
+import { randomUUID } from 'node:crypto'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+
+const args = process.argv.slice(2)
+if (args[0] === '--version') { console.log('2.1.310 (Claude Code)'); process.exit(0) }
+let input = ''
+process.stdin.setEncoding('utf8')
+for await (const chunk of process.stdin) input += chunk
+const at = args.indexOf('--resume')
+const session = at >= 0 ? args[at + 1] : randomUUID()
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+const out = (event) => process.stdout.write(`${JSON.stringify({ ...event, session_id: session })}\n`)
+const start = () => out({ type: 'stream_event', event: { type: 'message_start', message: { role: 'assistant', content: [] } }, parent_tool_use_id: null })
+const say = async (text, wps = 18) => {
+  for (const w of text.split(/(?<= )/)) {
+    out({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: w } }, parent_tool_use_id: null })
+    await sleep(1000 / wps)
+  }
+}
+let n = 0
+const tool = async (name, input, result, wait = 500) => {
+  const id = `toolu_${++n}`
+  out({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id, name, input }] }, parent_tool_use_id: null })
+  await sleep(wait)
+  out({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: result }] }, parent_tool_use_id: null })
+  start()
+}
+const last = input.trim().split('\n').at(-1)
+out({ type: 'system', subtype: 'init', cwd: process.cwd(), tools: ['Read', 'Edit', 'Bash'] })
+start()
+if (/revise o index/i.test(input) && at < 0) {
+  out({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'Vou ler a página antes de mudar qualquer coisa.' } }, parent_tool_use_id: null })
+  await say('Vou ler a página primeiro.')
+  const file = 'index.html'
+  const html = existsSync(file) ? readFileSync(file, 'utf8') : ''
+  await tool('Read', { file_path: file }, html.slice(0, 1200), 700)
+  const fixed = html
+    .replace('<section class="servicos">', '<main>\n  <section class="servicos" aria-label="Serviços">')
+    .replace('</section>\n  <footer>', '</section>\n  </main>\n  <footer>')
+    .replace('<footer>contato@northwindlab.com</footer>', '<footer><a href="mailto:contato@northwindlab.com">contato@northwindlab.com</a></footer>')
+  if (html) writeFileSync(file, fixed)
+  await tool('Edit', { file_path: file, old_string: '<section class="servicos">', new_string: '<main>\n  <section class="servicos" aria-label="Serviços">' }, 'The file index.html has been updated.', 600)
+  await tool('Bash', { command: 'npx html-validate index.html' }, '✔ index.html: 0 erros', 900)
+  await say(
+    'Pronto. Mudei três coisas no `index.html`:\n\n' +
+      '1. O conteúdo principal agora fica num `<main>`, para leitores de tela pularem direto para ele.\n' +
+      '2. A seção de serviços ganhou um rótulo (`aria-label`).\n' +
+      '3. O e-mail do rodapé virou um link que abre o programa de e-mail.\n\n' +
+      'O validador não encontrou erros.',
+    22,
+  )
+} else if (/composição/i.test(input) && at < 0) {
+  const file = 'cafe-aurora.html'
+  const html = existsSync(file) ? readFileSync(file, 'utf8') : ''
+  await say('Vou ler a composição, sem mudar nada.')
+  await tool('Read', { file_path: file }, html.slice(0, 1500), 700)
+  await say(
+    'Li o `cafe-aurora.html`. Está bem montado: 15 s a 30 fps, o plano da Runware quadro a quadro e o fecho em creme.\n\n' +
+      'Uma sugestão: o "O primeiro gole" entra em 1,6 s; adiantar para 1,2 s dá mais tempo de leitura no celular. ' +
+      'O resto pode ficar como está.',
+    24,
+  )
+} else {
+  await say(`Feito, na mesma sessão: ${last.replace(/[.?!]*$/, '')} — ajustei o rodapé e mantive o resto como estava.`, 22)
+}
+out({ type: 'rate_limit_event', rate_limit_info: { status: 'allowed', rateLimitType: 'five_hour', utilization: 0.42, resetsAt: Math.floor(Date.now() / 1000) + 7200 } })
+out({ type: 'result', subtype: 'success', is_error: false, result: 'ok', usage: { input_tokens: 1820, cache_read_input_tokens: 14200, cache_creation_input_tokens: 2100, output_tokens: 410 }, total_cost_usd: 0.09 })

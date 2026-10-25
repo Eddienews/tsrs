@@ -1,0 +1,6 @@
+#!/usr/bin/env node
+// A stand-in for the Codex command line (only --version) for the tutorial recordings.
+if (process.argv[2] === '--version') { console.log('codex-cli 0.156.1'); process.exit(0) }
+console.log(JSON.stringify({ type: 'thread.started', thread_id: 'video' }))
+console.log(JSON.stringify({ type: 'item.completed', item: { id: 'm', type: 'agent_message', text: 'Ok.' } }))
+console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 100, output_tokens: 5 } }))
