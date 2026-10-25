@@ -199,6 +199,7 @@ const chunks = {
   UsageView: () => import('./UsageView'),
   BoardView: () => import('./BoardView'),
   TableView: () => import('./TableView'),
+  MissionView: () => import('./MissionView'),
 }
 const CanvasPanel = lazy(chunks.CanvasPanel)
 const CommandPalette = lazy(chunks.CommandPalette)
@@ -215,6 +216,7 @@ const UnlockDialog = lazy(chunks.UnlockDialog)
 const UsageView = lazy(chunks.UsageView)
 const BoardView = lazy(chunks.BoardView)
 const TableView = lazy(chunks.TableView)
+const MissionView = lazy(chunks.MissionView)
 const PREFETCH_DELAY = 2000
 
 const TITLE_LENGTH = 60
@@ -1341,6 +1343,7 @@ export default function App() {
     else if (action === 'usage') openPage('usage')
     else if (action === 'board') openPage('board')
     else if (action === 'table') openPage('table')
+    else if (action === 'mission') openPage('mission')
     else if (action === 'theme') toggleTheme()
     else if (action === 'clear') clearContext()
     else lock()
@@ -2738,7 +2741,23 @@ export default function App() {
     />
   )
 
-  const chat = page === 'table' ? (
+  const chat = page === 'mission' ? (
+    <Suspense fallback={null}>
+      <MissionView
+        settings={settings}
+        onChange={setSettings}
+        chats={listed}
+        load={loadChats}
+        price={(id, model) => modelInfo(settings, id, model)}
+        onOpenChat={(id) => void selectChat(id)}
+        onNewChat={() => void selectChat(null)}
+        onOpenPage={openPage}
+        onBack={() => setPage(null)}
+        showMenu={isMobile}
+        onMenu={() => setShowDrawer(true)}
+      />
+    </Suspense>
+  ) : page === 'table' ? (
     <Suspense fallback={null}>
       <TableView
         settings={settings}

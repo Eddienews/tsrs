@@ -305,6 +305,15 @@ export interface AgentTable {
   instructions?: string
 }
 
+// A line of Mission Control's list for the day (mission.ts).
+export interface FocusItem {
+  id: string
+  text: string
+  done: boolean
+  // Local date it was added or done, YYYY-MM-DD.
+  day: string
+}
+
 // Pages that take the conversation's place: the day at a glance, the
 // production board and the agent table.
 export type StudioPage = 'mission' | 'board' | 'table'
@@ -540,6 +549,8 @@ export interface Settings {
   localWhisper?: 'tiny' | 'base' | 'small'
   // Agent tables: agents from the library that work on a task together.
   tables?: AgentTable[]
+  // Mission Control's list of what to get done today.
+  focus?: FocusItem[]
   // Present when the API keys are password-protected; the keys are then
   // stored only inside it.
   vault?: Vault
