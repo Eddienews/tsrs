@@ -1226,4 +1226,28 @@ export const en: Record<string, string> = {
   Afinar: 'Tune',
   'O modelo não devolveu as versões em JSON.': 'The model did not return the versions as JSON.',
   'O modelo não propôs nenhuma versão.': 'The model did not propose any version.',
+  // Coding agents on this computer (cliAgents.ts, CliProviderFields.tsx)
+  'Informe o comando de {provider} nas configurações.': 'Enter the command for {provider} in the settings.',
+  'Só ler': 'Read only',
+  'Lê os arquivos e responde; não muda nada.': 'Reads the files and answers; changes nothing.',
+  'Editar arquivos': 'Edit files',
+  'Cria e muda arquivos na pasta do projeto; não roda comandos sem perguntar.':
+    'Creates and changes files in the project folder; does not run commands without asking.',
+  'Acesso total': 'Full access',
+  'Roda qualquer comando, sem perguntar. Use só em pastas e projetos em que você confia.':
+    'Runs any command without asking. Use it only with folders and projects you trust.',
+  'Não encontrado.': 'Not found.',
+  'Encontrado: {version}': 'Found: {version}',
+  'Encontrado: {version} · {used}% do limite de uso': 'Found: {version} · {used}% of the usage limit',
+  'Usa o agente instalado neste computador, com o login e o plano dele, na pasta de projeto da conversa. Precisa do TSRS servido por npm run dev.':
+    "Uses the agent installed on this computer, with its own login and plan, in the conversation's project folder. Needs TSRS served by npm run dev.",
+  Comando: 'Command',
+  'O nome do comando ou o caminho completo dele.': "The command's name or its full path.",
+  'O que o agente pode fazer': 'What the agent may do',
+  Verificar: 'Check',
+  Anexo: 'Attachment',
+  'Os agentes de linha de comando precisam do servidor local do TSRS (npm run dev).':
+    "Command line agents need TSRS's local server (npm run dev).",
+  'Escreva uma mensagem para o agente.': 'Write a message for the agent.',
+  'A conexão com o agente caiu antes do fim.': 'The connection to the agent dropped before the end.',
 }

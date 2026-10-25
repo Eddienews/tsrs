@@ -286,8 +286,13 @@ export interface Folder {
   personaId?: string
 }
 
-// Wire format spoken by a provider's chat endpoint.
-export type ApiFormat = 'openai' | 'anthropic'
+// Wire format spoken by a provider's chat endpoint; 'cli' is a coding agent
+// installed on this computer, started by the TSRS server (server/cli.mjs).
+export type ApiFormat = 'openai' | 'anthropic' | 'cli'
+
+// The coding agents TSRS can start, and what each may do in the project folder.
+export type CliAgent = 'claude' | 'codex'
+export type CliAccess = 'read' | 'edit' | 'full'
 
 export interface Provider {
   id: string
@@ -334,6 +339,8 @@ export interface Provider {
   // How the provider offers web search (and, for Anthropic, page fetching)
   // run on its own servers; absent when it does not.
   webTools?: 'anthropic' | 'openrouter'
+  // The coding agent behind a 'cli' provider; its base URL is the command.
+  cli?: CliAgent
 }
 
 // A remote MCP server reached over HTTP.
@@ -381,6 +388,8 @@ export interface ProviderSettings {
   listed?: string[]
   modelsCheckedAt?: number
   newModels?: string[]
+  // What a coding agent ('cli' provider) may do in the project folder; 'edit' unless set.
+  cliAccess?: CliAccess
   // Send requests through the local proxy; unset follows `needsProxy`.
   proxy?: boolean
 }

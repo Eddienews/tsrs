@@ -240,7 +240,10 @@ function blocker(settings: Settings, locked: boolean): Blocker | null {
   const conn = settings.providers[provider.id]
   if (!conn.baseUrl) {
     return {
-      text: t('Informe a URL base de {provider} nas configurações.', { provider: provider.name }),
+      text:
+        provider.format === 'cli'
+          ? t('Informe o comando de {provider} nas configurações.', { provider: provider.name })
+          : t('Informe a URL base de {provider} nas configurações.', { provider: provider.name }),
       fix: 'settings',
     }
   }
@@ -254,6 +257,14 @@ function blocker(settings: Settings, locked: boolean): Blocker | null {
   }
   if (!settings.model) return { text: t('Escolha ou digite um modelo.'), fix: 'settings' }
   return null
+}
+
+// What a coding agent is told besides the conversation's own instructions.
+function cliNote(system: string, folder?: string): string {
+  const note = folder
+    ? `You are answering inside TSRS, a chat app. Your working folder is the conversation's project folder (${folder}); files the user attached are in its midia/ folder. Use your own tools there.`
+    : 'You are answering inside TSRS, a chat app.'
+  return system ? `${system}\n\n${note}` : note
 }
 
 // How a generated file is named in the text sent to the model.
@@ -1440,6 +1451,9 @@ export default function App() {
     const remember = settings.memory && !meta.temporary
     if (remember) system = withMemories(system, settings.memories)
     system = withSummary(system, recent.summary)
+    // A coding agent gets the conversation's own instructions, not the notes
+    // about TSRS's tools: it works with its own tools, in the project folder.
+    const agentSystem = system
     // Comparing models would let each of them change the same canvas.
     const sharedCanvas = !media && !targets ? meta.canvas : undefined
     if (sharedCanvas) system = `${system ? `${system}\n\n` : ''}${CANVAS_NOTE}`
@@ -1537,10 +1551,20 @@ export default function App() {
           parts: m.parts?.map((p) => (p.type === 'tool' && p.id === id ? { ...p, ...fields } : p)),
         }))
       try {
+        const cliRun = via.format === 'cli'
+        // The agent works in the conversation's project folder, made now if needed.
+        const cliFolder =
+          cliRun && settings.projects !== false && !meta.temporary
+            ? (await ensureProject(meta.id).catch(() => null))?.path
+            : undefined
         const stream = streamChat({
           ...connection(settings, via.id),
           model: using.model,
-          system: settings.previewHint ? withPreviewHint(system, t('Abrir preview')) : system,
+          system: cliRun
+            ? cliNote(agentSystem, cliFolder)
+            : settings.previewHint
+              ? withPreviewHint(system, t('Abrir preview'))
+              : system,
           messages: withFiles(
             withCanvasText(withKnowledge(toRequest(recent.messages), references), sharedCanvas),
             contextFiles,
@@ -1551,7 +1575,8 @@ export default function App() {
             effort: via.efforts.includes(callParams.effort ?? '') ? callParams.effort : undefined,
           },
           signal: abort.signal,
-          tools: toolset?.defs,
+          tools: cliRun ? undefined : toolset?.defs,
+          ...(cliRun ? { cli: { chatId: meta.id, ...(cliFolder ? { cwd: cliFolder } : {}) } } : {}),
           webSearch: (tools.webSearch || researching) && !!via.webTools && !webSet,
           webFetch: (tools.webFetch || researching) && via.webTools === 'anthropic' && !webSet,
           ...(researching ? { maxRounds: RESEARCH_ROUNDS } : {}),
@@ -2165,6 +2190,8 @@ export default function App() {
     const meta = findMeta(id)
     const [question, answer] = threadsRef.current[id] ?? []
     if (!meta || !answer?.content) return
+    // Starting a coding agent just for a title is slow: the provisional one stays.
+    if (conn.provider.format === 'cli') return
     try {
       const raw = await completeText({
         ...conn,
