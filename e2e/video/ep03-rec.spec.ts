@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { test, type Page } from '@playwright/test'
 import { startVideoMock, type Scripted } from './mock-anthropic'
 import {
-  card, chatRow, composer, Episode, frameAt, hideFrame, home, LIVED_IN, point, replies, scene, seed, typeIn, typeKeys,
+  card, chatRow, composer, EN, Episode, frameAt, hideFrame, home, LIVED_IN, point, replies, scene, seed, tr, typeIn, typeKeys,
 } from './lib'
 
 const ep = new Episode(3)
@@ -198,7 +198,8 @@ test('records the screen of episode 3', async ({ browser }) => {
       [nova - 0.2, async (p) => {
         await question(p).getByRole('button', { name: 'Ramificar a partir daqui' }).click()
         await p.waitForTimeout(400)
-        await frameAt(p, chatRow(p, 'Ideias para o Seu Silva (ramificação)'))
+        // The branch's title is the app's: "<title> (branch)" in English.
+        await frameAt(p, chatRow(p, EN ? `${tr('Ideias para o Seu Silva')} (branch)` : 'Ideias para o Seu Silva (ramificação)'))
       }],
       [original, (p) => frameAt(p, chatRow(p, 'Ideias para o Seu Silva').last())],
     ])
@@ -218,7 +219,7 @@ test('records the screen of episode 3', async ({ browser }) => {
       [pergunte, async (p) => {
         await point(p, replies(p).last().getByRole('button', { name: 'Perguntar à parte' }))
         await hideFrame(p)
-        await p.locator('.side-chat').getByRole('textbox', { name: 'Pergunta' }).fill('Como seria essa balança?')
+        await p.locator('.side-chat').getByRole('textbox', { name: 'Pergunta' }).fill(tr('Como seria essa balança?'))
         await p.waitForTimeout(500)
         await p.locator('.side-chat').getByRole('textbox', { name: 'Pergunta' }).press('Enter')
       }],

@@ -32,7 +32,42 @@ const tool = async (name, input, result, wait = 500) => {
 const last = input.trim().split('\n').at(-1)
 out({ type: 'system', subtype: 'init', cwd: process.cwd(), tools: ['Read', 'Edit', 'Bash'] })
 start()
-if (/revise o index/i.test(input) && at < 0) {
+if (/review index\.html/i.test(input) && at < 0) {
+  // The English take of the tutorial: the same work, said in English.
+  out({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'I will read the page before changing anything.' } }, parent_tool_use_id: null })
+  await say('Reading the page first.')
+  const file = 'index.html'
+  const html = existsSync(file) ? readFileSync(file, 'utf8') : ''
+  await tool('Read', { file_path: file }, html.slice(0, 1200), 700)
+  const fixed = html
+    .replace('<section class="services">', '<main>\n  <section class="services" aria-label="Services">')
+    .replace('</section>\n  <footer>', '</section>\n  </main>\n  <footer>')
+    .replace('<footer>contact@northwindlab.com</footer>', '<footer><a href="mailto:contact@northwindlab.com">contact@northwindlab.com</a></footer>')
+  if (html) writeFileSync(file, fixed)
+  await tool('Edit', { file_path: file, old_string: '<section class="services">', new_string: '<main>\n  <section class="services" aria-label="Services">' }, 'The file index.html has been updated.', 600)
+  await tool('Bash', { command: 'npx html-validate index.html' }, '✔ index.html: 0 errors', 900)
+  await say(
+    'Done. I changed three things in `index.html`:\n\n' +
+      '1. The main content now sits in a `<main>`, so screen readers can jump straight to it.\n' +
+      '2. The services section got a label (`aria-label`).\n' +
+      '3. The footer email is now a link that opens your mail app.\n\n' +
+      'The validator found no errors.',
+    22,
+  )
+} else if (/composition/i.test(last ?? "") && at < 0) {
+  const file = 'cafe-aurora.html'
+  const html = existsSync(file) ? readFileSync(file, 'utf8') : ''
+  await say('Reading the composition, without changing anything.')
+  await tool('Read', { file_path: file }, html.slice(0, 1500), 700)
+  await say(
+    'I read `cafe-aurora.html`. It is well built: 15 s at 30 fps, the Runware shot frame by frame and the cream close.\n\n' +
+      'One suggestion: "The first sip" comes in at 1.6 s; moving it to 1.2 s gives more reading time on a phone. ' +
+      'The rest can stay as it is.',
+    24,
+  )
+} else if (/^(now|do|make)\b/i.test(last ?? '')) {
+  await say(`Done, in the same session: ${last.replace(/[.?!]*$/, '')} — I adjusted the footer and kept the rest as it was.`, 22)
+} else if (/revise o index/i.test(input) && at < 0) {
   out({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'Vou ler a página antes de mudar qualquer coisa.' } }, parent_tool_use_id: null })
   await say('Vou ler a página primeiro.')
   const file = 'index.html'

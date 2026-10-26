@@ -1,0 +1,59 @@
+{
+ "text": {
+  "const rows = csv(files['vendas.csv'])\nconst total = {}\nfor (const r of rows) { const m = r.data.slice(0, 7); total[m] = (total[m] || 0) + r.valor }\nconst meses = Object.keys(total).sort()\nchart({ type: 'bar', title: 'Vendas por mês (R$)', labels: meses, series: [{ name: 'Total', values: meses.map((m) => total[m]) }] })\nreturn total": "const rows = csv(files['sales.csv'])\nconst total = {}\nfor (const r of rows) { const m = r.date.slice(0, 7); total[m] = (total[m] || 0) + r.amount }\nconst months = Object.keys(total).sort()\nchart({ type: 'bar', title: 'Sales by month ($)', labels: months, series: [{ name: 'Total', values: months.map((m) => total[m]) }] })\nreturn total",
+  "Somei a planilha por mês: julho R$ 2.100, agosto R$ 2.150, setembro R$ 2.630 e outubro R$ 2.760. As vendas sobem todo mês, puxadas pelo café.": "I added up the spreadsheet by month: July $2,100, August $2,150, September $2,630 and October $2,760. Sales go up every month, driven by coffee.",
+  "Some o total por mês e mostre num gráfico de barras": "Add up the total by month and show it in a bar chart",
+  "**Notícias de IA — resumo das 7h40**\n\n1. **Modelos:** um novo modelo de vídeo aberto gera planos de 10 segundos em 1080p.\n2. **Ferramentas:** editores de vídeo passam a aceitar trilhas geradas com licença comercial.\n3. **Mercado:** pequenas produtoras relatam prazos 40% menores em anúncios curtos.": "**AI news — 7:40 am summary**\n\n1. **Models:** a new open video model makes 10-second shots in 1080p.\n2. **Tools:** video editors now accept generated soundtracks with a commercial licence.\n3. **Market:** small production companies report 40% shorter turnarounds on short ads.",
+  "Agenda: Notícias de IA": "Schedule: AI news",
+  "Notícias de IA": "AI news",
+  "Resuma as três notícias de IA mais importantes desde ontem, para quem produz vídeo.": "Summarize the three most important AI news stories since yesterday, for people who make video.",
+  "Utilidades livres": "Free utilities",
+  "câmbio · feriados · clima · Wikipédia": "exchange rates · holidays · weather · Wikipedia",
+  "Qual é o câmbio do dólar hoje?": "What's the dollar exchange rate today?",
+  "Skills do Claude": "Claude's skills",
+  "o mesmo SKILL.md funciona aqui": "the same SKILL.md works here",
+  "Arquivo da produtora": "Studio archive",
+  "Antes de cada uso": "Before each use",
+  "o TSRS pede a sua permissão": "TSRS asks for your permission",
+  "RODA NO SERVIDOR DO TSRS · ABA FECHADA OU NÃO": "RUNS ON THE TSRS SERVER · TAB CLOSED OR NOT"
+ },
+ "anchors": {
+  "2": {
+   "extensões": "extensions",
+   "exemplos": "examples",
+   "instale": "install",
+   "câmbio": "exchange"
+  },
+  "3": {
+   "barra": "slash",
+   "pergunte": "ask"
+  },
+  "4": {
+   "pacotes": "packages",
+   "nova": "new",
+   "instale": "install",
+   "claude": "claude"
+  },
+  "6": {
+   "ferramentas": "tools",
+   "servidores": "servers",
+   "acesso": "access",
+   "permissão": "permission"
+  },
+  "7": {
+   "interpretador": "interpreter",
+   "gráfico": "chart"
+  },
+  "8": {
+   "agenda": "schedule",
+   "pedido": "request",
+   "modelo": "model",
+   "horário": "time"
+  },
+  "9": {
+   "servidor": "server",
+   "conversa": "chat",
+   "painel": "mission"
+  }
+ }
+}

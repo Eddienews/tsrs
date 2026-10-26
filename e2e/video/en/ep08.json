@@ -1,0 +1,64 @@
+{
+ "text": {
+  "Roteirista do Seu Silva": "Mr. Silva writer",
+  "Você escreve o Seu Silva: humor seco, cenas curtas, um aposentado no bairro. Nunca explique a piada.": "You write Mr. Silva: dry humour, short scenes, a retired man in the neighbourhood. Never explain the joke.",
+  "Você escreve o Seu Silva: humor seco, cenas curtas.": "You write Mr. Silva: dry humour, short scenes.",
+  "Bíblia do Seu Silva": "Mr. Silva series bible",
+  "personagens, regras e episódios": "characters, rules and episodes",
+  "Escreve a série Seu Silva e o Milo": "Writes the series Mr. Silva and Milo",
+  "Prefere roteiros com três cenas": "Prefers scripts with three scenes",
+  "A produtora se chama NorthWind Lab": "The production company is called NorthWind Lab",
+  "Post para rede social": "Social media post",
+  "Escreva um post para {{rede}} sobre {{assunto}}, num tom {{tom}}.": "Write a post for {{network}} about {{topic}}, in a {{tone}} tone.",
+  "Escreva um post para": "Write a post for",
+  "Agora encurte para uma linha: {{resposta}}": "Now shorten it to one line: {{resposta}}",
+  "Agora encurte para uma linha:": "Now shorten it to one line:",
+  "Seu Silva descobriu o aplicativo da padaria. A padaria ainda está se recuperando. ☕ Episódio novo hoje, às 19h.": "Mr. Silva discovered the bakery app. The bakery is still recovering. ☕ New episode tonight at 7 pm.",
+  "Seu Silva vs. aplicativo da padaria. Hoje, 19h.": "Mr. Silva vs. the bakery app. Tonight, 7 pm.",
+  "Seu Silva vs. the bakery app. Tonight, 7 pm.": "Mr. Silva vs. the bakery app. Tonight, 7 pm.",
+  "o episódio novo": "the new episode",
+  "seco": "dry"
+ },
+ "anchors": {
+  "2": {
+   "biblioteca": "library",
+   "instruções": "instructions",
+   "modelo": "model",
+   "ferramentas": "tools",
+   "arquivos": "files",
+   "criar": "create"
+  },
+  "3": {
+   "temperatura": "temperature",
+   "raciocínio": "reasoning",
+   "skills": "skills"
+  },
+  "4": {
+   "persona": "persona",
+   "arroba": "at"
+  },
+  "5": {
+   "campos": "fields",
+   "usar": "use",
+   "pergunta": "asks"
+  },
+  "6": {
+   "adicionar": "add",
+   "primeira": "first",
+   "próxima": "next"
+  },
+  "7": {
+   "galeria": "gallery"
+  },
+  "8": {
+   "memória": "memory",
+   "lista": "list",
+   "apaga": "delete"
+  },
+  "9": {
+   "conhecimento": "knowledge",
+   "documentos": "documents",
+   "ligada": "linked"
+  }
+ }
+}

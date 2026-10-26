@@ -1,0 +1,71 @@
+{
+ "text": {
+  "Explique em três frases o que é um storyboard": "Explain in three sentences what a storyboard is",
+  "Explique em três frases o que é um storyboard, com um exemplo de anúncio": "Explain in three sentences what a storyboard is, with an example from an ad",
+  ", com um exemplo de anúncio": ", with an example from an ad",
+  "Um **storyboard** é a sequência de desenhos que mostra, quadro a quadro, como um vídeo vai ficar antes de ser filmado. Cada quadro indica o enquadramento, a ação e, muitas vezes, o diálogo ou o som da cena. Ele ajuda a equipe a planejar os planos, prever problemas e economizar tempo na gravação.": "A **storyboard** is the sequence of drawings that shows, frame by frame, how a video will look before it is shot. Each frame shows the framing, the action and, often, the dialogue or the sound of the scene. It helps the team plan the shots, foresee problems and save time on the shoot.",
+  "Pense no storyboard como uma história em quadrinhos do seu vídeo. Cada quadro desenha um plano: quem aparece, onde está a câmera e o que acontece. Assim, todo mundo vê o filme pronto antes do primeiro dia de gravação.": "Think of the storyboard as a comic strip of your video. Each frame draws one shot: who appears, where the camera is and what happens. That way, everyone sees the finished film before the first day of shooting.",
+  "Um storyboard é o roteiro em imagens: cada quadro mostra um plano do vídeo. Num anúncio de café de 15 segundos, seriam uns quatro quadros: a xícara fumegando, a mão que a pega, o primeiro gole e o logo no fim. Com isso, a equipe sabe exatamente o que filmar e em que ordem.": "A storyboard is the script in pictures: each frame shows one shot of the video. In a 15-second coffee ad, that would be about four frames: the steaming cup, the hand that picks it up, the first sip and the logo at the end. With that, the team knows exactly what to shoot and in what order.",
+  "Storyboard com exemplo": "Storyboard with an example",
+  "O que é um storyboard": "What a storyboard is",
+  "Responda de forma breve.": "Answer briefly.",
+  "senha-do-estudio": "studio-password",
+  "uma chave, centenas de modelos": "one key, hundreds of models",
+  "Chaves criptografadas": "Encrypted keys",
+  "a senha protege as chaves neste navegador": "the password protects the keys in this browser"
+ },
+ "anchors": {
+  "3": {
+   "depois": "then",
+   "configurações": "settings",
+   "provedores": "providers",
+   "ollama": "ollama",
+   "carregar": "load"
+  },
+  "4": {
+   "anthropic": "anthropic",
+   "openai": "openai",
+   "openrouter": "openrouter",
+   "cole": "paste",
+   "carregue": "load"
+  },
+  "5": {
+   "escolher": "choose",
+   "lista": "list",
+   "digitar": "type"
+  },
+  "6": {
+   "enter": "enter",
+   "shift": "shift",
+   "resposta": "reply"
+  },
+  "7": {
+   "passe": "hover",
+   "regenerar": "regenerate",
+   "setas": "arrows",
+   "alternam": "switch",
+   "perde": "lost"
+  },
+  "8": {
+   "editar": "edit",
+   "troque": "change",
+   "salvar": "save"
+  },
+  "9": {
+   "parâmetros": "parameters",
+   "sistema": "system",
+   "temperatura": "temperature",
+   "raciocínio": "reasoning"
+  },
+  "10": {
+   "embaixo": "under",
+   "título": "title"
+  },
+  "11": {
+   "configurações": "settings",
+   "segurança": "security",
+   "defina": "set",
+   "chaves": "keys"
+  }
+ }
+}

@@ -1,0 +1,64 @@
+{
+ "text": {
+  "Um **storyboard** é a sequência de desenhos que mostra, quadro a quadro, como um vídeo vai ficar antes de ser filmado. Cada quadro indica o enquadramento, a ação e, muitas vezes, o diálogo ou o som da cena.": "A **storyboard** is the sequence of drawings that shows, frame by frame, how a video will look before it is shot. Each frame gives the framing, the action and, often, the dialogue or the sound of the scene.",
+  "O que é um storyboard": "What is a storyboard",
+  "Explique em duas frases o que é um storyboard": "Explain in two sentences what a storyboard is",
+  "Claro. Cena 1: a xícara na janela, ao amanhecer. Cena 2: a primeira mão que a pega. Cena 3: o logo do Café Aurora.": "Sure. Scene 1: the cup by the window, at dawn. Scene 2: the first hand that picks it up. Scene 3: the Café Aurora logo.",
+  "Crie um roteiro de 30 segundos para o Café Aurora": "Write a 30-second script for Café Aurora",
+  "geram imagem com a chave de conversa": "make images with your chat key",
+  "Tem placa de vídeo?": "Got a graphics card?",
+  "o ComfyUI é opcional": "ComfyUI is optional",
+  "OPCIONAL · GRÁTIS NO SEU COMPUTADOR": "OPTIONAL · FREE ON YOUR COMPUTER",
+  "Um café na janela, ao amanhecer": "A coffee by the window, at dawn",
+  "Transforme esta imagem em vídeo, com a câmera se aproximando devagar": "Turn this image into a video, with the camera slowly moving in",
+  "No Edge": "In Edge",
+  "vozes naturais em português, grátis": "natural voices, free",
+  "🎙  gravando…": "🎙  recording…",
+  "Whisper local": "Local Whisper",
+  "o áudio não sai do computador": "the audio stays on your computer",
+  "Numa pausa…": "At a pause…",
+  "a mensagem vai sozinha": "the message sends itself"
+ },
+ "anchors": {
+  "2": {
+   "configurações": "settings",
+   "chaves": "keys",
+   "quem": "who",
+   "imagem": "image",
+   "vídeo": "video",
+   "áudio": "audio"
+  },
+  "3": {
+   "runware": "runware",
+   "imagem": "image",
+   "vídeo": "video",
+   "voz": "voice",
+   "openai": "openai",
+   "placa": "card",
+   "escolha": "choose",
+   "graça": "free"
+  },
+  "4": {
+   "gere": "make",
+   "preço": "price",
+   "vídeo": "video"
+  },
+  "5": {
+   "passe": "hover",
+   "ler": "read",
+   "navegador": "browser",
+   "piper": "piper"
+  },
+  "6": {
+   "microfone": "microphone",
+   "fale": "speak",
+   "novo": "again",
+   "whisper": "whisper"
+  },
+  "7": {
+   "fone": "headset",
+   "fala": "speak",
+   "pausa": "pause"
+  }
+ }
+}

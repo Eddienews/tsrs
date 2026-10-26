@@ -7,13 +7,19 @@ import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node
 import { join } from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import { startVideoMock, type Scripted } from './mock-anthropic'
-import { badge, card, composer, Episode, frameAt, hideFrame, home, LIVED_IN, point, replies, scene, seed, SERIE, typeIn } from './lib'
+import { badge, card, composer, EN, Episode, frameAt, hideFrame, home, LIVED_IN, point, replies, scene, seed, SERIE, tr, typeIn } from './lib'
 
 const ep = new Episode(14)
 
 const PROJECTS = process.env.TSRS_PROJECTS ?? '/home/claude/tsrs/projetos'
 const DEMO = join(SERIE, 'assets', 'demo')
 const AD = join(SERIE, 'ad2')
+// The composition shown in the preview: the English ad in the English take (saved under the same name).
+const AD_PAGE = join(AD, EN ? 'cafe-aurora-en.html' : 'cafe-aurora.html')
+// The soundtrack's name in the project folder.
+const TRILHA = EN ? 'aurora-soundtrack.mp3' : 'trilha-aurora.mp3'
+// The project button's title once the folder exists.
+const READY = EN ? /^Project folder: (?!not made yet)/ : /^Pasta do projeto: (?!ainda não criada)/
 // What Runware charged for the real files (absent outside the recording machine).
 const COSTS = existsSync(join(DEMO, 'custos.json')) ? JSON.parse(readFileSync(join(DEMO, 'custos.json'), 'utf8')) : {}
 
@@ -28,7 +34,11 @@ const friday = () => {
 
 function board(column: string) {
   const now = Date.now()
-  const c = (id: string, title: string, col: string, extra: object = {}) => ({ id, title, column: col, kind: 'episodio', createdAt: now, updatedAt: now, ...extra })
+  // tr(): the English take writes the cards in English.
+  const c = (id: string, title: string, col: string, extra: { series?: string; language?: string; kind?: string; due?: string } = {}) => ({
+    id, title: tr(title), column: col, kind: 'episodio', createdAt: now, updatedAt: now, ...extra,
+    ...(extra.series ? { series: tr(extra.series) } : {}), ...(extra.language ? { language: tr(extra.language) } : {}),
+  })
   mkdirSync(join(PROJECTS, '_producao'), { recursive: true })
   writeFileSync(join(PROJECTS, '_producao', 'quadro.json'), JSON.stringify({
     version: 1,
@@ -76,7 +86,7 @@ const SCRIPT: Scripted[] = [
   {
     when: /animação na vertical/,
     text: 'A animação, 1080×1920, 15 s, com o plano da Runware quadro a quadro, a imagem e o fecho:\n\n```motion cafe-aurora.html\n' +
-      (existsSync(join(AD, 'cafe-aurora.html')) ? readFileSync(join(AD, 'cafe-aurora.html'), 'utf8') : '') + '\n```',
+      (existsSync(AD_PAGE) ? readFileSync(AD_PAGE, 'utf8') : '') + '\n```',
     wps: 400,
   },
   {
@@ -96,25 +106,27 @@ async function fakeServices(page: Page) {
     await new Promise((r) => setTimeout(r, 900))
     await route.fulfill({ json: { data: [{ taskType: task.taskType, taskUUID: task.taskUUID, imageBase64Data: image, cost: COSTS.imagem, status: 'success' }] }, headers: cors })
   })
-  await page.route('**/__tsrs/ext/search', (route) => route.fulfill({ json: { results: RESULTS } }))
+  await page.route('**/__tsrs/ext/search', (route) =>
+    route.fulfill({ json: { results: RESULTS.map((r) => ({ ...r, title: tr(r.title), snippet: tr(r.snippet) })) } }),
+  )
 }
 
 const projectOf = async (p: Page) => {
   const title = await p.locator('.toolbar .project').getAttribute('title')
-  return title!.replace(/^Pasta do projeto: /, '')
+  return title!.replace(/^(Pasta do projeto|Project folder): /, '')
 }
 
 // The project gets the real files: the shot, the soundtrack, the composition and its frames.
 function fillProject(folder: string) {
   mkdirSync(join(folder, 'midia'), { recursive: true })
   cpSync(join(DEMO, 'cafe.mp4'), join(folder, 'midia', 'plano-cafe.mp4'))
-  cpSync(join(DEMO, 'trilha_aurora.mp3'), join(folder, 'midia', 'trilha-aurora.mp3'))
+  cpSync(join(DEMO, 'trilha_aurora.mp3'), join(folder, 'midia', TRILHA))
 }
 function fillComposition(folder: string) {
   fillProject(folder)
   cpSync(join(AD, 'midia', 'plano'), join(folder, 'midia', 'plano'), { recursive: true })
   cpSync(join(AD, 'fonts'), join(folder, 'fonts'), { recursive: true })
-  cpSync(join(AD, 'cafe-aurora.html'), join(folder, 'cafe-aurora.html'))
+  cpSync(AD_PAGE, join(folder, 'cafe-aurora.html'))
 }
 
 test('records the screen of episode 14', async ({ browser }) => {
@@ -130,9 +142,9 @@ test('records the screen of episode 14', async ({ browser }) => {
     await fakeServices(p)
     await home(p)
     await p.getByRole('button', { name: 'Imagem', exact: true }).click()
-    await p.getByPlaceholder(/Descreva a imagem/).fill('Uma xícara de café na janela, ao amanhecer, vapor subindo')
+    await p.getByPlaceholder(/Descreva a imagem/).fill(tr('Uma xícara de café na janela, ao amanhecer, vapor subindo'))
     await p.getByPlaceholder(/Descreva a imagem/).press('Enter')
-    await expect(folderButton(p)).toHaveAttribute('title', /^Pasta do projeto: (?!ainda não criada)/, { timeout: 30_000 })
+    await expect(folderButton(p)).toHaveAttribute('title', READY, { timeout: 30_000 })
   }
 
   // 3 — The card: AD Café Aurora, an ad, due Friday.
@@ -180,7 +192,7 @@ test('records the screen of episode 14', async ({ browser }) => {
   {
     const [mesa, criam, cenas] = ep.at(5, 'mesa', 'criam', 'cenas')
     await scene(ep, browser, state, 5, async (p) => { await home(p); await nav(p, 'Mesa de agentes').click(); await p.getByLabel('Tarefa').waitFor() }, [
-      [mesa, async (p) => { await p.getByLabel('Tarefa').fill(TASK); await frameAt(p, p.getByLabel('Quem está na mesa')) }],
+      [mesa, async (p) => { await p.getByLabel('Tarefa').fill(tr(TASK)); await frameAt(p, p.getByLabel('Quem está na mesa')) }],
       [criam - 0.6, async (p) => { await hideFrame(p); await point(p, p.getByRole('button', { name: 'Começar' })) }],
       [cenas, (p) => frameAt(p, p.locator('.table-turn').last())],
     ])
@@ -190,7 +202,7 @@ test('records the screen of episode 14', async ({ browser }) => {
   {
     await scene(ep, browser, state, 6, async (p) => { await fakeServices(p); await home(p) }, [
       [0.05, async (p) => {
-        await composer(p).fill('Confira as referências da mesa: luz da manhã em anúncios de café e texto nos 3 primeiros segundos')
+        await composer(p).fill(tr('Confira as referências da mesa: luz da manhã em anúncios de café e texto nos 3 primeiros segundos'))
         await composer(p).press('Enter')
       }],
       [ep.seconds(6) - 0.2, (p) => frameAt(p, replies(p).last().getByRole('link').first().locator('../..'))],
@@ -207,7 +219,7 @@ test('records the screen of episode 14', async ({ browser }) => {
         await p.getByPlaceholder(/Descreva a imagem/).press('Enter')
       }],
       [video, async (p) => {
-        await expect(folderButton(p)).toHaveAttribute('title', /^Pasta do projeto: (?!ainda não criada)/, { timeout: 10_000 })
+        await expect(folderButton(p)).toHaveAttribute('title', READY, { timeout: 10_000 })
         fillProject(await projectOf(p))
         await card('Runware', `imagem US$ ${COSTS.imagem} · vídeo de 6 s US$ ${COSTS.video}`)(p)
       }],
@@ -215,7 +227,7 @@ test('records the screen of episode 14', async ({ browser }) => {
         await card('Trilha de 15 s', `Runware ACE-Step · US$ ${COSTS.musica}`)(p)
         await point(p, folderButton(p))
         await p.waitForTimeout(600)
-        await frameAt(p, p.getByText('trilha-aurora.mp3').first().locator('../..'))
+        await frameAt(p, p.getByText(TRILHA).first().locator('../..'))
       }],
     ])
   }
@@ -228,7 +240,7 @@ test('records the screen of episode 14', async ({ browser }) => {
     await scene(ep, browser, state, 8, async (p) => {
       await imageChat(p)
       fillComposition(await projectOf(p))
-      await composer(p).fill('Agora a animação na vertical, 15 s, com o plano, a imagem, o texto final e a trilha')
+      await composer(p).fill(tr('Agora a animação na vertical, 15 s, com o plano, a imagem, o texto final e a trilha'))
       await composer(p).press('Enter')
       await expect(p.getByRole('button', { name: 'Enviar' })).toBeVisible({ timeout: 60_000 })
       await replies(p).last().getByRole('button', { name: 'Abrir preview' }).first().click()
@@ -239,7 +251,7 @@ test('records the screen of episode 14', async ({ browser }) => {
       [0.1, badge('ACELERADO 12×')],
       [animacao * S, (p) => frameAt(p, panel(p))],
       [gerar * S, async (p) => {
-        await panel(p).getByRole('combobox', { name: 'Trilha' }).selectOption({ label: 'trilha-aurora.mp3' }).catch(() => {})
+        await panel(p).getByRole('combobox', { name: 'Trilha' }).selectOption({ label: TRILHA }).catch(() => {})
         const b = panel(p).getByRole('button', { name: 'Gerar MP4' })
         await frameAt(p, b)
         await point(p, b)
@@ -271,7 +283,7 @@ test('records the screen of episode 14', async ({ browser }) => {
   {
     const [publicado, painel] = ep.at(11, 'publicado', 'painel')
     await scene(ep, browser, state, 11, async (p) => { board('publicado'); await home(p); await nav(p, 'Quadro de produção').click() }, [
-      [publicado - 0.3, (p) => frameAt(p, p.locator('[data-card="AD Café Aurora"]'))],
+      [publicado - 0.3, (p) => frameAt(p, p.locator(`[data-card="${tr('AD Café Aurora')}"]`))],
       [publicado + 1.2, card('Salvo no Obsidian', 'Cofre NorthWind / TSRS / AD Café Aurora.md')],
       [painel - 0.3, async (p) => {
         await hideFrame(p)

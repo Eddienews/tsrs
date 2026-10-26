@@ -1,0 +1,42 @@
+{
+ "text": {
+  "Crie a página inicial da NorthWind Lab em index.html e estilo.css": "Create the NorthWind Lab home page in index.html and style.css",
+  "Feito: o título ficou laranja e, no celular, maior.": "Done: the title is now orange, and bigger on the phone.",
+  "Deixe o título laranja e maior no celular": "Make the title orange and bigger on the phone",
+  "Escreva no canvas o roteiro do episódio 1 do Seu Silva, em cenas": "Write in the canvas the script for Mr. Silva episode 1, in scenes",
+  "# Seu Silva — Episódio 1: O pão de sempre\n\n## Cena 1 — Padaria, 6h40\nSeu Silva entra, cumprimenta todo mundo pelo nome e pede \"o de sempre\". O atendente é novo e não sabe o que é.\n\n## Cena 2 — O balcão\nSeu Silva explica com calma: pão na chapa, pouca manteiga, café pingado em copo americano. O atendente anota tudo num tablet. A fila cresce atrás dele, e ninguém reclama, porque todos querem saber como termina.\n\n## Cena 3 — A mesa\nChega um croissant de pistache. Seu Silva prova, pensa e diz: \"Amanhã eu quero isto.\"": "# Mr. Silva — Episode 1: The usual bread\n\n## Scene 1 — Bakery, 6:40 am\nMr. Silva walks in, greets everyone by name and orders \"the usual\". The clerk is new and has no idea what that is.\n\n## Scene 2 — The counter\nMr. Silva explains it calmly: toasted bread, a little butter, coffee with a drop of milk in a short glass. The clerk types it all into a tablet. The line grows behind him, and nobody complains, because everyone wants to know how it ends.\n\n## Scene 3 — The table\nA pistachio croissant arrives. Mr. Silva tastes it, thinks, and says: \"Tomorrow I want this.\"",
+  "## Cena 2 — O balcão\nSeu Silva explica com calma: pão na chapa, pouca manteiga, café pingado em copo americano. O atendente anota tudo num tablet. A fila cresce atrás dele, e ninguém reclama, porque todos querem saber como termina.": "## Scene 2 — The counter\nMr. Silva explains it calmly: toasted bread, a little butter, coffee with a drop of milk in a short glass. The clerk types it all into a tablet. The line grows behind him, and nobody complains, because everyone wants to know how it ends.",
+  "## Cena 2 — O balcão\nSeu Silva explica o pedido inteiro. O atendente anota num tablet, e a fila espera, curiosa.": "## Scene 2 — The counter\nMr. Silva explains the whole order. The clerk types it into a tablet, and the line waits, curious.",
+  "Seu Silva — Episódio 1": "Mr. Silva — Episode 1",
+  "Escrevi o roteiro no canvas, em três cenas. Mude o que quiser à mão.": "I wrote the script in the canvas, in three scenes. Change anything you like by hand.",
+  "Encurtei só a cena 2; o resto ficou igual.": "I shortened only scene 2; the rest is unchanged.",
+  "Sobre este trecho do canvas:": "About this passage of the canvas:",
+  "encurte esta cena": "shorten this scene"
+ },
+ "anchors": {
+  "2": {
+   "abrir": "open",
+   "funcionando": "working"
+  },
+  "3": {
+   "celular": "phone",
+   "tablet": "tablet",
+   "computador": "desktop",
+   "código": "code",
+   "console": "console"
+  },
+  "4": {
+   "veja": "watch"
+  },
+  "8": {
+   "canvas": "canvas",
+   "documento": "document",
+   "edita": "edit"
+  },
+  "9": {
+   "selecione": "select",
+   "peça": "ask",
+   "resto": "rest"
+  }
+ }
+}

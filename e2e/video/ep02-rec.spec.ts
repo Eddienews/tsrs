@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { test, type Page } from '@playwright/test'
 import { startVideoMock, type Scripted } from './mock-anthropic'
 import {
-  card, chatRow, clearCards, closeTerminal, composer, Episode, frameAt, hideFrame, hideKeys, home, keys, LIVED_IN, openSettings,
+  card, chatRow, clearCards, closeTerminal, composer, EN, Episode, frameAt, hideFrame, hideKeys, home, keys, LIVED_IN, openSettings,
   point, replies, scene, seed, terminal, typeIn, typeKeys,
 } from './lib'
 
@@ -84,7 +84,7 @@ test('records the screen of episode 2', async ({ browser }) => {
         await frameAt(p, button)
         await point(p, button)
       }],
-      [carregar + 1.6, (p) => frameAt(p, provider(p, 'ollama').getByText(/modelos/).last())],
+      [carregar + 1.6, (p) => frameAt(p, provider(p, 'ollama').getByText(EN ? /modelos carregados/ : /modelos/).last())],
     ])
   }
 

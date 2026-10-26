@@ -1,0 +1,75 @@
+{
+ "text": {
+  "Pesquisador": "Researcher",
+  "Você traz referências reais e curtas.": "You bring real, short references.",
+  "Roteirista": "Scriptwriter",
+  "Você escreve roteiros curtos.": "You write short scripts.",
+  "Diretor de criação": "Creative director",
+  "Você decide e escreve a versão final.": "You decide and write the final version.",
+  "Criação Aurora": "Aurora creative",
+  "pesquisa": "research",
+  "roteiro": "script",
+  "revisão": "review",
+  "Crie três conceitos para um anúncio de 15 s do Café Aurora e escreva o melhor em cenas.": "Come up with three concepts for a 15 s Café Aurora ad and write the best one as scenes.",
+  "Referências: a luz de janela pela manhã, o vapor da xícara e o \"primeiro gole\" como ritual.": "References: window light in the morning, the steam from the cup, and the \"first sip\" as a ritual.",
+  "Conceitos: 1) O primeiro gole. 2) A cidade acordando. 3) O balcão de sempre. Fico com o 1: xícara na janela, o vapor, e o fecho com o nome.": "Concepts: 1) The first sip. 2) The city waking up. 3) The usual counter. I pick 1: a cup by the window, the steam, and the close with the name.",
+  "O 1 é o mais forte. Texto curto, duas linhas, e o endereço só no fecho.": "1 is the strongest. Short text, two lines, and the address only in the close.",
+  "**AD Café Aurora — 15 s, vertical**\n\n- **0–6 s:** xícara na janela ao amanhecer, vapor subindo. Texto: \"O primeiro gole\".\n- **6–11 s:** a mesma luz, mais perto. Texto: \"do seu dia.\"\n- **11–15 s:** fecho creme, o nome Café Aurora e \"Abre às 6h\".": "**Café Aurora ad — 15 s, vertical**\n\n- **0–6 s:** a cup by the window at dawn, steam rising. Text: \"The first sip\".\n- **6–11 s:** the same light, closer. Text: \"of your day.\"\n- **11–15 s:** a cream close, the name Café Aurora and \"Opens at 6 am\".",
+  "A animação, 1080×1920, 15 s, com o plano da Runware quadro a quadro, a imagem e o fecho:": "The animation, 1080×1920, 15 s, with the Runware shot frame by frame, the image and the close:",
+  "Confira as referências da mesa: luz da manhã em anúncios de café e texto nos 3 primeiros segundos": "Check the table's references: morning light in coffee ads, and text in the first 3 seconds",
+  "anúncio café luz da manhã primeiro gole reels 15 segundos": "coffee ad morning light first sip reels 15 seconds",
+  "As duas referências se confirmam: a luz da manhã e o vapor são o padrão do gênero [1], e o texto precisa aparecer nos três primeiros segundos [2].": "Both references hold up: morning light and steam are the standard of the genre [1], and the text has to show up in the first three seconds [2].",
+  "Por que anúncios de café apostam na luz da manhã": "Why coffee ads bet on morning light",
+  "Vapor, janela e o primeiro gole: os três clichês que funcionam.": "Steam, a window and the first sip: the three clichés that work.",
+  "Reels de 15 segundos: o texto precisa caber em 3": "15-second Reels: the text has to fit in 3",
+  "Nos primeiros três segundos se decide se a pessoa fica.": "The first three seconds decide whether people stay.",
+  "AD Café Aurora": "Café Aurora ad",
+  "Café Aurora, cafeteria de bairro. Público: 25 a 45 anos. Tom acolhedor. Cores: creme, café e laranja.": "Café Aurora, a neighbourhood coffee shop. Audience: 25 to 45. Warm tone. Colors: cream, coffee and orange.",
+  "Uma xícara de café na janela, ao amanhecer, vapor subindo": "A cup of coffee by the window, at dawn, steam rising",
+  "Uma xícara de café na janela, ao amanhecer": "A cup of coffee by the window, at dawn",
+  "Agora a animação na vertical, 15 s, com o plano, a imagem, o texto final e a trilha": "Now the vertical animation, 15 s, with the shot, the image, the final text and the soundtrack",
+  "Revise o código da composição cafe-aurora.html, sem mudar nada": "Review the code of the cafe-aurora.html composition, without changing anything",
+  "Seu Silva #13": "Mr. Silva #13",
+  "Seu Silva #12": "Mr. Silva #12",
+  "PT": "EN",
+  "imagem US$ ": "image US$ ",
+  " · vídeo de 6 s US$ ": " · 6 s video US$ ",
+  "Trilha de 15 s": "15 s soundtrack",
+  "ACELERADO 12×": "SPED UP 12×",
+  "CLAUDE CODE · SÓ LER": "CLAUDE CODE · READ ONLY",
+  "Salvo no Obsidian": "Saved to Obsidian",
+  "Cofre NorthWind / TSRS / AD Café Aurora.md": "NorthWind Vault / TSRS / Café Aurora ad.md"
+ },
+ "anchors": {
+  "3": {
+   "card": "card",
+   "tipo": "type",
+   "prazo": "due"
+  },
+  "4": {
+   "pasta": "folder",
+   "contexto": "context"
+  },
+  "5": {
+   "mesa": "table",
+   "criam": "come",
+   "cenas": "scenes"
+  },
+  "7": {
+   "vídeo": "video",
+   "trilha": "soundtrack"
+  },
+  "8": {
+   "animação": "animation",
+   "gerar": "make",
+   "render": "render"
+  },
+  "9": {
+   "revisa": "reviews"
+  },
+  "11": {
+   "publicado": "published",
+   "painel": "mission"
+  }
+ }
+}

@@ -1,0 +1,39 @@
+{
+ "text": {
+  "Crie a página inicial da NorthWind Lab em index.html e estilo.css": "Create the NorthWind Lab home page in index.html and style.css",
+  "Revise o index.html, deixe acessível e explique o que mudou": "Review index.html, make it accessible and explain what changed",
+  "Agora faça o mesmo no rodapé": "Now do the same for the footer",
+  "Sem preço": "No price",
+  "quem paga é o plano do agente": "the agent's plan pays for it"
+ },
+ "anchors": {
+  "3": {
+   "configurações": "settings",
+   "claude": "claude",
+   "comando": "command",
+   "verificar": "check"
+  },
+  "4": {
+   "ler": "read",
+   "editar": "edit",
+   "total": "full",
+   "confia": "trust"
+  },
+  "5": {
+   "seletor": "picker",
+   "opus": "opus",
+   "codex": "codex"
+  },
+  "6": {
+   "peça": "ask"
+  },
+  "7": {
+   "comandos": "commands",
+   "tokens": "tokens",
+   "plano": "plan"
+  },
+  "8": {
+   "próxima": "next"
+  }
+ }
+}

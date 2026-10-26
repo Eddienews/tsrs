@@ -1,0 +1,85 @@
+{
+ "text": {
+  "Pesquisador": "Researcher",
+  "Você traz referências reais e curtas.": "You bring real, short references.",
+  "Roteirista do Seu Silva": "Mr. Silva writer",
+  "Você escreve o Seu Silva: humor seco, cenas curtas.": "You write Mr. Silva: dry humour, short scenes.",
+  "Diretor de criação": "Creative director",
+  "Você decide e escreve a versão final.": "You decide and write the final version.",
+  "Revisor de texto": "Copy editor",
+  "Sala de roteiro": "Writers' room",
+  "traz referências": "brings references",
+  "escreve": "writes",
+  "revisa": "reviews",
+  "Gravar o Milo #4": "Record Milo #4",
+  "Revisar o AD do relógio": "Review the watch shop ad",
+  "Fechar a sinopse do Seu Silva #14": "Close the Mr. Silva #14 synopsis",
+  "Escreva a sinopse do Seu Silva #14: ele descobre o aplicativo da padaria.": "Write the synopsis of Mr. Silva #14: he discovers the bakery app.",
+  "Referências: o caixa de autoatendimento que trava, o \"pedido feito\" que nunca chega, e o vizinho que só paga em dinheiro.": "References: the self-checkout that freezes, the \"order placed\" that never arrives, and the neighbour who only pays cash.",
+  "Seu Silva baixa o aplicativo da padaria para pedir \"o de sempre\". O cadastro pede CPF, e-mail e uma foto. Ele manda a foto do pão.": "Mr. Silva downloads the bakery app to order \"the usual\". Sign-up asks for an ID number, an email and a photo. He sends a photo of the bread.",
+  "Funciona. Sugiro cortar o e-mail do cadastro e terminar com o atendente imprimindo o pedido em papel.": "It works. I suggest cutting the email from the sign-up and ending with the clerk printing the order on paper.",
+  "**Seu Silva #14 — O pão por aplicativo**\n\nSeu Silva baixa o aplicativo da padaria para pedir \"o de sempre\". O cadastro pede CPF e uma foto; ele manda a foto do pão. O pedido nunca chega. No balcão, o atendente imprime o pedido em papel e entrega o pão na mão. Seu Silva: \"Tecnologia.\"": "**Mr. Silva #14 — Bread by app**\n\nMr. Silva downloads the bakery app to order \"the usual\". Sign-up asks for an ID number and a photo; he sends a photo of the bread. The order never arrives. At the counter, the clerk prints the order on paper and hands him the bread. Mr. Silva: \"Technology.\"",
+  "Seu Silva #14": "Mr. Silva #14",
+  "Seu Silva #13": "Mr. Silva #13",
+  "Seu Silva #12": "Mr. Silva #12",
+  "AD relógio": "Watch shop ad",
+  "Relojoaria Tempo": "Time & Co.",
+  "PT": "EN",
+  "plano": "shot",
+  "{ \"shot\": \"plano 5\", \"status\": \"redo\" }": "{ \"shot\": \"shot 5\", \"status\": \"redo\" }",
+  "Registro completo": "Full record",
+  "na pasta da mesa, em projetos/": "in the table's folder, under projects/"
+ },
+ "anchors": {
+  "2": {
+   "três": "three",
+   "quadro": "board",
+   "mesa": "table",
+   "painel": "mission"
+  },
+  "3": {
+   "novo": "new",
+   "título": "title",
+   "série": "series",
+   "idioma": "language",
+   "prazo": "due",
+   "conversa": "chat"
+  },
+  "4": {
+   "arrastando": "dragging",
+   "setas": "arrows",
+   "colunas": "columns"
+  },
+  "5": {
+   "takes": "takes",
+   "aprovados": "approved"
+  },
+  "6": {
+   "mesa": "table",
+   "papel": "role",
+   "referências": "references",
+   "escreve": "writes",
+   "revisa": "reviews",
+   "coordenador": "coordinator"
+  },
+  "7": {
+   "começar": "start",
+   "coordenador": "coordinator"
+  },
+  "8": {
+   "salvar": "save",
+   "registro": "record"
+  },
+  "9": {
+   "foco": "focus",
+   "uso": "usage",
+   "agenda": "schedule",
+   "produção": "production",
+   "agentes": "agents"
+  },
+  "10": {
+   "aparência": "appearance",
+   "abrir": "open"
+  }
+ }
+}

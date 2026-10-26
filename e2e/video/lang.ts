@@ -103,11 +103,12 @@ const filled = Object.entries(UI)
 export function ui(label: string): string {
   if (!EN) return label
   if (label in UI) return UI[label]
+  // The video's own text first: a title like "Agenda: …" is not the app's "{x}: {y}".
+  if (label in dict.text) return dict.text[label]
   for (const f of filled) {
     const m = f.re.exec(label)
-    if (m) return f.names.reduce((out, name, i) => out.split(name).join(m[i + 1]), f.en)
+    if (m) return f.names.reduce((out, name, i) => out.split(name).join(tr(m[i + 1])), f.en)
   }
-  if (label in dict.text) return dict.text[label]
   return label
 }
 

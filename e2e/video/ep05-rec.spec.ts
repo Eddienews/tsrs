@@ -3,7 +3,7 @@
 import { join } from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import { startVideoMock, type Scripted } from './mock-anthropic'
-import { composer, Episode, frameAt, hideFrame, home, LIVED_IN, point, replies, scene, seed, typeIn } from './lib'
+import { composer, EN, Episode, frameAt, hideFrame, home, LIVED_IN, point, replies, scene, seed, tr, typeIn } from './lib'
 import { PAGE_CSS, PAGE_HTML, PAGE_REPLY } from './pages'
 
 const ep = new Episode(5)
@@ -43,9 +43,9 @@ test('records the screen of episode 5', async ({ browser }) => {
   const panel = (p: Page) => p.locator('.preview')
   const withPage = async (p: Page) => {
     await home(p)
-    await composer(p).fill('Crie a página inicial da NorthWind Lab em index.html e estilo.css')
+    await composer(p).fill(tr('Crie a página inicial da NorthWind Lab em index.html e estilo.css'))
     await composer(p).press('Enter')
-    await expect(replies(p).last()).toContainText('NOTAS.md', { timeout: 30_000 })
+    await expect(replies(p).last()).toContainText(tr('NOTAS.md'), { timeout: 30_000 })
     await p.mouse.move(1000, 600)
   }
   const withPreview = async (p: Page) => {
@@ -132,24 +132,26 @@ test('records the screen of episode 5', async ({ browser }) => {
     await scene(ep, browser, state, 9, async (p) => {
       await home(p)
       await p.getByRole('button', { name: 'Canvas', exact: true }).click()
-      await composer(p).fill('Escreva no canvas o roteiro do episódio 1 do Seu Silva, em cenas')
+      await composer(p).fill(tr('Escreva no canvas o roteiro do episódio 1 do Seu Silva, em cenas'))
       await composer(p).press('Enter')
-      await expect(text(p)).toHaveValue(/Cena 3/, { timeout: 30_000 })
+      await expect(text(p)).toHaveValue(EN ? /Scene 3/ : /Cena 3/, { timeout: 30_000 })
       await expect(p.getByRole('button', { name: 'Enviar' })).toBeVisible({ timeout: 30_000 })
       await p.mouse.move(1000, 600)
     }, [
       [selecione, async (p) => {
         await text(p).focus()
-        await text(p).evaluate((field: HTMLTextAreaElement) => {
-          const from = field.value.indexOf('## Cena 2')
-          field.setSelectionRange(from, field.value.indexOf('\n\n## Cena 3'))
+        // The second scene's heading, in the language of the take.
+        const [two, three] = EN ? ['## Scene 2', '\n\n## Scene 3'] : ['## Cena 2', '\n\n## Cena 3']
+        await text(p).evaluate((field: HTMLTextAreaElement, [two, three]) => {
+          const from = field.value.indexOf(two)
+          field.setSelectionRange(from, field.value.indexOf(three))
           field.dispatchEvent(new Event('select', { bubbles: true }))
-        })
+        }, [two, three])
         await frameAt(p, p.locator('.canvas').getByLabel('Pedir uma mudança'))
       }],
       [peca, async (p) => {
         const ask = p.locator('.canvas').getByLabel('Pedir uma mudança')
-        await ask.fill('encurte esta cena')
+        await ask.fill(tr('encurte esta cena'))
         await p.waitForTimeout(300)
         await ask.press('Enter')
         await hideFrame(p)

@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import { startVideoMock, type Scripted } from './mock-anthropic'
-import { card, Episode, frameAt, hideFrame, home, LIVED_IN, openSettings, point, scene, seed, typeIn } from './lib'
+import { card, Episode, frameAt, hideFrame, home, LIVED_IN, openSettings, point, scene, seed, tr, typeIn } from './lib'
 
 const ep = new Episode(12)
 
@@ -19,7 +19,11 @@ const day = (offset: number) => {
 
 function resetBoard() {
   const now = Date.now()
-  const c = (id: string, title: string, column: string, extra: object = {}) => ({ id, title, column, kind: 'episodio', createdAt: now, updatedAt: now, ...extra })
+  // tr(): the English take writes the cards in English.
+  const c = (id: string, title: string, column: string, extra: { series?: string; language?: string; kind?: string; due?: string; projectPath?: string } = {}) => ({
+    id, title: tr(title), column, kind: 'episodio', createdAt: now, updatedAt: now, ...extra,
+    ...(extra.series ? { series: tr(extra.series) } : {}), ...(extra.language ? { language: tr(extra.language) } : {}),
+  })
   const board = {
     version: 1,
     columns: [
@@ -40,7 +44,7 @@ function resetBoard() {
   mkdirSync(join(TAKES, 'takes'), { recursive: true })
   const statuses = ['approved', 'approved', 'approved', 'approved', 'redo', 'pending']
   statuses.forEach((status, i) =>
-    writeFileSync(join(TAKES, 'takes', `take-${i + 1}.json`), JSON.stringify({ line: i + 1, shot: `plano ${i + 1}`, status }, null, 2)),
+    writeFileSync(join(TAKES, 'takes', `take-${i + 1}.json`), JSON.stringify({ line: i + 1, shot: `${tr('plano')} ${i + 1}`, status }, null, 2)),
   )
 }
 
@@ -81,7 +85,7 @@ test('records the screen of episode 12', async ({ browser }) => {
   await seed(browser, state, { mockUrl: mock.url, chats: LIVED_IN, tweak: STUDIO })
   const nav = (p: Page, name: string) => p.getByRole('navigation', { name: 'Estúdio' }).getByRole('button', { name })
   const boardHome = async (p: Page) => { resetBoard(); await home(p); await nav(p, 'Quadro de produção').click(); await p.getByRole('heading', { name: 'Quadro de produção' }).waitFor() }
-  const silva = (p: Page) => p.locator('[data-card="Seu Silva #13"]')
+  const silva = (p: Page) => p.locator(`[data-card="${tr('Seu Silva #13')}"]`)
 
   // 2 — The studio: three pages under New chat.
   {
@@ -161,22 +165,22 @@ test('records the screen of episode 12', async ({ browser }) => {
       [mesa, (p) => nav(p, 'Mesa de agentes').click()],
       [papel - 0.8, async (p) => {
         await point(p, p.getByRole('button', { name: 'Criar mesa' }))
-        await p.getByLabel('Nome da mesa').fill('Sala de roteiro')
+        await p.getByLabel('Nome da mesa').fill(tr('Sala de roteiro'))
       }],
       [referencias - 0.3, async (p) => {
         await p.getByLabel('Adicionar agente', { exact: true }).selectOption({ label: 'Pesquisador' })
-        await typeIn(p.getByLabel('Papel de Pesquisador'), 'traz referências', 40)
-        await frameAt(p, p.getByLabel('Papel de Pesquisador'))
+        await typeIn(p.getByLabel(`Papel de ${tr('Pesquisador')}`), 'traz referências', 40)
+        await frameAt(p, p.getByLabel(`Papel de ${tr('Pesquisador')}`))
       }],
       [escreve - 0.3, async (p) => {
         await p.getByLabel('Adicionar agente', { exact: true }).selectOption({ label: 'Roteirista do Seu Silva' })
-        await typeIn(p.getByLabel('Papel de Roteirista do Seu Silva'), 'escreve', 50)
-        await frameAt(p, p.getByLabel('Papel de Roteirista do Seu Silva'))
+        await typeIn(p.getByLabel(`Papel de ${tr('Roteirista do Seu Silva')}`), 'escreve', 50)
+        await frameAt(p, p.getByLabel(`Papel de ${tr('Roteirista do Seu Silva')}`))
       }],
       [revisa - 0.3, async (p) => {
         await p.getByLabel('Adicionar agente', { exact: true }).selectOption({ label: 'Revisor de texto' })
-        await typeIn(p.getByLabel('Papel de Revisor de texto'), 'revisa', 50)
-        await frameAt(p, p.getByLabel('Papel de Revisor de texto'))
+        await typeIn(p.getByLabel(`Papel de ${tr('Revisor de texto')}`), 'revisa', 50)
+        await frameAt(p, p.getByLabel(`Papel de ${tr('Revisor de texto')}`))
       }],
       [coordenador, async (p) => {
         await p.getByLabel('Coordenador').selectOption({ label: 'Diretor de criação' })
@@ -202,7 +206,7 @@ test('records the screen of episode 12', async ({ browser }) => {
     await scene(ep, browser, state, 8, async (p) => {
       await home(p)
       await nav(p, 'Mesa de agentes').click()
-      await p.getByLabel('Tarefa').fill(TASK)
+      await p.getByLabel('Tarefa').fill(tr(TASK))
       await p.getByRole('button', { name: 'Começar' }).click()
       await expect(p.getByRole('button', { name: 'Salvar como conversa' })).toBeVisible({ timeout: 60_000 })
     }, [

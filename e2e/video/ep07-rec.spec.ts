@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { test, type Page } from '@playwright/test'
 import { startVideoMock, type Scripted } from './mock-anthropic'
 import {
-  badge, card, composer, Episode, frameAt, hideFrame, home, LIVED_IN, openSettings, point, replies, scene, seed, SERIE, typeIn,
+  badge, card, composer, EN, Episode, frameAt, hideFrame, home, LIVED_IN, openSettings, point, replies, scene, seed, SERIE, typeIn,
 } from './lib'
 
 const ep = new Episode(7)
@@ -107,7 +107,8 @@ test('records the screen of episode 7', async ({ browser }) => {
       [video, async (p) => {
         await kindSelect(p, 'video').selectOption('runware')
         await frameAt(p, kindSelect(p, 'video').locator('..'))
-        await typeIn(p.getByLabel('Modelo de vídeo').first(), 'minimax:h3@0', 50)
+        // The label is built from the kind's name ("video model" in English).
+        await typeIn(p.getByLabel(EN ? 'video model' : 'Modelo de vídeo').first(), 'minimax:h3@0', 50)
       }],
       [voz, (p) => frameAt(p, kindSelect(p, 'audio'))],
       [openai, async (p) => { await hideFrame(p); await card('OpenAI · Gemini · xAI', 'geram imagem com a chave de conversa')(p) }],

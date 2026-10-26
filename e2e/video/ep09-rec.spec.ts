@@ -3,7 +3,7 @@
 import { join } from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import { startVideoMock, type Scripted } from './mock-anthropic'
-import { badge, composer, Episode, frameAt, hideFrame, home, LIVED_IN, point, replies, scene, seed, typeIn } from './lib'
+import { badge, composer, Episode, frameAt, hideFrame, home, LIVED_IN, point, replies, scene, seed, tr, typeIn } from './lib'
 
 const ep = new Episode(9)
 
@@ -53,11 +53,13 @@ const SEARCH =
   'settings.webSearch = true;'
 
 async function fakeSearch(page: Page) {
-  await page.route('**/__tsrs/ext/search', (route) => route.fulfill({ json: { results: RESULTS } }))
+  // The search results the page shows are video text too (translated in the English take).
+  const results = RESULTS.map((r) => ({ ...r, title: tr(r.title), snippet: tr(r.snippet) }))
+  await page.route('**/__tsrs/ext/search', (route) => route.fulfill({ json: { results } }))
   await page.route('**/__tsrs/ext/read', (route) => {
     const url = JSON.parse(route.request().postData() ?? '{}').url ?? RESULTS[2].url
     const hit = RESULTS.find((r) => r.url === url) ?? RESULTS[2]
-    return route.fulfill({ json: { url, title: hit.title, text: hit.snippet + ' O texto completo da reportagem segue com entrevistas e números.' } })
+    return route.fulfill({ json: { url, title: tr(hit.title), text: tr(hit.snippet) + tr(' O texto completo da reportagem segue com entrevistas e números.') } })
   })
 }
 
@@ -132,7 +134,7 @@ test('records the screen of episode 9', async ({ browser }) => {
       await fakeSearch(p)
       await home(p)
       await p.getByRole('button', { name: 'Pesquisa', exact: true }).click()
-      await p.getByPlaceholder(/O que pesquisar/).fill(RESEARCH)
+      await p.getByPlaceholder(/O que pesquisar/).fill(tr(RESEARCH))
     }, [
       [0.1, badge('ACELERADO 2×')],
       [0.3, (p) => p.getByPlaceholder(/O que pesquisar/).press('Enter')],

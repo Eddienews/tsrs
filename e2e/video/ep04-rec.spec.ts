@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import { startVideoMock, type Scripted } from './mock-anthropic'
 import { PAGE_CSS, PAGE_REPLY } from './pages'
-import { composer, Episode, frameAt, hideFrame, home, LIVED_IN, point, replies, scene, seed, SERIE, typeIn } from './lib'
+import { composer, EN, Episode, frameAt, hideFrame, home, LIVED_IN, point, replies, scene, seed, SERIE, tr, typeIn } from './lib'
 
 const ep = new Episode(4)
 
@@ -39,13 +39,13 @@ test('records the screen of episode 4', async ({ browser }) => {
   // A chat that already made the page, built before the clip starts.
   const withPage = async (p: Page) => {
     await home(p)
-    await composer(p).fill('Crie a página inicial da NorthWind Lab em index.html e estilo.css')
+    await composer(p).fill(tr('Crie a página inicial da NorthWind Lab em index.html e estilo.css'))
     await composer(p).press('Enter')
-    await expect(replies(p).last()).toContainText('NOTAS.md', { timeout: 30_000 })
-    await expect(folderButton(p)).toHaveAttribute('title', /^Pasta do projeto: (?!ainda não criada)/, { timeout: 15_000 })
+    await expect(replies(p).last()).toContainText(tr('NOTAS.md'), { timeout: 30_000 })
+    await expect(folderButton(p)).toHaveAttribute('title', EN ? /^Project folder: (?!not made yet)/ : /^Pasta do projeto: (?!ainda não criada)/, { timeout: 15_000 })
     await p.mouse.move(1000, 600)
   }
-  const folderButton = (p: Page) => p.locator('[title^="Pasta do projeto"]').first()
+  const folderButton = (p: Page) => p.locator(EN ? '[title^="Project folder"]' : '[title^="Pasta do projeto"]').first()
 
   // 2 — Attach, or drop on the message box: the PDF becomes a chip.
   {

@@ -5,12 +5,13 @@ import { expect, test, type Page } from '@playwright/test'
 import { startVideoMock, type Scripted } from './mock-anthropic'
 import { opening } from './motion-nwind'
 import {
-  badge, card, composer, Episode, frameAt, hideFrame, home, LIVED_IN, openSettings, point, replies, scene, seed, SERIE, typeIn,
+  badge, card, composer, EN, Episode, frameAt, hideFrame, home, LIVED_IN, openSettings, point, replies, scene, seed, SERIE, tr, typeIn,
 } from './lib'
 
 const ep = new Episode(6)
 
-const TRACK = join(SERIE, 'assets', 'trilha.mp3')
+// The English take attaches the same track under an English name.
+const TRACK = join(SERIE, 'assets', EN ? 'en/soundtrack.mp3' : 'trilha.mp3')
 const ASK = 'Uma abertura de 6 segundos, na vertical, com o título NWind Lab, fundo escuro e o logo entrando com um brilho'
 const ADJUST = 'Faça o título entrar um segundo mais cedo, na cor dourada'
 
@@ -43,7 +44,7 @@ test('records the screen of episode 6', async ({ browser }) => {
   const withMotion = async (p: Page) => {
     await home(p)
     await fileInput(p).setInputFiles(TRACK)
-    await composer(p).fill(ASK)
+    await composer(p).fill(tr(ASK))
     await composer(p).press('Enter')
     await expect(p.getByRole('button', { name: 'Enviar' })).toBeVisible({ timeout: 30_000 })
     await replies(p).last().getByRole('button', { name: 'Abrir preview' }).first().click()
@@ -52,7 +53,8 @@ test('records the screen of episode 6', async ({ browser }) => {
   }
   const render = async (p: Page) => {
     await panel(p).getByRole('button', { name: 'Gerar MP4' }).click()
-    await expect(panel(p).getByRole('link', { name: /^Baixar motion-1(-\d+)?\.mp4$/ })).toBeVisible({ timeout: 240_000 })
+    const link = EN ? /^Download motion-1(-\d+)?\.mp4$/ : /^Baixar motion-1(-\d+)?\.mp4$/
+    await expect(panel(p).getByRole('link', { name: link })).toBeVisible({ timeout: 240_000 })
   }
 
   // 3 — Attach the soundtrack: a chip in the message box.

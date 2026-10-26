@@ -3,9 +3,11 @@
 import { join } from 'node:path'
 import { test, type Page } from '@playwright/test'
 import { startVideoMock, type Scripted } from './mock-anthropic'
-import { card, composer, Episode, frameAt, hideFrame, home, LIVED_IN, point, replies, scene, seed, SERIE, typeIn } from './lib'
+import { card, composer, EN, Episode, frameAt, hideFrame, home, LIVED_IN, point, replies, scene, seed, SERIE, tr, typeIn } from './lib'
 
 const ep = new Episode(8)
+// The prompt's fields, as named in the take's language.
+const F = EN ? { rede: 'network', assunto: 'topic', tom: 'tone' } : { rede: 'rede', assunto: 'assunto', tom: 'tom' }
 
 const WRITER = {
   id: 'p-roteirista',
@@ -98,7 +100,7 @@ test('records the screen of episode 8', async ({ browser }) => {
         await p.keyboard.press('Escape')
         await hideFrame(p)
         await composer(p).click()
-        await composer(p).pressSequentially('@rot', { delay: 140 })
+        await composer(p).pressSequentially(EN ? '@wri' : '@rot', { delay: 140 })
         await p.waitForTimeout(300)
         await frameAt(p, p.getByRole('listbox', { name: 'Agentes' }))
       }],
@@ -126,8 +128,8 @@ test('records the screen of episode 8', async ({ browser }) => {
       [pergunta, async (p) => {
         const menu = p.locator('.menu')
         await frameAt(p, menu)
-        await typeIn(menu.getByLabel('rede'), 'Instagram', 60)
-        await typeIn(menu.getByLabel('assunto'), 'o episódio novo', 50)
+        await typeIn(menu.getByLabel(F.rede), 'Instagram', 60)
+        await typeIn(menu.getByLabel(F.assunto), 'o episódio novo', 50)
       }],
     ])
   }
@@ -151,9 +153,9 @@ test('records the screen of episode 8', async ({ browser }) => {
         await p.getByTitle('Fechar').click()
         await p.getByRole('button', { name: 'Prompts', exact: true }).click()
         await p.locator('.menu').getByRole('button', { name: /Post para rede social/ }).click()
-        await p.locator('.menu').getByLabel('rede').fill('Instagram')
-        await p.locator('.menu').getByLabel('assunto').fill('o episódio novo')
-        await p.locator('.menu').getByLabel('tom').fill('seco')
+        await p.locator('.menu').getByLabel(F.rede).fill('Instagram')
+        await p.locator('.menu').getByLabel(F.assunto).fill(tr('o episódio novo'))
+        await p.locator('.menu').getByLabel(F.tom).fill(tr('seco'))
         await point(p, p.locator('.menu').getByRole('button', { name: 'Executar o encadeamento' }))
       }],
       [proxima + 0.6, (p) => frameAt(p, p.locator('.message.user').last())],

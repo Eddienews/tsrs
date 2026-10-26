@@ -1,0 +1,48 @@
+{
+ "text": {
+  "Uma abertura de 6 segundos, na vertical, com o título NWind Lab, fundo escuro e o logo entrando com um brilho": "A 6-second vertical opening, with the title NWind Lab, a dark background and the logo coming in with a glow",
+  "Faça o título entrar um segundo mais cedo, na cor dourada": "Make the title come in one second earlier, in gold",
+  "Sua abertura, 1080×1920, 6 s a 30 fps, com fade no final:": "Your opening, 1080×1920, 6 s at 30 fps, with a fade at the end:",
+  "Abra no preview para ver a linha do tempo.": "Open it in the preview to see the timeline.",
+  "Pronto: o título entra em 0,8 s, em dourado.": "Done: the title now comes in at 0.8 s, in gold.",
+  "Abertura NWind Lab": "NWind Lab opening",
+  "trilha.mp3 → midia/": "soundtrack.mp3 → midia/",
+  "na pasta do projeto": "in the project folder",
+  "trilha.mp3": "soundtrack.mp3",
+  "ACELERADO 10×": "SPED UP 10×",
+  "ACELERADO 16×": "SPED UP 16×",
+  "Vídeo curto": "Short video",
+  "Faça um vídeo curto de 30 segundos sobre o primeiro café da manhã": "Make a 30-second short video about the first coffee of the morning"
+ },
+ "anchors": {
+  "3": {
+   "anexe": "attach",
+   "mídia": "media"
+  },
+  "4": {
+   "abertura": "opening"
+  },
+  "5": {
+   "preview": "preview",
+   "play": "play",
+   "pause": "pause",
+   "arraste": "drag"
+  },
+  "6": {
+   "escolha": "choose",
+   "gerar": "make",
+   "quadro": "frame",
+   "salvo": "saved"
+  },
+  "7": {
+   "peça": "ask",
+   "cada": "each"
+  },
+  "8": {
+   "curto": "short",
+   "pexels": "pexels",
+   "voz": "voice",
+   "peça": "ask"
+  }
+ }
+}

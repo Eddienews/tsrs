@@ -1,0 +1,44 @@
+{
+ "text": {
+  "Roteiro do Milo #": "Milo script #",
+  "Legendas do Seu Silva": "Mr. Silva captions",
+  "Ideias de anúncio": "Ad ideas",
+  "Revisão de texto": "Copy edit",
+  "Trabalho do dia": "Today's work",
+  "Feito.": "Done.",
+  "senha-do-estudio": "studio-password",
+  "Cada perfil tem": "Each profile has",
+  "as próprias chaves, conversas e backup": "its own keys, chats and backup",
+  "As chaves nunca vão junto": "Keys never go along",
+  "cada computador guarda as suas": "each computer keeps its own",
+  "C:\\Users\\eddie\\Documents\\Cofre NorthWind": "C:\\Users\\eddie\\Documents\\NorthWind Vault",
+  "Cofre NorthWind": "NorthWind Vault"
+ },
+ "anchors": {
+  "2": {
+   "tokens": "tokens",
+   "barra": "bar",
+   "uso": "usage",
+   "dias": "days"
+  },
+  "4": {
+   "segurança": "security",
+   "senha": "password",
+   "bloquear": "lock"
+  },
+  "5": {
+   "perfil": "profile",
+   "chaves": "keys"
+  },
+  "7": {
+   "sincronize": "sync",
+   "servidor": "server",
+   "nunca": "never"
+  },
+  "8": {
+   "cofre": "vault",
+   "conversa": "chat",
+   "menu": "menu"
+  }
+ }
+}

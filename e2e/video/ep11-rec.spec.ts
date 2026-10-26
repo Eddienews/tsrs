@@ -6,13 +6,15 @@ import { join } from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import { startVideoMock, type Scripted } from './mock-anthropic'
 import { PAGE_REPLY } from './pages'
-import { card, composer, Episode, frameAt, hideFrame, home, LIVED_IN, openSettings, point, replies, scene, seed, typeIn } from './lib'
+import { card, composer, EN, Episode, frameAt, hideFrame, home, LIVED_IN, openSettings, point, replies, scene, seed, tr, typeIn } from './lib'
 
 const ep = new Episode(11)
 
 const SCRIPT: Scripted[] = [{ when: /Crie a página inicial/, text: PAGE_REPLY, title: 'Página da NorthWind Lab', wps: 200 }]
 const ASK = 'Revise o index.html, deixe acessível e explique o que mudou'
 const NEXT = 'Agora faça o mesmo no rodapé'
+// The project button's title once the folder exists.
+const READY = EN ? /^Project folder: (?!not made yet)/ : /^Pasta do projeto: (?!ainda não criada)/
 
 test('records the screen of episode 11', async ({ browser }) => {
   test.setTimeout(20 * 60_000)
@@ -27,16 +29,16 @@ test('records the screen of episode 11', async ({ browser }) => {
   // The page chat, made with Claude through the API, then switched to Claude Code.
   const pageChat = async (p: Page) => {
     await home(p)
-    await composer(p).fill('Crie a página inicial da NorthWind Lab em index.html e estilo.css')
+    await composer(p).fill(tr('Crie a página inicial da NorthWind Lab em index.html e estilo.css'))
     await composer(p).press('Enter')
-    await expect(replies(p).last()).toContainText('NOTAS.md', { timeout: 30_000 })
-    await expect(p.locator('.toolbar .project')).toHaveAttribute('title', /^Pasta do projeto: (?!ainda não criada)/, { timeout: 15_000 })
+    await expect(replies(p).last()).toContainText(tr('NOTAS.md'), { timeout: 30_000 })
+    await expect(p.locator('.toolbar .project')).toHaveAttribute('title', READY, { timeout: 15_000 })
     await picker(p).click()
     await p.getByRole('option', { name: 'opus', exact: true }).click()
     await p.mouse.move(1000, 600)
   }
   const ask = async (p: Page, text: string) => {
-    await composer(p).fill(text)
+    await composer(p).fill(tr(text))
     await composer(p).press('Enter')
     await expect(p.getByRole('button', { name: 'Enviar' })).toBeVisible({ timeout: 60_000 })
   }

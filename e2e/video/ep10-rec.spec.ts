@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import { startMockMcp } from '../mock-mcp'
 import { startVideoMock, type Scripted } from './mock-anthropic'
-import { badge, card, composer, Episode, frameAt, hideFrame, home, LIVED_IN, point, replies, scene, seed, SERIE, typeIn } from './lib'
+import { badge, card, composer, EN, Episode, frameAt, hideFrame, home, LIVED_IN, point, replies, scene, seed, SERIE, tr, typeIn } from './lib'
 
 const ep = new Episode(10)
 
@@ -67,7 +67,7 @@ test('records the screen of episode 10', async ({ browser }) => {
       }],
       [instale, async (p) => {
         await frameAt(p, example(p))
-        const b = example(p).getByRole('button', { name: /Instalar utilidades-livres|Reinstalar/ })
+        const b = example(p).getByRole('button', { name: EN ? /Install utilidades-livres|Reinstall/ : /Instalar utilidades-livres|Reinstalar/ })
         await point(p, b)
       }],
       [cambio, card('Utilidades livres', 'câmbio · feriados · clima · Wikipédia')],
@@ -133,7 +133,7 @@ test('records the screen of episode 10', async ({ browser }) => {
       [interpretador + 1.0, async (p) => {
         await hideFrame(p)
         await p.keyboard.press('Escape')
-        await p.locator('.composer input[type=file]').setInputFiles(join(SERIE, 'assets', 'vendas.csv'))
+        await p.locator('.composer input[type=file]').setInputFiles(EN ? join(SERIE, 'assets', 'en', 'sales.csv') : join(SERIE, 'assets', 'vendas.csv'))
         await typeIn(composer(p), 'Some o total por mês e mostre num gráfico de barras', 14)
         await composer(p).press('Enter')
       }],
@@ -170,7 +170,7 @@ test('records the screen of episode 10', async ({ browser }) => {
     await scene(ep, browser, agenda, 9, home, [
       [servidor, badge('RODA NO SERVIDOR DO TSRS · ABA FECHADA OU NÃO')],
       [conversa - 0.3, async (p) => {
-        await point(p, p.locator('.chat-item', { hasText: 'Agenda: Notícias de IA' }))
+        await point(p, p.locator('.chat-item', { hasText: tr('Agenda: Notícias de IA') }))
         await p.mouse.move(1000, 600)
         await frameAt(p, replies(p).last())
       }],
@@ -179,7 +179,7 @@ test('records the screen of episode 10', async ({ browser }) => {
         await p.evaluate(() => document.getElementById('__badge')?.remove())
         await point(p, p.getByRole('navigation', { name: 'Estúdio' }).getByRole('button', { name: 'Painel do dia' }))
         await p.waitForTimeout(700)
-        await frameAt(p, p.getByText('Agenda: Notícias de IA').last())
+        await frameAt(p, p.getByText(tr('Agenda: Notícias de IA')).last())
       }],
     ])
   }

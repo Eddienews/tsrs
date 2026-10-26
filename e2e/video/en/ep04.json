@@ -1,0 +1,30 @@
+{
+ "text": {
+  "1. **Cliente:** Café Aurora, cafeteria de bairro em São Paulo.\n2. **Peça:** anúncio de 15 segundos, vertical, para Reels e Shorts.\n3. **Público:** adultos de 25 a 45 anos que trabalham perto da loja.\n4. **Tom:** acolhedor, manhã tranquila; cores creme, café e laranja.\n5. **Mensagem e prazo:** \"O primeiro gole do seu dia\", entrega na sexta.": "1. **Client:** Café Aurora, a neighbourhood coffee shop in São Paulo.\n2. **Piece:** a 15-second vertical ad for Reels and Shorts.\n3. **Audience:** adults aged 25 to 45 who work near the shop.\n4. **Tone:** warm, a quiet morning; cream, coffee and orange colours.\n5. **Message and deadline:** \"The first sip of your day\", due on Friday.",
+  "Resumo do briefing": "Briefing summary",
+  "Resuma este documento em cinco pontos": "Summarize this document in five points",
+  "Crie a página inicial da NorthWind Lab em index.html e estilo.css": "Create the NorthWind Lab home page in index.html and style.css",
+  "Deixe o título laranja": "Make the title orange",
+  "Li o `estilo.css` atual e mudei só a cor do título.": "I read the current `style.css` and changed only the title colour."
+ },
+ "anchors": {
+  "2": {
+   "anexar": "attach",
+   "arraste": "drag"
+  },
+  "5": {
+   "cria": "creates",
+   "grava": "saves"
+  },
+  "6": {
+   "botão": "button",
+   "caminho": "path",
+   "copiar": "copy",
+   "mudar": "switch"
+  },
+  "8": {
+   "continuar": "carry",
+   "antes": "before"
+  }
+ }
+}
