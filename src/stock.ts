@@ -1,3 +1,4 @@
+import { t } from './i18n'
 import { PROJECTS } from './projects'
 import type { ToolCall, ToolDef, ToolResult } from './stream'
 import { localTools, type ToolSet } from './tools'
@@ -92,7 +93,7 @@ export async function saveClip(project: ChatProject, clip: StockClip, signal?: A
 export function creditLine(clip: StockClip, file?: string): string {
   const service = STOCK_SERVICES.find((s) => s.id === clip.provider)!.name
   const who = clip.author ? (clip.authorUrl ? `[${clip.author}](${clip.authorUrl})` : clip.author) : service
-  return `- ${file ? `\`${file}\`: ` : ''}vídeo de ${who} no [${service}](${clip.page || service})`
+  return `- ${file ? `\`${file}\`: ` : ''}${t('vídeo de {who} no {service}', { who, service: `[${service}](${clip.page || service})` })}`
 }
 
 export const STOCK_TOOL: ToolDef = {

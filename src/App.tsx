@@ -74,6 +74,7 @@ import {
   projectTracks,
   projectNote,
   readDesign,
+  notesName,
   projectNotes,
   projectsRoot,
   runProjectTool,
@@ -1939,7 +1940,7 @@ export default function App() {
         return { id: a.id, name, file: { name, content: a.data, ...(a.kind === 'text' ? {} : { encoding: 'base64' as const }) } }
       })
       const written = await saveFiles(project.path, named.map((n) => n.file))
-      await saveFiles(project.path, [{ name: 'NOTAS.md', content: historyLine(written, t('anexo do usuário'), new Date()), append: true }])
+      await saveFiles(project.path, [{ name: notesName(), content: historyLine(written, t('anexo do usuário'), new Date()), append: true }])
       patchThread(chatId, (thread) =>
         patchMessage(thread, message.id, (m) => ({
           ...m,
@@ -1964,7 +1965,7 @@ export default function App() {
     setToolProblems((list) => [...list, error])
   }
 
-  // Saves files into the conversation's folder and notes it in NOTAS.md.
+  // Saves files into the conversation's folder and notes it in NOTAS.md (NOTES.md in English).
   // Resolves to the folder and the names written there, or nothing when the
   // files could not be saved (the user is told why).
   async function saveToProject(
@@ -1984,7 +1985,7 @@ export default function App() {
       const project = await ensureProject(chatId)
       if (!project) return
       const written = await saveFiles(project.path, files)
-      await saveFiles(project.path, [{ name: 'NOTAS.md', content: historyLine(written, who, new Date()), append: true }])
+      await saveFiles(project.path, [{ name: notesName(), content: historyLine(written, who, new Date()), append: true }])
       return { path: project.path, written }
     } catch (err) {
       warnProject(
@@ -2018,7 +2019,7 @@ export default function App() {
         written.forEach((name) => wrote.add(name))
         turnWrites.current.set(chatId, wrote)
         void latest.current.followFiles(chatId, project.path, written)
-        void saveFiles(project.path, [{ name: 'NOTAS.md', content: historyLine(written, who, new Date()), append: true }])
+        void saveFiles(project.path, [{ name: notesName(), content: historyLine(written, who, new Date()), append: true }])
       })
     })
   }
@@ -2033,7 +2034,7 @@ export default function App() {
         if (!project) return
         void saveFiles(project.path, [
           { name: 'CREDITOS.md', content: `${credits.join('\n')}\n`, append: true },
-          { name: 'NOTAS.md', content: historyLine(files, who, new Date()), append: true },
+          { name: notesName(), content: historyLine(files, who, new Date()), append: true },
         ])
       },
     )
@@ -2050,7 +2051,7 @@ export default function App() {
           const written = await saveFiles(project.path, [{ name, content, ...(encoding ? { encoding } : {}) }])
           await saveFiles(project.path, [
             { name: 'CREDITOS.md', content: `${credit}\n`, append: true },
-            { name: 'NOTAS.md', content: historyLine(written, who, new Date()), append: true },
+            { name: notesName(), content: historyLine(written, who, new Date()), append: true },
           ])
           return written.join(', ')
         },
@@ -2059,10 +2060,10 @@ export default function App() {
     )
   }
 
-  // A line in NOTAS.md for files a tool added to the project.
+  // A line in the notes for files a tool added to the project.
   function projectHistory(chatId: string, files: string[], who: string) {
     const project = findMeta(chatId)?.project
-    if (project) void saveFiles(project.path, [{ name: 'NOTAS.md', content: historyLine(files, who, new Date()), append: true }])
+    if (project) void saveFiles(project.path, [{ name: notesName(), content: historyLine(files, who, new Date()), append: true }])
   }
 
   // Open images and a look at the page; taste-skill's draw when its skill is on.
@@ -2072,7 +2073,7 @@ export default function App() {
       taste,
       onSaved: (files) => {
         const project = findMeta(chatId)?.project
-        if (project) void saveFiles(project.path, [{ name: 'NOTAS.md', content: historyLine(files, who, new Date()), append: true }])
+        if (project) void saveFiles(project.path, [{ name: notesName(), content: historyLine(files, who, new Date()), append: true }])
       },
     })
   }
@@ -2093,7 +2094,7 @@ export default function App() {
         })),
       onDone: (result) => {
         const project = findMeta(chatId)?.project
-        if (project) void saveFiles(project.path, [{ name: 'NOTAS.md', content: historyLine([result.file], who, new Date()), append: true }])
+        if (project) void saveFiles(project.path, [{ name: notesName(), content: historyLine([result.file], who, new Date()), append: true }])
         patchReply((m) => ({
           ...m,
           attachments: [

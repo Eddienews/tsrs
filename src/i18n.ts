@@ -19,6 +19,10 @@ export function detectLanguage(): Language {
   return globalThis.navigator?.language?.toLowerCase().startsWith('pt') ? 'pt' : 'en'
 }
 
+export function language(): Language {
+  return current
+}
+
 export function setLanguage(language: Language): void {
   current = language
   if (typeof document !== 'undefined') document.documentElement.lang = locale()

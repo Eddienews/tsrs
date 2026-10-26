@@ -126,7 +126,7 @@ async function register(root, path) {
 
 // Opens the folder a conversation saves into: a new one under the root named
 // after it, or the folder the user chose, created if missing.
-export async function openProject(root, { name, path, notes }) {
+export async function openProject(root, { name, path, notes, notesName }) {
   let folder
   if (path) {
     if (!isAbsolute(path)) throw new Error('Use the full path of the folder.')
@@ -140,14 +140,19 @@ export async function openProject(root, { name, path, notes }) {
     for (let n = 2; existsSync(folder); n++) folder = join(root, `${base}-${n}`)
     await mkdir(folder, { recursive: true })
   }
-  if (notes && !existsSync(join(folder, 'NOTAS.md'))) await writeFile(join(folder, 'NOTAS.md'), notes)
+  // NOTAS.md, or NOTES.md when the app is in English; an existing notes file of either name is kept.
+  const file = notesName === 'NOTES.md' ? 'NOTES.md' : 'NOTAS.md'
+  if (notes && !existsSync(join(folder, 'NOTAS.md')) && !existsSync(join(folder, 'NOTES.md'))) await writeFile(join(folder, file), notes)
   return { path: folder, name: basename(folder) }
 }
 
 export async function writeFiles(project, files) {
   const written = []
   for (const file of files ?? []) {
-    const target = projectFile(project, file.name)
+    // A line for the notes goes to the notes file the project already has, in either language.
+    const notes = { 'NOTAS.md': 'NOTES.md', 'NOTES.md': 'NOTAS.md' }[file.name]
+    const name = file.append && notes && !existsSync(join(project, file.name)) && existsSync(join(project, notes)) ? notes : file.name
+    const target = projectFile(project, name)
     if (!target) throw new Error(`Not a file name inside the project: ${file.name}`)
     await mkdir(dirname(target), { recursive: true })
     const content = file.encoding === 'base64' ? Buffer.from(file.content, 'base64') : String(file.content ?? '')
