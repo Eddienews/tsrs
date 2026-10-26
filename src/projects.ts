@@ -1,4 +1,5 @@
 import { base64 } from './files'
+import { language, locale, t } from './i18n'
 import { readPowerPoint, readWord } from './office'
 import type { ToolCall, ToolDef, ToolResult } from './stream'
 import type { ChatProject } from './types'
@@ -40,7 +41,7 @@ export async function projectsRoot(): Promise<string | null> {
 }
 
 export function openProject(job: { name?: string; path?: string; notes?: string }) {
-  return post<ChatProject>('/open', job)
+  return post<ChatProject>('/open', job.notes ? { ...job, notesName: notesName() } : job)
 }
 
 export async function saveFiles(
@@ -153,30 +154,34 @@ export function filesFromReply(markdown: string, onlyNamed = false): SavedFile[]
   return [...files].map(([name, content]) => ({ name, content }))
 }
 
-// The NOTAS.md a new project starts with, so whoever carries on (TSRS, Claude
+// The project's notes file, named in the interface language: NOTAS.md or NOTES.md.
+export function notesName(): string {
+  return language() === 'en' ? 'NOTES.md' : 'NOTAS.md'
+}
+
+// The notes a new project starts with, so whoever carries on (TSRS, Claude
 // Code, Codex) knows what it is for.
 export function projectNotes(title: string, request: string, date: Date): string {
   return [
     `# ${title}`,
     '',
-    `Projeto criado pelo TSRS em ${date.toLocaleString('pt-BR')}.`,
+    t('Projeto criado pelo TSRS em {date}.', { date: date.toLocaleString(locale()) }),
     '',
-    '## Pedido',
+    `## ${t('Pedido')}`,
     '',
     request.trim(),
     '',
-    '## Como continuar',
+    `## ${t('Como continuar')}`,
     '',
-    'Os arquivos desta pasta são a versão atual. Pode editar aqui com qualquer ferramenta',
-    '(Claude Code, Codex, um editor); o TSRS lê a versão atual ao voltar à conversa.',
+    t('Os arquivos desta pasta são a versão atual. Pode editar aqui com qualquer ferramenta (Claude Code, Codex, um editor); o TSRS lê a versão atual ao voltar à conversa.'),
     '',
-    '## Histórico',
+    `## ${t('Histórico')}`,
     '',
   ].join('\n')
 }
 
 export function historyLine(files: string[], who: string, date: Date): string {
-  return `- ${date.toLocaleString('pt-BR')} · ${files.join(', ')} · ${who}\n`
+  return `- ${date.toLocaleString(locale())} · ${files.join(', ')} · ${who}\n`
 }
 
 // Where a file the user attached is kept in the project: midia/<its name>,
@@ -238,7 +243,7 @@ export function projectNote(project: ChatProject): string {
     'and the MP4 is made from that file: after saving or editing it, do not repeat its code in ' +
     'the reply; say what changed. For a Word document or a ' +
     'PowerPoint presentation, use project_write_word or project_write_powerpoint. Code blocks you write that ' +
-    'name a file after the language (```html index.html) are saved there too. Keep NOTAS.md ' +
+    'name a file after the language (```html index.html) are saved there too. Keep ' + notesName() + ' ' +
     'up to date with what the project is and the decisions taken.'
   )
 }
