@@ -1377,4 +1377,15 @@ export const en: Record<string, string> = {
   'Pasta das notas, dentro do cofre': 'Notes folder, inside the vault',
   'Atualizar a nota a cada resposta': 'Update the note after every reply',
   'Sem isso, salve uma conversa pelo menu dela: Salvar no Obsidian.': 'Without it, save a chat from its menu: Save to Obsidian.',
+  // Files the app writes in the project folder.
+  'Projeto criado pelo TSRS em {date}.': 'Project created by TSRS on {date}.',
+  'Pedido': 'Request',
+  'Como continuar': 'How to carry on',
+  'Os arquivos desta pasta são a versão atual. Pode editar aqui com qualquer ferramenta (Claude Code, Codex, um editor); o TSRS lê a versão atual ao voltar à conversa.': 'The files in this folder are the current version. Edit them here with any tool (Claude Code, Codex, an editor); TSRS reads the current version when you go back to the chat.',
+  'Histórico': 'History',
+  'Pesquisa profunda feita pelo TSRS em {date} com {model}.': 'Deep research made by TSRS on {date} with {model}.',
+  'Relatório': 'Report',
+  'Páginas consultadas': 'Pages consulted',
+  'vídeo de {who} no {service}': 'video by {who} on {service}',
+  'Vídeo curto': 'Short video',
 }

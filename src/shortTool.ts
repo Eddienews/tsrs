@@ -1,3 +1,4 @@
+import { t } from './i18n'
 import { readerSource, type MediaTarget } from './media'
 import type { ShortFormat, ShortPlan, ShortResult } from './shortVideo'
 import { stockServices } from './stock'
@@ -60,7 +61,7 @@ export function shortToolSet(opts: {
   onDone: (result: ShortResult) => void
 }): ToolSet | null {
   if (!opts.voice || !stockServices(opts.settings).length) return null
-  return localTools([SHORT_TOOL], 'Vídeo curto', async (call: ToolCall, signal): Promise<ToolResult> => {
+  return localTools([SHORT_TOOL], t('Vídeo curto'), async (call: ToolCall, signal): Promise<ToolResult> => {
     const project = await opts.project()
     if (!project) return { content: 'This conversation has no project folder.', isError: true }
     const input = (call.input ?? {}) as Record<string, any>

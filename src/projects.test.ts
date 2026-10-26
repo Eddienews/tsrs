@@ -1,8 +1,10 @@
 import { expect, test, vi } from 'vitest'
+import { setLanguage } from './i18n'
 import {
   fenceName,
   filesFromReply,
   historyLine,
+  notesName,
   mediaName,
   mediaNote,
   pathIn,
@@ -116,4 +118,21 @@ test('project_write_file adds to the end of a file with append', async () => {
   ])
   expect(first.content).toBe('Saved a.html.')
   expect(next.content).toBe('Added to a.html.')
+})
+
+test('in English the notes are NOTES.md, written in English', () => {
+  setLanguage('en')
+  try {
+    const date = new Date(2026, 9, 15, 0, 50)
+    const notes = projectNotes('NWLab site', 'make the NWLab site', date)
+    expect(notesName()).toBe('NOTES.md')
+    expect(notes).toContain('## Request\n\nmake the NWLab site')
+    expect(notes).toContain('Project created by TSRS on 10/15/2026')
+    expect(notes.endsWith('## History\n')).toBe(true)
+    expect(historyLine(['index.html'], 'gpt', date)).toMatch(/^- 10\/15\/2026/)
+    expect(projectNote({ path: '/p', name: 'p' })).toContain('Keep NOTES.md')
+  } finally {
+    setLanguage('pt')
+  }
+  expect(notesName()).toBe('NOTAS.md')
 })

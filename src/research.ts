@@ -1,3 +1,4 @@
+import { locale, t } from './i18n'
 import type { Source } from './types'
 
 // Told to the model for a deep research request: several rounds of searching
@@ -36,16 +37,16 @@ export function reportFile(question: string, report: string, sources: Source[], 
   return [
     `# ${question.split('\n')[0].slice(0, 120)}`,
     '',
-    `Pesquisa profunda feita pelo TSRS em ${date.toLocaleString('pt-BR')} com ${model}.`,
+    t('Pesquisa profunda feita pelo TSRS em {date} com {model}.', { date: date.toLocaleString(locale()), model }),
     '',
-    '## Pergunta',
+    `## ${t('Pergunta')}`,
     '',
     question.trim(),
     '',
-    '## Relatório',
+    `## ${t('Relatório')}`,
     '',
     report.trim(),
     '',
-    ...(list ? ['## Páginas consultadas', '', list, ''] : []),
+    ...(list ? [`## ${t('Páginas consultadas')}`, '', list, ''] : []),
   ].join('\n')
 }

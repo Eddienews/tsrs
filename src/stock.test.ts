@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { setLanguage } from './i18n'
 import { creditLine, stockKeyId, stockServices, stockToolSet, type StockClip } from './stock'
 import type { Settings } from './types'
 
@@ -64,4 +65,14 @@ describe('stock video', () => {
     expect(saved[0].files).toEqual(['midia/stock/pixabay-2.mp4'])
     expect(saved[0].credits[0]).toContain('[Pixabay]')
   })
+})
+
+it('the credits line follows the interface language', () => {
+  const clip = { provider: 'pexels', author: '', authorUrl: '', page: 'https://www.pexels.com/video/7/' } as unknown as StockClip
+  setLanguage('en')
+  try {
+    expect(creditLine(clip)).toBe('- video by Pexels on [Pexels](https://www.pexels.com/video/7/)')
+  } finally {
+    setLanguage('pt')
+  }
 })
