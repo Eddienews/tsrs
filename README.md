@@ -14,7 +14,11 @@ things a browser cannot do alone, such as saving files to folders, rendering
 video and running scheduled tasks.
 
 > **New here?** The user manual, in Portuguese for now, walks through every
-> feature with tips: [docs/MANUAL.pt-BR.md](docs/MANUAL.pt-BR.md).
+> feature with tips: [docs/MANUAL.pt-BR.md](docs/MANUAL.pt-BR.md). There is also a
+> video tutorial in 14 short lessons, in Portuguese for now:
+> [TSRS in 14 lessons](https://radiant-tulip-gc8d.here.now/).
+
+![A chat that built a landing page, with the live preview beside it](docs/screenshots/chat-and-preview.png)
 
 ## Why TSRS
 
@@ -33,6 +37,19 @@ video and running scheduled tasks.
   layout as Claude's, plus MCP servers and your own tools by HTTP or JavaScript.
 - **More than text.** Images, video, voice, music, motion graphics rendered to
   MP4, deep research reports, a canvas, a live preview for pages and apps.
+
+## Screenshots
+
+<table>
+<tr>
+<td width="50%"><a href="docs/screenshots/compare.png"><img src="docs/screenshots/compare.png" alt="Compare three models side by side"></a><br><sub>Compare three models side by side</sub></td>
+<td width="50%"><a href="docs/screenshots/motion.png"><img src="docs/screenshots/motion.png" alt="A motion composition with its timeline, ready to render to MP4"></a><br><sub>A motion composition with its timeline, ready to render to MP4</sub></td>
+</tr>
+<tr>
+<td width="50%"><a href="docs/screenshots/production-board.png"><img src="docs/screenshots/production-board.png" alt="The production board: every episode and ad, column by column"></a><br><sub>The production board: every episode and ad, column by column</sub></td>
+<td width="50%"><a href="docs/screenshots/mission-control.png"><img src="docs/screenshots/mission-control.png" alt="Mission Control: focus, usage, production and agents at a glance"></a><br><sub>Mission Control: focus, usage, production and agents at a glance</sub></td>
+</tr>
+</table>
 
 ## Quick start
 

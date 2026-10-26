@@ -14,7 +14,10 @@ navegador sozinho não faz, como gravar arquivos em pastas, renderizar vídeo e
 rodar tarefas agendadas.
 
 > **Chegando agora?** O manual explica cada recurso, com dicas para tirar o
-> máximo do TSRS: [docs/MANUAL.pt-BR.md](docs/MANUAL.pt-BR.md).
+> máximo do TSRS: [docs/MANUAL.pt-BR.md](docs/MANUAL.pt-BR.md). E o tutorial em
+> vídeo, em 14 aulas curtas: [TSRS em 14 aulas](https://radiant-tulip-gc8d.here.now/).
+
+![Uma conversa que criou uma landing page, com o preview ao vivo ao lado](docs/screenshots/chat-and-preview.png)
 
 ## Por que o TSRS
 
@@ -37,6 +40,19 @@ rodar tarefas agendadas.
 - **Muito além de texto.** Imagens, vídeo, voz, música, motion graphics
   renderizados em MP4, relatórios de pesquisa profunda, um canvas e preview ao
   vivo de páginas e apps.
+
+## Telas
+
+<table>
+<tr>
+<td width="50%"><a href="docs/screenshots/compare.png"><img src="docs/screenshots/compare.png" alt="Três modelos comparados lado a lado"></a><br><sub>Três modelos comparados lado a lado</sub></td>
+<td width="50%"><a href="docs/screenshots/motion.png"><img src="docs/screenshots/motion.png" alt="Uma composição motion com a linha do tempo, pronta para virar MP4"></a><br><sub>Uma composição motion com a linha do tempo, pronta para virar MP4</sub></td>
+</tr>
+<tr>
+<td width="50%"><a href="docs/screenshots/production-board.png"><img src="docs/screenshots/production-board.png" alt="O quadro de produção: cada episódio e anúncio, coluna por coluna"></a><br><sub>O quadro de produção: cada episódio e anúncio, coluna por coluna</sub></td>
+<td width="50%"><a href="docs/screenshots/mission-control.png"><img src="docs/screenshots/mission-control.png" alt="O Painel do dia: foco, uso, produção e agentes num relance"></a><br><sub>O Painel do dia: foco, uso, produção e agentes num relance</sub></td>
+</tr>
+</table>
 
 ## Começando
 
