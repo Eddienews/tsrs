@@ -15,8 +15,9 @@ video and running scheduled tasks.
 
 > **New here?** The user manual, in Portuguese for now, walks through every
 > feature with tips: [docs/MANUAL.pt-BR.md](docs/MANUAL.pt-BR.md). There is also a
-> video tutorial in 14 short lessons, in Portuguese for now:
-> [TSRS in 14 lessons](https://radiant-tulip-gc8d.here.now/).
+> video tutorial in 14 short lessons:
+> [TSRS in 14 lessons](https://sleek-reef-by4y.here.now/) (in Portuguese:
+> [TSRS em 14 aulas](https://radiant-tulip-gc8d.here.now/)).
 
 ![A chat that built a landing page, with the live preview beside it](docs/screenshots/chat-and-preview.png)
 
