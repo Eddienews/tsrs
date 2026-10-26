@@ -1,5 +1,6 @@
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
+import { EN, trDeep, untr } from './lang'
 
 // A stand-in for the Anthropic Messages API, for the tutorial recordings: it
 // streams replies written for the video, a few words at a time, so the screen
@@ -36,6 +37,8 @@ const textOf = (content: any): string =>
   typeof content === 'string' ? content : (content ?? []).map((c: any) => (c.type === 'text' ? c.text : '')).join('\n')
 
 export async function startVideoMock(script: Scripted[]): Promise<VideoMock> {
+  // The English take: replies translated; what the user sends is matched in Portuguese.
+  if (EN) script = script.map((s) => ({ ...s, text: trDeep(s.text), title: trDeep(s.title), thinking: trDeep(s.thinking), tools: trDeep(s.tools) }))
   const seen = new Map<Scripted, number>()
   const server = http.createServer(async (req, res) => {
     if (req.method === 'OPTIONS') return res.writeHead(204, CORS).end()
@@ -50,15 +53,15 @@ export async function startVideoMock(script: Scripted[]): Promise<VideoMock> {
     const messages: any[] = body.messages ?? []
     const last = messages.at(-1)
     const lastUser = messages.findLast((m) => m.role === 'user' && textOf(m.content).trim())
-    const asked = textOf(lastUser?.content)
+    const asked = untr(textOf(lastUser?.content))
     res.writeHead(200, { ...CORS, 'Content-Type': 'text/event-stream' })
     const send = (event: object) => res.write(`event: ${(event as any).type}\ndata: ${JSON.stringify(event)}\n\n`)
 
     // Title requests carry the conversation in one message.
     if (raw.includes('Crie um título')) {
-      const all = messages.map((m) => textOf(m.content)).join('\n')
+      const all = untr(messages.map((m) => textOf(m.content)).join('\n'))
       const item = script.find((s) => s.title && s.when.test(all))
-      const title = item?.title ?? 'Conversa'
+      const title = item?.title ?? (EN ? 'Chat' : 'Conversa')
       send({ type: 'message_start', message: { usage: { input_tokens: 80, output_tokens: 0 } } })
       send({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
       send({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: title } })
@@ -67,7 +70,7 @@ export async function startVideoMock(script: Scripted[]): Promise<VideoMock> {
       return res.end()
     }
 
-    const system = typeof body.system === 'string' ? body.system : (body.system ?? []).map((b: any) => b.text ?? '').join('\n')
+    const system = untr(typeof body.system === 'string' ? body.system : (body.system ?? []).map((b: any) => b.text ?? '').join('\n'))
     const matches = script.filter((s) => s.when.test(asked) && (!s.system || s.system.test(system)))
     // A tool round in progress: count the tool results since the user spoke.
     const since = messages.slice(messages.lastIndexOf(lastUser) + 1)
@@ -108,7 +111,7 @@ export async function startVideoMock(script: Scripted[]): Promise<VideoMock> {
       send({ type: 'message_stop' })
       return res.end()
     }
-    const text = item?.text ?? 'Certo.'
+    const text = item?.text ?? (EN ? 'Sure.' : 'Certo.')
     send({ type: 'content_block_start', index, content_block: { type: 'text', text: '' } })
     const wps = item?.wps ?? 14
     for (const w of text.split(/(?<=\s)/)) {

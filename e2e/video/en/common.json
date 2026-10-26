@@ -1,0 +1,26 @@
+{
+ "text": {
+  "Roteiro do Seu Silva #13": "Mr. Silva script #13",
+  "Escreva a abertura do episódio 13 do Seu Silva em três cenas curtas, com humor seco.": "Write the opening of Mr. Silva episode 13 in three short scenes, with dry humour.",
+  "**Cena 1 — Padaria, 6h40.** Seu Silva pede \"o de sempre\". O atendente novo traz um café com leite de aveia. Silêncio longo.\n\n**Cena 2 — Calçada.** Ele prova, olha para a câmera e diz: \"Inovação.\"\n\n**Cena 3 — Ponto de ônibus.** O ônibus passa direto. Seu Silva ergue o copo, como quem brinda: \"Ao progresso.\"": "**Scene 1 — Bakery, 6:40 am.** Mr. Silva orders \"the usual\". The new clerk brings an oat-milk latte. A long silence.\n\n**Scene 2 — Sidewalk.** He tastes it, looks at the camera and says: \"Innovation.\"\n\n**Scene 3 — Bus stop.** The bus drives right past. Mr. Silva raises the cup, as if in a toast: \"To progress.\"",
+  "Página da NorthWind Lab": "NorthWind Lab page",
+  "Crie a página inicial da NorthWind Lab em index.html e estilo.css.": "Create the NorthWind Lab home page in index.html and style.css.",
+  "Pronto: `index.html` e `estilo.css` estão na pasta do projeto, com a seção de serviços, os trabalhos recentes e o contato.": "Done: `index.html` and `style.css` are in the project folder, with the services section, recent work and contact.",
+  "Abertura do Milo": "Milo opening",
+  "Uma abertura de 6 segundos em 1080x1920 para o Milo, fundo azul-noite.": "A 6-second opening in 1080x1920 for Milo, on a night-blue background.",
+  "A composição `motion` está no preview: título entrando com um brilho, 6 s a 30 fps. Clique em **Gerar MP4** quando quiser.": "The `motion` composition is in the preview: the title comes in with a glow, 6 s at 30 fps. Click **Make MP4** when you are ready.",
+  "Anúncios e curtas feitos com IA.": "Ads and short films made with AI.",
+  "<h2>Anúncios</h2><p>15 a 30 segundos, prontos para as redes.</p>": "<h2>Ads</h2><p>15 to 30 seconds, ready for social.</p>",
+  "<h2>Curtas</h2><p>Séries de animação, do roteiro ao som.</p>": "<h2>Short films</h2><p>Animated series, from script to sound.</p>",
+  "contato@northwindlab.com": "contact@northwindlab.com",
+  "class=\"servicos\"": "class=\"services\"",
+  ".servicos {": ".services {",
+  "Aqui está a página inicial, em dois arquivos.": "Here is the home page, in two files.",
+  "Os dois ficaram na pasta do projeto, e o NOTAS.md registra o que foi feito.": "Both are in the project folder, and NOTES.md records what was done.",
+  "estilo.css": "style.css",
+  "<html lang=\"pt-BR\">": "<html lang=\"en\">",
+  "NOTAS.md": "NOTES.md",
+  "Seu Silva": "Mr. Silva"
+ },
+ "anchors": {}
+}

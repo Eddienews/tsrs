@@ -1,0 +1,46 @@
+{
+ "text": {
+  "Todos os modelos": "Every model",
+  "Claude, GPT, Gemini, locais": "Claude, GPT, Gemini, local",
+  "Suas chaves": "Your keys",
+  "você paga só o que usa": "you pay only for what you use",
+  "Seus dados": "Your data",
+  "nada sai do seu computador": "nothing leaves your computer",
+  "quadro": "board"
+ },
+ "anchors": {
+  "2": {
+   "claude": "claude",
+   "chaves": "keys",
+   "arquivos": "files"
+  },
+  "8": {
+   "nova": "new",
+   "painel": "mission",
+   "quadro": "production",
+   "mesa": "agent",
+   "busca": "search",
+   "conversas": "chats",
+   "biblioteca": "library",
+   "ferramentas": "tools",
+   "extensões": "extensions",
+   "uso": "usage",
+   "configurações": "settings"
+  },
+  "9": {
+   "modelo": "model",
+   "agente": "agent",
+   "tokens": "tokens",
+   "mensagem": "message",
+   "anexos": "attachments",
+   "ditado": "dictation",
+   "voz": "voice"
+  },
+  "10": {
+   "ctrl": "control"
+  },
+  "11": {
+   "próximo": "next"
+  }
+ }
+}

@@ -4,6 +4,9 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test'
+import { anchor, EN, LOCALE, localize, tr, trCode, useEpisode } from './lang'
+
+export { EN, tr, ui } from './lang'
 
 export const SERIE = process.env.SERIE_DIR ?? '/home/claude/serie'
 export const PAUSE = 0.8
@@ -12,6 +15,7 @@ export const TAIL = 2
 export const SIZE = { width: 1280, height: 720 }
 
 export type Step = [number, (page: Page) => Promise<unknown>]
+const ROTEIROS = EN ? 'roteiros_en.json' : 'roteiros.json'
 
 export class Episode {
   n: number
@@ -22,10 +26,12 @@ export class Episode {
 
   constructor(n: number) {
     this.n = n
-    this.dir = join(SERIE, `ep${String(n).padStart(2, '0')}`)
+    // The English take lives beside the Portuguese one: epNN/en.
+    this.dir = join(SERIE, `ep${String(n).padStart(2, '0')}`, EN ? 'en' : '')
+    useEpisode(n)
     const file = join(this.dir, 'duracoes.json')
     test.skip(!process.env.SERIE_EP || !existsSync(file), 'Recording only: set SERIE_EP')
-    const roteiros = existsSync(join(SERIE, 'roteiros.json')) ? JSON.parse(readFileSync(join(SERIE, 'roteiros.json'), 'utf8')) : {}
+    const roteiros = existsSync(join(SERIE, ROTEIROS)) ? JSON.parse(readFileSync(join(SERIE, ROTEIROS), 'utf8')) : {}
     this.texts = (roteiros[n]?.cenas ?? []).map((c: any) => c.texto)
     this.dur = existsSync(file) ? Object.fromEntries(JSON.parse(readFileSync(file, 'utf8')).map((d: any) => [d.cena, d.segundos])) : {}
     // SERIE_ONLY=7,8 records just those scenes and keeps the others' clips.
@@ -53,6 +59,7 @@ export class Episode {
     const all = this.texts[c - 1].toLowerCase().split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}+]/gu, ''))
     let from = 0
     return words.map((w) => {
+      w = anchor(c, w).toLowerCase()
       const i = all.indexOf(w, from)
       if (i < 0) throw new Error(`"${w}" is not in scene ${c}: ${all.join(' ')}`)
       from = i + 1
@@ -129,7 +136,7 @@ export const card = (text: string, sub = '') => (page: Page) =>
     el.innerHTML = `${text}${sub ? `<small>${sub}</small>` : ''}`
     box.append(el)
     requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('on')))
-  }, [text, sub])
+  }, [tr(text), tr(sub)])
 
 export const clearCards = (page: Page) => page.evaluate(() => document.getElementById('__cards')?.remove())
 
@@ -152,7 +159,7 @@ export const badge = (text: string) => (page: Page) =>
     el.id = '__badge'
     el.textContent = text
     document.documentElement.append(el)
-  }, text)
+  }, tr(text))
 
 // A terminal over the app, with lines typed in turn: [delay ms, kind, text].
 export const terminal = (title: string, lines: ['cmd' | 'out' | 'ok', string, number?][], prompt = 'PS C:\\> ') => (page: Page) =>
@@ -186,7 +193,7 @@ export const terminal = (title: string, lines: ['cmd' | 'out' | 'ok', string, nu
         }, start)
       }
     }
-  }, [title, lines, prompt] as const)
+  }, [tr(title), lines.map(([kind, text, wait]) => [kind, kind === 'cmd' ? text : tr(text), wait]), prompt] as const)
 
 export const closeTerminal = (page: Page) =>
   page.evaluate(() => {
@@ -208,11 +215,13 @@ export async function point(page: Page, target: Locator, click = true) {
 // take keys while the video records, so the text shown follows the clock:
 // each step fills in as much as should be there by now.
 export async function typeIn(target: Locator, text: string, delay = 55) {
+  text = tr(text)
   await target.click()
   await typeKeys(target.page(), text, delay, target)
 }
 
 export async function typeKeys(page: Page, text: string, delay = 55, target?: Locator) {
+  text = tr(text)
   const started = Date.now()
   const before = target ? await target.inputValue() : ''
   let shown = 0
@@ -244,10 +253,11 @@ export async function scene(
     storageState: state,
     viewport: SIZE,
     colorScheme: 'dark',
-    locale: 'pt-BR',
+    locale: LOCALE,
     recordVideo: { dir: join(ep.dir, 'screen', `raw${n}`), size: SIZE },
   })
   const page = await context.newPage()
+  localize(page)
   page.setDefaultTimeout(10_000)
   const created = Date.now()
   await setup(page, context)
@@ -302,8 +312,11 @@ export async function seed(
   file: string,
   opts: { mockUrl?: string; chats?: SeedChat[]; tweak?: string; demoKey?: boolean } = {},
 ) {
-  const context = await browser.newContext({ viewport: SIZE, colorScheme: 'dark', locale: 'pt-BR' })
+  const context = await browser.newContext({ viewport: SIZE, colorScheme: 'dark', locale: LOCALE })
   const page = await context.newPage()
+  localize(page)
+  // The English take: the app in English, and the chats and settings written for the video translated.
+  if (EN) opts = { ...opts, chats: opts.chats?.map((c) => ({ ...c, title: tr(c.title), ask: tr(c.ask), answer: tr(c.answer) })), tweak: "settings.language = 'en';" + trCode(opts.tweak ?? '') }
   await page.goto('/')
   await page.getByRole('button', { name: 'Nova conversa' }).first().waitFor()
   await page.evaluate(async ({ mockUrl, chats, tweak, demoKey }) => {
