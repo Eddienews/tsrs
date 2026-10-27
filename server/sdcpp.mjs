@@ -7,6 +7,7 @@
 //     --vae ae.safetensors --offload-to-cpu --cfg-scale 1.0 --steps 8
 // Steps, guidance and sampler come from how it was started; TSRS sends the
 // prompt, size and seed. Each model's own license applies to what it makes.
+// Before each image the Ollama models in video memory are unloaded (freeOllama).
 
 const MAX_WAIT_MS = 15 * 60_000
 
@@ -61,6 +62,48 @@ async function cancel(fetchImpl, base, id) {
 
 const stopped = () => new Error('The image was stopped.')
 
+export function ollamaUrl() {
+  return (process.env.TSRS_OLLAMA || 'http://127.0.0.1:11434').replace(/\/+$/, '')
+}
+
+const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]']
+
+// Ollama keeps a chat model in video memory for 5 minutes after it answers,
+// and a card of 8 GB cannot hold it and sd-server's model at once: sd-server
+// then fails with "generate_image returned no results". So when sd-server runs
+// on this computer, the Ollama models on the GPU are unloaded first (the next
+// message loads them again), and their names returned. TSRS_SDCPP_KEEP_OLLAMA=1
+// leaves them; an Ollama that is not running is no error.
+export async function freeOllama(fetchImpl = fetch, wait = sleep) {
+  if (process.env.TSRS_SDCPP_KEEP_OLLAMA === '1') return []
+  if (!LOCAL_HOSTS.includes(new URL(sdcppUrl()).hostname)) return []
+  const base = ollamaUrl()
+  const onGpu = async () => {
+    const res = await fetchImpl(`${base}/api/ps`)
+    if (!res.ok) return []
+    const { models = [] } = await res.json()
+    return models.filter((m) => m.size_vram > 0).map((m) => m.model ?? m.name)
+  }
+  try {
+    const loaded = await onGpu()
+    if (!loaded.length) return []
+    await Promise.all(
+      loaded.map((model) =>
+        fetchImpl(`${base}/api/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model, keep_alive: 0 }),
+        }),
+      ),
+    )
+    // The memory is free once Ollama no longer lists them; 10 s at most.
+    for (let i = 0; i < 20 && (await onGpu()).some((m) => loaded.includes(m)); i++) await wait(500)
+    return loaded
+  } catch {
+    return []
+  }
+}
+
 // One image from text; with 1 to 3 attached images they go as references,
 // which an edit model (Qwen-Image-Edit, Flux Kontext) edits from. Returns
 // base64 PNG, the seed and the model sd-server has loaded. `signal` aborts
@@ -78,6 +121,7 @@ export async function makeImage(job, fetchImpl = fetch, wait = sleep, signal) {
     throw new Error(`The model sd-server has loaded (${info.model?.stem ?? '?'}) does not make images.`)
   }
   if (signal?.aborted) throw stopped()
+  await freeOllama(fetchImpl, wait)
   const seed = newSeed(job.seed)
   const queued = await (
     await ask(fetchImpl, `${base}/sdcpp/v1/img_gen`, {
