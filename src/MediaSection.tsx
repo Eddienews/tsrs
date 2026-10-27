@@ -197,7 +197,7 @@ function KindChoice(props: Props & { kind: MediaKind }) {
       {choice.source === SDCPP && kind === 'image' && (
         <p className={hint}>
           {t(
-            'Imagens feitas neste computador pelo sd-server do stable-diffusion.cpp (porta 1234, ou TSRS_SDCPP), sem chave e sem custo. Roda também em placas que o ComfyUI não alcança, pelo Vulkan. Usa o modelo com que o sd-server foi aberto, e os passos e a orientação vêm de lá. Imagens anexadas ao pedido vão como referência, para um modelo de edição. Opções: width, height, seed. A imagem vai para a pasta midia/ do projeto. Precisa do TSRS aberto pelo npm run dev.',
+            'Imagens feitas neste computador pelo sd-server do stable-diffusion.cpp (porta 1234, ou TSRS_SDCPP), sem chave e sem custo. Roda também em placas que o ComfyUI não alcança, pelo Vulkan. Usa o modelo com que o sd-server foi aberto, e os passos e a orientação vêm de lá. Imagens anexadas ao pedido vão como referência, para um modelo de edição. Antes de cada imagem, os modelos do Ollama que estão na placa de vídeo são descarregados, para caber; voltam na próxima mensagem (TSRS_SDCPP_KEEP_OLLAMA=1 os deixa). Opções: width, height, seed. A imagem vai para a pasta midia/ do projeto. Precisa do TSRS aberto pelo npm run dev.',
           )}
         </p>
       )}
