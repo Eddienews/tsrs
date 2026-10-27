@@ -95,8 +95,10 @@ manager) and Chrome, Edge or Playwright's Chromium.
 - Temporary conversations that leave no history.
 - Per-conversation system prompt, temperature, max tokens and reasoning effort;
   the model's reasoning, folded above the reply, when the provider sends it.
-- Context summary when a conversation approaches the model's limit, or clear the
-  context from any point (undoable) so earlier messages stop being sent.
+- Continue a long conversation in a new one: the model writes a handoff (the
+  goal, the decisions, the files, the next step) and the new chat starts from it,
+  with the same model, settings and project folder. Or summarize the context in
+  place, or clear it from any point (undoable) so earlier messages stop being sent.
 - Command palette (Ctrl/⌘+K), configurable shortcuts, timestamps, a sound when a
   reply ends, light and dark themes, accent colour, font size and density.
 - Interface in English and Portuguese.

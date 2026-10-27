@@ -99,9 +99,11 @@ de pacotes) e do Chrome, do Edge ou do Chromium do Playwright.
 - Prompt de sistema, temperatura, máximo de tokens e nível de raciocínio por
   conversa; o raciocínio do modelo, recolhido acima da resposta, quando o
   provedor envia.
-- Resumo do contexto quando a conversa se aproxima do limite do modelo, ou limpar
-  o contexto a partir de qualquer ponto (dá para desfazer), para as mensagens
-  anteriores deixarem de ser enviadas.
+- Continuar uma conversa longa numa nova: o modelo escreve uma passagem (o
+  objetivo, as decisões, os arquivos, o próximo passo) e a conversa nova começa
+  dela, com o mesmo modelo, os mesmos ajustes e a mesma pasta do projeto. Ou
+  resumir o contexto ali mesmo, ou limpar o contexto a partir de qualquer ponto
+  (dá para desfazer), para as mensagens anteriores deixarem de ser enviadas.
 - Paleta de comandos (Ctrl/⌘+K), atalhos configuráveis, data e hora, som ao
   terminar, tema claro e escuro, cor de destaque, tamanho da fonte e densidade.
 - Interface em português e inglês.

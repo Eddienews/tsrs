@@ -646,8 +646,6 @@ export const en: Record<string, string> = {
 
   // Memory, agents, summaries, images, side questions, proxy
   'Memória': 'Memory',
-  'Esta conversa já ocupa {percent}% do contexto do modelo. Resuma a conversa para continuar com menos tokens, ou comece uma nova.':
-    'This chat already fills {percent}% of the model context. Summarize it to go on with fewer tokens, or start a new chat.',
   'Limpar o contexto': 'Clear the context',
   'Limpar o contexto: o modelo deixa de ver as mensagens anteriores': 'Clear the context: the model stops seeing the earlier messages',
   'Limpar o contexto da conversa': 'Clear the conversation context',
@@ -1388,4 +1386,15 @@ export const en: Record<string, string> = {
   'Páginas consultadas': 'Pages consulted',
   'vídeo de {who} no {service}': 'video by {who} on {service}',
   'Vídeo curto': 'Short video',
+  // Continue in a fresh chat.
+  'Esta conversa já ocupa {percent}% do contexto do modelo. Daqui em diante cada mensagem custa mais e o modelo tende a perder o que ficou no meio.': 'This chat already fills {percent}% of the model’s context. From here on, every message costs more and the model tends to lose what is in the middle.',
+  'Continuar numa conversa nova': 'Continue in a fresh chat',
+  'Continuar numa conversa nova: o modelo escreve uma passagem e a conversa nova começa dela': 'Continue in a fresh chat: the model writes a handoff and the new chat starts from it',
+  'O modelo não escreveu a passagem.': 'The model did not write the handoff.',
+  'Escrevendo a passagem para a nova conversa…': 'Writing the handoff for the new chat…',
+  'Continuação de outra conversa: o modelo começa daqui, com a passagem abaixo.': 'Continued from another chat: the model starts here, from the handoff below.',
+  'O trabalho continua em outra conversa.': 'The work goes on in another chat.',
+  'conversa apagada': 'deleted chat',
+  'Mostrar a passagem': 'Show the handoff',
+  '{title} (continuação)': '{title} (continued)',
 }

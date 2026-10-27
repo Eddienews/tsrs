@@ -1,10 +1,10 @@
 import {
-  Columns3,
-  Eraser,
-  Gauge,
-  Users,
   BarChart3,
+  Columns3,
   Cpu,
+  Eraser,
+  Forward,
+  Gauge,
   Library,
   Lock,
   MessageSquare,
@@ -13,6 +13,7 @@ import {
   Plus,
   Settings as SettingsIcon,
   SunMoon,
+  Users,
   Wrench,
 } from 'lucide-react'
 import {
@@ -42,6 +43,7 @@ export type PaletteAction =
   | 'theme'
   | 'lock'
   | 'clear'
+  | 'continue'
 
 interface Props {
   chats: ChatMeta[]
@@ -50,6 +52,8 @@ interface Props {
   canLock: boolean
   // Whether the open conversation has messages whose context can be cleared.
   canClear?: boolean
+  // Whether the open conversation can be carried on in a new one.
+  canContinue?: boolean
   onChat: (id: string) => void
   onModel: (providerId: string, model: string) => void
   onAction: (action: PaletteAction) => void
@@ -75,6 +79,7 @@ export default function CommandPalette(p: Props) {
     ['theme', t('Alternar tema'), SunMoon],
   ]
   if (p.canClear) actions.push(['clear', t('Limpar o contexto da conversa'), Eraser])
+  if (p.canContinue) actions.push(['continue', t('Continuar numa conversa nova'), Forward])
   if (p.canLock) actions.push(['lock', t('Bloquear agora'), Lock])
 
   return (

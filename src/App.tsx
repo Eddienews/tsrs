@@ -40,7 +40,7 @@ import { locale, setLanguage, t } from './i18n'
 import { composerCommands } from './commands'
 import { OPEN_API_TOOLS, runOpenApiTool } from './openApis'
 import { FileContext, PreviewContext } from './Markdown'
-import MessageView, { ContextReset } from './MessageView'
+import MessageView, { ContextReset, Handoff } from './MessageView'
 import ParamsPanel from './ParamsPanel'
 import { forget } from './mcp'
 import { artifactName, fileLang, lastPreviewable, withPreviewHint, type Artifact } from './preview'
@@ -137,7 +137,7 @@ import {
   type Connection,
   type RequestMessage,
 } from './stream'
-import { SUMMARY_PROMPT, contextResetMark, sinceSummary, withSummary } from './summary'
+import { HANDOFF_PROMPT, SUMMARY_PROMPT, contextResetMark, continuedChat, sinceSummary, withSummary } from './summary'
 import { agentParams, agentPlugins, agentSkills, findMention, withReply } from './agents'
 import { stockToolSet } from './stock'
 import { designToolSet, isTasteSkill } from './design'
@@ -1392,6 +1392,7 @@ export default function App() {
     else if (action === 'mission') openPage('mission')
     else if (action === 'theme') toggleTheme()
     else if (action === 'clear') clearContext()
+    else if (action === 'continue') void continueInNewChat()
     else lock()
   }
 
@@ -2236,6 +2237,68 @@ export default function App() {
     }
   }
 
+  // Has the model write a handoff, then carries the work on in a new
+  // conversation that starts from it: same model, settings and project folder.
+  async function continueInNewChat() {
+    const meta = findMeta(activeId)
+    const thread = meta && threadsRef.current[meta.id]
+    if (!meta || !thread?.length || streaming || blocker(settings, locked)) return
+    const recent = sinceSummary(thread)
+    const info = modelInfo(settings, provider.id, settings.model)
+    const reply: Message = {
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      content: '',
+      createdAt: Date.now(),
+      handoff: {},
+      providerId: provider.id,
+      model: settings.model,
+    }
+    const patchReply = (patch: (m: Message) => Message) =>
+      patchThread(meta.id, (messages) => patchMessage(messages, reply.id, patch))
+    commitThreads({ ...threadsRef.current, [meta.id]: [...thread, reply] })
+    setStreaming(true)
+    setToolProblems([])
+    const abort = new AbortController()
+    abortRef.current = abort
+    let written = ''
+    try {
+      const system = withSummary(meta.params?.system?.trim() || settings.systemPrompt, recent.summary)
+      const stream = streamChat({
+        ...connection(settings, provider.id),
+        model: settings.model,
+        system,
+        messages: [...toRequest(recent.messages), { role: 'user', content: HANDOFF_PROMPT }],
+        signal: abort.signal,
+      })
+      for await (const event of stream) {
+        if (event.type === 'text') {
+          written += event.text
+          patchReply((m) => ({ ...m, content: m.content + event.text }))
+        }
+        if (event.type === 'usage') patchReply((m) => ({ ...m, usage: { ...event.usage, cost: costOf(event.usage, info) } }))
+      }
+      if (abort.signal.aborted) throw abort.signal.reason
+      if (!written.trim()) throw new Error(t('O modelo não escreveu a passagem.'))
+    } catch (err) {
+      // A handoff that did not finish starts nothing.
+      patchThread(meta.id, (messages) => messages.filter((m) => m.id !== reply.id))
+      if (!abort.signal.aborted) setToolProblems([err instanceof Error ? err.message : String(err)])
+      setStreaming(false)
+      persistThread(meta.id)
+      return
+    }
+    setStreaming(false)
+    const next = continuedChat(meta, written.trim())
+    patchReply((m) => ({ ...m, handoff: { to: next.meta.id } }))
+    persistThread(meta.id)
+    commitMetas([next.meta, ...metasRef.current])
+    commitThreads({ ...threadsRef.current, [next.meta.id]: [next.first] })
+    storeMeta(next.meta)
+    storeThread(next.meta.id, [next.first])
+    selectChat(next.meta.id)
+  }
+
   // Asks about part of a reply, with the conversation up to it as context.
   async function askAside(text: string) {
     const current = aside
@@ -2911,6 +2974,7 @@ export default function App() {
         temporary={temporary}
         onToggleTemporary={active ? undefined : () => setDraftTemporary((on) => !on)}
         onClearContext={messages?.length && !messages.at(-1)?.contextReset && !streaming ? clearContext : undefined}
+        onContinue={messages?.some((m) => !m.contextReset && !m.handoff) && !messages.at(-1)?.handoff && !streaming ? continueInNewChat : undefined}
       />
       {!active && draftFolder && (
         <p
@@ -2990,6 +3054,14 @@ export default function App() {
               {messages?.map((m, index) =>
                 m.contextReset ? (
                   <ContextReset key={m.id} busy={streaming} onUndo={() => undoClearContext(m.id)} />
+                ) : m.handoff ? (
+                  <Handoff
+                    key={m.id}
+                    message={m}
+                    live={streaming && m === last}
+                    title={metas.find((c) => c.id === (m.handoff?.from ?? m.handoff?.to))?.title}
+                    onOpen={selectChat}
+                  />
                 ) : (
                 <MessageView
                   key={m.id}
@@ -3073,12 +3145,19 @@ export default function App() {
             </button>
           </p>
         )}
-        {context !== undefined && context >= CONTEXT_WARNING && (
+        {context !== undefined && context >= CONTEXT_WARNING && !messages?.at(-1)?.handoff && (
           <p className="notice rounded-md border border-warning/50 px-3 py-2 text-xs text-warning">
             {t(
-              'Esta conversa já ocupa {percent}% do contexto do modelo. Resuma a conversa para continuar com menos tokens, ou comece uma nova.',
+              'Esta conversa já ocupa {percent}% do contexto do modelo. Daqui em diante cada mensagem custa mais e o modelo tende a perder o que ficou no meio.',
               { percent: Math.round(context * 100) },
             )}{' '}
+            <button
+              className="underline underline-offset-2 disabled:opacity-50"
+              disabled={streaming}
+              onClick={continueInNewChat}
+            >
+              {t('Continuar numa conversa nova')}
+            </button>{' '}
             <button
               className="underline underline-offset-2 disabled:opacity-50"
               disabled={streaming}
@@ -3304,6 +3383,7 @@ export default function App() {
           settings={settings}
           canLock={!!settings.vault && !locked}
           canClear={!!messages?.length && !messages.at(-1)?.contextReset && !streaming}
+          canContinue={!!messages?.some((m) => !m.contextReset && !m.handoff) && !messages.at(-1)?.handoff && !streaming}
           onChat={selectChat}
           onModel={selectModel}
           onAction={runAction}

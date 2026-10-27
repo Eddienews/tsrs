@@ -1220,6 +1220,45 @@ test('summarizes a long chat and continues from the summary', async ({ page }) =
   await expect(page.locator('.summary')).toBeVisible()
 })
 
+test('continues a long chat in a new one that starts from a handoff', async ({ page }) => {
+  await connect(page)
+  await send(page, 'primeira')
+  await expect(chatRow(page, 'Saudação inicial')).toBeVisible()
+  // The mock reports 900 of the model's 1,000 tokens.
+  const notice = page.locator('.notice', { hasText: 'Daqui em diante cada mensagem custa mais' })
+  await notice.getByRole('button', { name: 'Continuar numa conversa nova' }).click()
+
+  // The handoff is asked of the model with the conversation so far…
+  const asked = provider.chats.at(-1)!.body.messages
+  expect(asked.at(-1).content).toMatch(/^Write a handoff/)
+  expect(asked.at(-2).content).toContain('Resposta 1.')
+  // …and the new conversation opens with it, beside the old one.
+  await expect(chatRow(page, 'Saudação inicial (continuação)')).toBeVisible()
+  const handoff = page.locator('.handoff')
+  await expect(handoff).toContainText('Continuação de outra conversa')
+  await expect(page.locator('.message.user')).toHaveCount(0)
+
+  await send(page, 'segunda')
+  const { messages } = provider.chats.at(-1)!.body
+  expect(messages).toHaveLength(2)
+  expect(messages[0].content).toContain('Summary of the earlier part of this conversation')
+  expect(messages[0].content).toContain('Resposta 2.')
+  expect(messages[1].content).toBe('segunda')
+
+  // The old conversation keeps its messages and leads to the new one.
+  await handoff.getByRole('button', { name: 'Saudação inicial', exact: true }).click()
+  await expect(page.locator('.message.user')).toHaveText(/primeira/)
+  await expect(page.locator('.handoff')).toContainText('O trabalho continua em outra conversa.')
+  // Done there: no more offers to carry it on.
+  await expect(page.getByRole('button', { name: 'Continuar numa conversa nova' })).toHaveCount(0)
+  await page.locator('.handoff').getByRole('button', { name: 'Saudação inicial (continuação)' }).click()
+  await expect(page.locator('.message.user')).toHaveText(/segunda/)
+  // Both survive a reload.
+  await page.reload()
+  await chatRow(page, 'Saudação inicial (continuação)').click()
+  await expect(page.locator('.handoff')).toBeVisible()
+})
+
 test('clears the context from a point and can undo it', async ({ page }) => {
   await connect(page)
   await send(page, 'primeira')
