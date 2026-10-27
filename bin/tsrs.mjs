@@ -7,7 +7,7 @@
 // (<extensions folder>/.tsrs-agent.json: its address and a token), so it only
 // works on the computer, and for the user, running TSRS.
 
-import { readFileSync } from 'node:fs'
+import { readFileSync, realpathSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { COMMANDS, checkArgs, findCommand, helpText, needsYes, parseWords } from '../server/agent-commands.mjs'
@@ -230,7 +230,16 @@ async function mcp() {
   }
 }
 
-const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+// Run through `npm link` the script's path is the link's, so both sides are
+// compared after following links.
+const real = (path) => {
+  try {
+    return realpathSync(path)
+  } catch {
+    return resolve(path)
+  }
+}
+const isMain = !!process.argv[1] && real(process.argv[1]) === real(fileURLToPath(import.meta.url))
 if (isMain) {
   const argv = process.argv.slice(2)
   if (argv[0] === 'mcp') mcp()
