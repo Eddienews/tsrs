@@ -67,37 +67,46 @@ export function ollamaUrl() {
 }
 
 const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]']
+const OLLAMA_WAIT_MS = 10_000
 
 // Ollama keeps a chat model in video memory for 5 minutes after it answers,
 // and a card of 8 GB cannot hold it and sd-server's model at once: sd-server
 // then fails with "generate_image returned no results". So when sd-server runs
 // on this computer, the Ollama models on the GPU are unloaded first (the next
 // message loads them again), and their names returned. TSRS_SDCPP_KEEP_OLLAMA=1
-// leaves them; an Ollama that is not running is no error.
-export async function freeOllama(fetchImpl = fetch, wait = sleep) {
+// leaves them; an Ollama that is not running, or stops answering, is no
+// error: all of it, requests included, ends after 10 s or when `signal` aborts.
+export async function freeOllama(fetchImpl = fetch, wait = sleep, signal) {
   if (process.env.TSRS_SDCPP_KEEP_OLLAMA === '1') return []
   if (!LOCAL_HOSTS.includes(new URL(sdcppUrl()).hostname)) return []
   const base = ollamaUrl()
+  const ends = AbortSignal.any([AbortSignal.timeout(OLLAMA_WAIT_MS), ...(signal ? [signal] : [])])
+  const over = new Promise((_, fail) => ends.addEventListener('abort', () => fail(ends.reason), { once: true }))
+  over.catch(() => {})
+  const bounded = (promise) => Promise.race([promise, over])
   const onGpu = async () => {
-    const res = await fetchImpl(`${base}/api/ps`)
+    const res = await bounded(fetchImpl(`${base}/api/ps`, { signal: ends }))
     if (!res.ok) return []
-    const { models = [] } = await res.json()
+    const { models = [] } = await bounded(res.json())
     return models.filter((m) => m.size_vram > 0).map((m) => m.model ?? m.name)
   }
   try {
     const loaded = await onGpu()
     if (!loaded.length) return []
-    await Promise.all(
-      loaded.map((model) =>
-        fetchImpl(`${base}/api/generate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model, keep_alive: 0 }),
-        }),
+    await bounded(
+      Promise.all(
+        loaded.map((model) =>
+          fetchImpl(`${base}/api/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model, keep_alive: 0 }),
+            signal: ends,
+          }),
+        ),
       ),
     )
-    // The memory is free once Ollama no longer lists them; 10 s at most.
-    for (let i = 0; i < 20 && (await onGpu()).some((m) => loaded.includes(m)); i++) await wait(500)
+    // The memory is free once Ollama no longer lists them.
+    for (let i = 0; i < 20 && !ends.aborted && (await onGpu()).some((m) => loaded.includes(m)); i++) await bounded(wait(500))
     return loaded
   } catch {
     return []
@@ -121,7 +130,9 @@ export async function makeImage(job, fetchImpl = fetch, wait = sleep, signal) {
     throw new Error(`The model sd-server has loaded (${info.model?.stem ?? '?'}) does not make images.`)
   }
   if (signal?.aborted) throw stopped()
-  await freeOllama(fetchImpl, wait)
+  await freeOllama(fetchImpl, wait, signal)
+  // Stopped while Ollama was unloading: nothing is sent to sd-server.
+  if (signal?.aborted) throw stopped()
   const seed = newSeed(job.seed)
   const queued = await (
     await ask(fetchImpl, `${base}/sdcpp/v1/img_gen`, {

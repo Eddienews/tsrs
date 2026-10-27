@@ -124,3 +124,18 @@ test('leaves Ollama alone when asked to, or when sd-server runs elsewhere', asyn
   // An Ollama that is not running does not stop the image.
   expect(await freeOllama(sdServer([done]).fetchImpl, async () => {})).toEqual([])
 })
+
+test('a stop while Ollama unloads sends nothing to sd-server, and a stalled Ollama does not hold the image', async () => {
+  const server = sdServer([done])
+  const { fetchImpl, ollama } = withOllama(server)
+  const stop = new AbortController()
+  // Stopped during the wait for the unloaded model to leave Ollama's list.
+  await expect(makeImage({ prompt: 'a' }, fetchImpl, async () => stop.abort(), stop.signal)).rejects.toThrow('stopped')
+  expect(ollama.unloaded).toEqual(['qwen3:8b'])
+  expect(server.sent.body).toBeUndefined()
+  // An Ollama that takes the connection and never answers: the wait ends with the signal (or after 10 s).
+  const stalled = () => new Promise<Response>(() => {})
+  const gone = new AbortController()
+  setTimeout(() => gone.abort(), 50)
+  expect(await freeOllama(stalled, async () => {}, gone.signal)).toEqual([])
+})
