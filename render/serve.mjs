@@ -135,16 +135,86 @@ async function body(req) {
 // at /__tsrs/render (render/vite-plugin.mjs), so the preview's button works
 // with just npm run dev. `headers` go on every answer. Returns false for a
 // path it does not know.
+// One video at a time on this computer, whoever asks: the button in the app
+// or an agent through the tsrs command (server/agent.mjs).
+let rendering = false
+
+export function renderBusy() {
+  return rendering
+}
+
+// Runs `work` as the only render; refuses when another one is going.
+export async function exclusiveRender(work) {
+  if (rendering) throw Object.assign(new Error('A video is already being rendered.'), { busy: true })
+  rendering = true
+  try {
+    return await work()
+  } finally {
+    rendering = false
+  }
+}
+
+// A motion composition (one HTML document) to MP4. `job`: { html, name, audio?:
+// { name, data (base64) }, project?, lufs? }. In a project folder the video goes
+// to its videos/ and the page may use the folder's files; elsewhere to `folder`.
+export async function renderMotion(job, folder, log = console.log, onFrame = () => {}) {
+  if (typeof job.html !== 'string' || !job.html.trim()) throw new Error('nothing to render')
+  const stem = safeStem(job.name)
+  const work = await mkdtemp(join(tmpdir(), 'tsrs-render-'))
+  try {
+    const input = join(work, `${stem}.html`)
+    await writeFile(input, job.html)
+    let audio = null
+    if (job.audio?.data) {
+      const extension = audioExtension(job.audio.name)
+      if (!extension) throw new Error(`${job.audio.name} is not an audio file this renderer reads`)
+      audio = join(work, `track${extension}`)
+      await writeFile(audio, Buffer.from(job.audio.data, 'base64'))
+    }
+    // A conversation with a project folder keeps its videos there, in videos/,
+    // and its page may use the folder's files (midia/logo.png).
+    const inProject = typeof job.project === 'string' && (await allowed(projectsRoot(), job.project))
+    if (inProject) {
+      const brought = await bringProjectFiles(job.html, job.project, work)
+      if (brought.length) log(`with ${brought.length} file(s) of the project: ${brought.join(', ')}`)
+    }
+    const into = inProject ? join(job.project, 'videos') : folder
+    await mkdir(into, { recursive: true })
+    const lufs = Number.isFinite(job.lufs) ? Math.min(-5, Math.max(-40, job.lufs)) : -14
+    log(`rendering ${stem}${audio ? ` with ${job.audio.name}` : ''}`)
+    let last = 0
+    return await render(
+      {
+        input,
+        out: freeName(join(into, `${stem}.mp4`)),
+        audio,
+        fps: null,
+        crf: 18,
+        lufs,
+        online: false,
+        onFrame: (frame, frames) => {
+          if (frame === frames || Date.now() - last > 250) {
+            last = Date.now()
+            onFrame(frame, frames)
+          }
+        },
+      },
+      log,
+    )
+  } finally {
+    await rm(work, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
 export function renderHandler(config, log = console.log) {
   const videos = new Map()
-  let busy = false
 
   return async (req, res, headers = {}) => {
     const url = (req.url ?? '/').split('?')[0]
 
     if (req.method === 'GET' && url === '/health') {
       res.writeHead(200, { ...headers, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
-      res.end(JSON.stringify({ ok: true, renders: config.folder, busy }))
+      res.end(JSON.stringify({ ok: true, renders: config.folder, busy: rendering }))
       return true
     }
 
@@ -160,15 +230,14 @@ export function renderHandler(config, log = console.log) {
     }
 
     if (req.method !== 'POST' || (url !== '/render' && url !== '/short')) return false
-    if (busy) {
+    if (rendering) {
       res.writeHead(409, { ...headers, 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ error: 'A video is already being rendered.' }))
       return true
     }
-    busy = true
+    rendering = true
     res.writeHead(200, { ...headers, 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-store' })
     const send = (line) => res.write(JSON.stringify(line) + '\n')
-    let work
     const progress = () => {
       let last = 0
       return (frame, frames) => {
@@ -193,47 +262,7 @@ export function renderHandler(config, log = console.log) {
         send({ done: true, id, name: basename(path), path })
         return true
       }
-      const stem = safeStem(job.name)
-      work = await mkdtemp(join(tmpdir(), 'tsrs-render-'))
-      const input = join(work, `${stem}.html`)
-      await writeFile(input, job.html)
-      let audio = null
-      if (job.audio?.data) {
-        const extension = audioExtension(job.audio.name)
-        if (!extension) throw new Error(`${job.audio.name} is not an audio file this renderer reads`)
-        audio = join(work, `track${extension}`)
-        await writeFile(audio, Buffer.from(job.audio.data, 'base64'))
-      }
-      // A conversation with a project folder keeps its videos there, in videos/,
-      // and its page may use the folder's files (midia/logo.png).
-      const inProject = typeof job.project === 'string' && (await allowed(projectsRoot(), job.project))
-      if (inProject) {
-        const brought = await bringProjectFiles(job.html, job.project, work)
-        if (brought.length) log(`with ${brought.length} file(s) of the project: ${brought.join(', ')}`)
-      }
-      const into = inProject ? join(job.project, 'videos') : config.folder
-      await mkdir(into, { recursive: true })
-      const lufs = Number.isFinite(job.lufs) ? Math.min(-5, Math.max(-40, job.lufs)) : -14
-      log(`rendering ${stem}${audio ? ` with ${job.audio.name}` : ''}`)
-      let last = 0
-      const path = await render(
-        {
-          input,
-          out: freeName(join(into, `${stem}.mp4`)),
-          audio,
-          fps: null,
-          crf: 18,
-          lufs,
-          online: false,
-          onFrame: (frame, frames) => {
-            if (frame === frames || Date.now() - last > 250) {
-              last = Date.now()
-              send({ frame, frames })
-            }
-          },
-        },
-        log,
-      )
+      const path = await renderMotion(job, config.folder, log, (frame, frames) => send({ frame, frames }))
       const id = randomUUID()
       videos.set(id, path)
       send({ done: true, id, name: basename(path), path })
@@ -241,9 +270,8 @@ export function renderHandler(config, log = console.log) {
       log(`failed: ${error.message}`)
       send({ error: error.message })
     } finally {
-      busy = false
+      rendering = false
       res.end()
-      if (work) await rm(work, { recursive: true, force: true }).catch(() => {})
     }
     return true
   }

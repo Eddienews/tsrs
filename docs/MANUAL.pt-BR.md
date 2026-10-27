@@ -28,6 +28,7 @@ Como instalar, configurar e tirar o máximo do TSRS (The Signal Room Studio).
 16. [Problemas comuns](#16-problemas-comuns)
 17. [Perguntas frequentes](#17-perguntas-frequentes)
 18. [Estúdio: painel, quadro, mesa e agentes do computador](#18-estúdio-painel-quadro-mesa-e-agentes-do-computador)
+19. [O comando tsrs: o TSRS para agentes](#19-o-comando-tsrs-o-tsrs-para-agentes)
 
 ---
 
@@ -901,3 +902,47 @@ das notas dentro dele. Cada conversa pode ser salva como nota pelo menu dela
 cada resposta. A nota leva o modelo, as datas e as etiquetas nas propriedades, e
 mantém o nome que recebeu na primeira vez.
 
+## 19. O comando tsrs: o TSRS para agentes
+
+O `tsrs` deixa um agente do computador (Claude Code, Codex, um bot) ou você
+mesmo, no terminal, usar o TSRS que está aberto: criar e escrever em pastas de
+projeto, renderizar um vídeo motion, conferir uma página, mexer no quadro de
+produção, ver a agenda e gerar imagens locais.
+
+**Preparar, uma vez:** na pasta do TSRS, rode `npm link`. Depois, com o TSRS
+aberto (`npm run dev`), `tsrs status` mostra se ele responde. Sem o `npm link`,
+use `node bin/tsrs.mjs` na pasta do TSRS.
+
+**O que dá para fazer:** `tsrs --help` lista os comandos; `tsrs <comando> --help`
+mostra os argumentos e um exemplo. Os principais:
+
+| Comando | O que faz |
+| --- | --- |
+| `tsrs projects list` / `files` / `read` | Pastas de projeto, os arquivos de uma e o texto de um arquivo |
+| `tsrs projects new "Nome"` | Cria a pasta, com NOTES.md |
+| `tsrs projects write <pasta> <arquivo> --from ./arquivo` | Grava um arquivo (texto ou imagem) e anota no histórico |
+| `tsrs render motion <pasta> motion-1.html` | Gera o MP4 em `videos/` da pasta |
+| `tsrs design check <pasta> index.html` | Abre a página em três larguras e diz o que não cabe |
+| `tsrs board list` / `add` / `move` / `update` / `remove` | O quadro de produção |
+| `tsrs agenda list` / `run` | As tarefas agendadas; rodar uma agora |
+| `tsrs image local "descrição" --project <pasta>` | Imagem grátis no ComfyUI ou no sd-server |
+
+**Nada caro ou sem volta acontece sem `--yes`.** Substituir um arquivo que já
+existe ou rodar uma tarefa da agenda (que chama um modelo pago) só diz o que
+faria e sai com o código 3. O agente deve então perguntar a você e só repetir
+com `--yes` depois do seu sim. Um cartão removido do quadro vai para os
+removidos e volta pelo TSRS.
+
+**Para agentes:** `--json` dá a resposta em formato fixo, e o código de saída diz
+o que houve (0 feito, 2 argumentos errados, 3 precisa de `--yes`, 4 o TSRS não
+está aberto, 5 falhou). `tsrs mcp` oferece os mesmos comandos como servidor MCP
+(no Claude Code: `claude mcp add tsrs -- tsrs mcp`). A skill
+`skills/tsrs/SKILL.md` ensina essas regras ao agente: copie a pasta para
+`~/.claude/skills/` ou a pasta de skills do seu agente.
+
+**Segurança:** a cada início o TSRS grava um token novo em
+`extensoes/.tsrs-agent.json`, que só o seu usuário do computador lê. O comando
+envia esse token; sem ele, ou vindo de uma página web, o pedido é recusado.
+
+Conversas, biblioteca, memória, mesa de agentes, Obsidian e mídia paga ficam no
+navegador e ainda não estão no comando.
