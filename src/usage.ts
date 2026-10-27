@@ -3,7 +3,7 @@ import { getProvider, knownModel } from './providers'
 import type { Message, ModelInfo, Settings, Usage } from './types'
 
 // Share of the context window above which the user is warned.
-export const CONTEXT_WARNING = 0.8
+export const CONTEXT_WARNING = 0.5
 
 function cacheReadPrice(providerId: string, reported: ModelInfo, known: ModelInfo) {
   const share = getProvider(providerId).cacheReadShare

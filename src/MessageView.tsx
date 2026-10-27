@@ -26,6 +26,8 @@ import {
   Pencil,
   RefreshCw,
   Scissors,
+  Forward,
+  Undo2,
 } from 'lucide-react'
 import { memo, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
@@ -106,6 +108,58 @@ export function ContextReset({ busy, onUndo }: { busy: boolean; onUndo: () => vo
         {t('Desfazer')}
       </button>
       <span className="h-px flex-1 bg-border" />
+    </div>
+  )
+}
+
+// A handoff: in the old conversation it leads to the new one; the new one opens
+// with it, and it stands in for the old messages there.
+export function Handoff(props: { message: Message; live: boolean; title?: string; onOpen: (id: string) => void }) {
+  const { message, live } = props
+  const [open, setOpen] = useState(false)
+  const from = message.handoff?.from
+  const to = message.handoff?.to
+  const target = from ?? to
+  return (
+    <div className="handoff summary w-full rounded-md border border-dashed bg-card px-3 py-2">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        {live ? (
+          <span className="live-dot" aria-hidden />
+        ) : from ? (
+          <Undo2 className="size-3.5" />
+        ) : (
+          <Forward className="size-3.5" />
+        )}
+        <span>
+          {live
+            ? t('Escrevendo a passagem para a nova conversa…')
+            : from
+              ? t('Continuação de outra conversa: o modelo começa daqui, com a passagem abaixo.')
+              : t('O trabalho continua em outra conversa.')}
+        </span>
+        {!live && target && (
+          <button
+            className="underline underline-offset-2 hover:text-foreground disabled:no-underline disabled:opacity-60"
+            disabled={!props.title}
+            onClick={() => props.onOpen(target)}
+          >
+            {props.title ?? t('conversa apagada')}
+          </button>
+        )}
+        <button
+          className="ml-auto rounded p-0.5 hover:text-foreground"
+          aria-label={t('Mostrar a passagem')}
+          aria-expanded={open || live}
+          onClick={() => setOpen(!open)}
+        >
+          <ChevronRight className={cn('size-3 shrink-0 transition-transform', (open || live) && 'rotate-90')} />
+        </button>
+      </div>
+      {(open || live) && message.content && (
+        <div className="mt-2 border-t pt-2">
+          <Markdown content={message.content} />
+        </div>
+      )}
     </div>
   )
 }

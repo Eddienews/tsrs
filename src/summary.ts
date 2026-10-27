@@ -1,4 +1,5 @@
-import type { Message } from './types'
+import { t } from './i18n'
+import type { ChatMeta, Message } from './types'
 
 // A long conversation can be summarized: the summary is stored as a message,
 // and later requests send it in the system prompt in place of everything
@@ -28,4 +29,43 @@ export function withSummary(system: string, summary: string | undefined): string
   if (!summary) return system
   const note = `Summary of the earlier part of this conversation, whose messages are no longer shown to you:\n\n${summary}`
   return system ? `${system}\n\n${note}` : note
+}
+
+// Asked of the model to carry the work on in a new conversation. Unlike a
+// summary, it is written for someone starting fresh: what matters next.
+export const HANDOFF_PROMPT =
+  'Write a handoff so that a new conversation can carry on this work without the messages so far. ' +
+  'Cover, in short sections: what the user is working on and why; the decisions made so far, with the ' +
+  'facts, names, numbers and constraints they rest on; the files created or changed, with their paths, ' +
+  'if any; open questions; and the next step, written so that it can be started without asking the ' +
+  'user anything. Keep it under one page. Write it in the same language the messages are written in ' +
+  '(do not translate them into English), without addressing the user.'
+
+// The new conversation a handoff starts: the same model, settings, folder and
+// project files, opening with the handoff in place of the old messages.
+export function continuedChat(meta: ChatMeta, handoff: string, now = Date.now()): { meta: ChatMeta; first: Message } {
+  const {
+    obsidianNote: _note,
+    scheduleId: _schedule,
+    pinned: _pinned,
+    archived: _archived,
+    changedAt: _changed,
+    ...rest
+  } = meta
+  const next: ChatMeta = {
+    ...rest,
+    id: crypto.randomUUID(),
+    title: t('{title} (continuação)', { title: meta.title.replace(/ \((continuação|continued)\)$/, '') }),
+    createdAt: now,
+    updatedAt: now,
+  }
+  const first: Message = {
+    id: crypto.randomUUID(),
+    role: 'assistant',
+    content: handoff,
+    createdAt: now,
+    summary: true,
+    handoff: { from: meta.id },
+  }
+  return { meta: next, first }
 }

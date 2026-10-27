@@ -116,6 +116,10 @@ export interface Message {
   // A summary of everything before it, which replaces those messages in later
   // requests.
   summary?: boolean
+  // A handoff, written so the work can go on in a new conversation. In the old
+  // conversation it points forward (`to`, once the new one exists); the new
+  // conversation opens with it, as a summary (`summary`), pointing back (`from`).
+  handoff?: { to?: string; from?: string }
   // A mark the user set: messages before it are no longer sent to the model.
   // It has no content and is shown as a divider that can be undone.
   contextReset?: boolean

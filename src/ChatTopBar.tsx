@@ -5,6 +5,7 @@ import {
   Eraser,
   FolderOpen,
   FolderPlus,
+  Forward,
   Menu,
   MessageSquareDashed,
   NotebookPen,
@@ -80,6 +81,8 @@ interface Props {
   onToggleTemporary?: () => void
   // Clears the context from here on; absent when there is nothing to clear.
   onClearContext?: () => void
+  // Writes a handoff and carries the work on in a new conversation.
+  onContinue?: () => void
 }
 
 // Asks for a model's price when neither the provider nor the app knows it, so
@@ -511,6 +514,18 @@ export default function ChatTopBar(p: Props) {
               </span>
             )}
           </div>
+        )}
+        {p.onContinue && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            aria-label={t('Continuar numa conversa nova')}
+            title={t('Continuar numa conversa nova: o modelo escreve uma passagem e a conversa nova começa dela')}
+            onClick={p.onContinue}
+          >
+            <Forward className="size-4" />
+          </Button>
         )}
         {p.onClearContext && (
           <Button

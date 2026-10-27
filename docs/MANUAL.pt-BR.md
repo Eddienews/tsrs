@@ -226,8 +226,19 @@ rápidas ou assuntos que você não quer guardar.
 ### Conversas longas
 
 O indicador de contexto mostra quanto da memória do modelo a conversa já usa.
-Perto do limite, **Resumir a conversa** troca o começo por um resumo e libera
-espaço sem perder o fio.
+Cada mensagem leva a conversa inteira junto, então uma conversa longa custa mais
+a cada pergunta, e o modelo tende a perder o que ficou no meio. A partir de 50%,
+o TSRS sugere três saídas:
+
+- **Continuar numa conversa nova** (também na barra superior e no Ctrl+K): o
+  modelo escreve uma passagem com o que você está fazendo e por quê, as decisões,
+  os arquivos alterados e o próximo passo. Uma conversa nova abre a partir dela,
+  com o mesmo modelo, os mesmos ajustes e a mesma pasta do projeto. A conversa
+  antiga fica como estava, com um link para a nova. É a melhor saída quando o
+  trabalho continua: você escolhe o que segue adiante, e a conversa nova começa
+  leve.
+- **Resumir a conversa** troca o começo por um resumo ali mesmo e libera espaço
+  sem perder o fio.
 
 Para mudar de assunto sem abrir outra conversa, use **Limpar o contexto** (o
 ícone de borracha na barra superior, ou Ctrl+K). Aparece uma linha na conversa:
@@ -620,7 +631,8 @@ navegador, então ficam de fora da agenda.
   e os maiores só quando precisa.
 - Comece conversas novas para assuntos novos: o histórico inteiro vai junto em
   cada pergunta.
-- Use **Resumir a conversa** em conversas longas.
+- Em conversas longas, use **Continuar numa conversa nova** perto da metade do
+  contexto, ou **Resumir a conversa**.
 - Prefira bases de conhecimento a anexar o mesmo PDF grande em toda conversa.
 - Teste ideias com o Ollama, de graça, antes de usar um modelo pago.
 
