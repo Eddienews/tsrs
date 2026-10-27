@@ -5,6 +5,9 @@
   "description": "TSRS (The Signal Room Studio) — local-first chat UI for AI models",
   "license": "MIT",
   "type": "module",
+  "bin": {
+    "tsrs": "bin/tsrs.mjs"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
@@ -14,7 +17,8 @@
     "proxy": "node proxy/cors-proxy.mjs",
     "render": "node render/render.mjs",
     "render:serve": "node render/serve.mjs",
-    "evals": "node evals/export-cases.mjs && npx promptfoo@0.124.1 eval -c evals/promptfooconfig.yaml"
+    "evals": "node evals/export-cases.mjs && npx promptfoo@0.124.1 eval -c evals/promptfooconfig.yaml",
+    "tsrs": "node bin/tsrs.mjs"
   },
   "dependencies": {
     "@diffusionstudio/piper-wasm": "1.0.0",

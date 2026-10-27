@@ -263,10 +263,44 @@ only accept requests from TSRS itself:
 | `/__tsrs/ext` | Skills, plugins, own tools by HTTP, web search and page reading, schedule | `extensoes/` (`TSRS_EXTENSIONS`) |
 | `/__tsrs/cli` | Starts Claude Code or Codex in a conversation's folder and relays what they print | the conversation's project folder |
 | `/__tsrs/board` | The production board, and the takes counted in a project folder | `projetos/_producao/` |
+| `/__tsrs/agent` | The `tsrs` command, for agents: needs the token in `extensoes/.tsrs-agent.json` and refuses web pages | — |
 
 Nothing is ever deleted for real: removed skills and plugins go to
 `extensoes/_removidas/`, and a video never overwrites another. A static build
 (`npm run build`) still works as a browser-only app without these features.
+
+## Agents: the tsrs command
+
+Claude Code, Codex or a bot can use the TSRS that is running, from a terminal:
+
+```bash
+npm link                     # once, in the TSRS folder: puts `tsrs` on the PATH
+tsrs status
+tsrs projects new "Cafe Aurora ad"
+tsrs projects write cafe-aurora-ad ad.html --from ./ad.html
+tsrs render motion cafe-aurora-ad ad.html --audio midia/track.mp3
+tsrs board move "Cafe Aurora ad" render
+tsrs agenda run "AI news digest"        # exit 3: it calls a paid model; add --yes once agreed
+```
+
+| Kind | Commands | Without `--yes` |
+| --- | --- | --- |
+| read | `status`, `projects list/files/read`, `design check`, `board list`, `agenda list` | — |
+| write | `projects new/write`, `render motion`, `board add/move/update/remove`, `image local` | replacing a file only says what it would do |
+| cost | `agenda run` | only says which paid model it would call |
+
+`tsrs --help` lists them all and `tsrs <command> --help` gives the arguments.
+Add `--json` for a stable answer (`{ ok, text, result }` or `{ ok: false, code, error }`).
+Exit codes: `0` done, `2` wrong arguments, `3` needs `--yes`, `4` TSRS is not
+running, `5` failed. `tsrs mcp` offers the same commands as an MCP server on
+stdio, for example `claude mcp add tsrs -- tsrs mcp`; tools that ask for `--yes`
+take `yes: true`. `skills/tsrs/SKILL.md` teaches an agent the rules (copy it to
+`~/.claude/skills/tsrs/` or your agent's skills folder).
+
+Each start of `npm run dev` writes a fresh token to `extensoes/.tsrs-agent.json`,
+readable by your user only; the command sends it, and requests from web pages
+are refused. Chats, the library, memory, the agent table and paid media stay in
+the browser and are not in the command yet.
 
 ## Motion video
 
@@ -345,6 +379,7 @@ hosts it allows (`--allow host` adds more).
 | `src/voiceLoop.ts`, `src/obsidian.ts` | Voice conversation, Obsidian notes |
 | `src/webSearch.ts`, `src/research.ts`, `server/search.mjs` | Own web search and deep research |
 | `render/` | Motion contract, MP4 renderer and its Vite plugin |
+| `bin/tsrs.mjs`, `server/agent*.mjs`, `skills/tsrs/` | The `tsrs` command, its MCP server and the agent skill |
 | `src/media.ts`, `src/mediaJobs.ts`, `src/mediaPrice.ts` | Media services, jobs and prices |
 | `src/knowledge.ts`, `src/embeddings.ts`, `src/extract.ts` | Knowledge bases |
 | `src/sync*.ts` | Sync through a folder, WebDAV or S3 |

@@ -369,7 +369,11 @@ export function createAgenda(root = extensionsRoot(), { complete, log = console.
 
 // In the dev server: the model is reached with TSRS's own code (src/stream.ts),
 // loaded by Vite, so the server talks to providers exactly as the app does.
+// One per server: the extensions routes and the tsrs command share it.
+const agendas = new WeakMap()
+
 export function agendaForServer(server) {
+  if (agendas.has(server)) return agendas.get(server)
   const agenda = createAgenda(extensionsRoot(), {
     log: (line) => server.config.logger.info(line),
     async complete(task, tools) {
@@ -392,5 +396,6 @@ export function agendaForServer(server) {
   server.httpServer?.once('close', () => clearInterval(timer))
   // What was missed while the server was off runs once it is up.
   setTimeout(() => agenda.tick().catch(() => {}), 3000).unref?.()
+  agendas.set(server, agenda)
   return agenda
 }
