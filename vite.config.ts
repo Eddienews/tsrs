@@ -14,6 +14,7 @@ import { tsrsSdcpp } from './server/sdcpp-plugin.mjs'
 import { tsrsCli } from './server/cli-plugin.mjs'
 import { tsrsBoard } from './server/board-plugin.mjs'
 import { tsrsAgent } from './server/agent-plugin.mjs'
+import { tsrsAccess } from './server/access-plugin.mjs'
 
 export default defineConfig({
   // tsrsRenderer: the "Gerar MP4" button's renderer, on npm run dev and vite preview.
@@ -27,7 +28,8 @@ export default defineConfig({
   // tsrsCli: Claude Code and Codex, installed on this computer, answering in a conversation.
   // tsrsBoard: the production board, kept in the projects folder.
   // tsrsAgent: the tsrs command and its MCP server (bin/tsrs.mjs) for agents.
-  plugins: [react(), tailwindcss(), tsrsRenderer(), tsrsVersion(), tsrsProjects(), tsrsBackups(), tsrsModels(), tsrsComfy(), tsrsSdcpp(), tsrsCli(), tsrsBoard(), tsrsAgent(process.env.VITEST ? undefined : agendaForServer), tsrsExtensions(process.env.VITEST ? undefined : (server) => agendaForServer(server).handle)],
+  // tsrsAccess: from a phone over Tailscale, with a key; push notifications. First, before the others.
+  plugins: [tsrsAccess(), react(), tailwindcss(), tsrsRenderer(), tsrsVersion(), tsrsProjects(), tsrsBackups(), tsrsModels(), tsrsComfy(), tsrsSdcpp(), tsrsCli(), tsrsBoard(), tsrsAgent(process.env.VITEST ? undefined : agendaForServer), tsrsExtensions(process.env.VITEST ? undefined : (server) => agendaForServer(server).handle)],
   // Imported only when a chat is exported as HTML; listed so the dev server
   // does not discover it mid-session and reload the page.
   // The local voices' libraries, listed for the same reason: found only when

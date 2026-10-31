@@ -8,7 +8,8 @@
 //     "title": "Seu Silva — ep. 07", "language": "pt", "aspect": "16:9", "resolution": "540P",
 //     "look": "warm natural light, soft film grain",
 //     "characters": [{ "id": "silva", "name": "Seu Silva", "description": "a man in his sixties with glasses and a grey beard, a light-blue shirt over a navy t-shirt",
-//                      "voice": "a calm, warm voice", "pictures": ["midia/silva.png"] }],
+//                      "voice": "a calm, warm voice", "pictures": ["midia/silva.png"],
+//                      "elevenlabsVoice": "a cloned voice's id (optional): the lines are then changed to it" }],
 //     "locations": [{ "id": "cozinha", "name": "the kitchen", "description": "a small kitchen, morning light, plants on the window", "pictures": [] }],
 //     "scenes": [{ "id": "c1", "location": "cozinha", "shots": [
 //       { "id": "s01", "intent": "a note for people, never sent to the model",
@@ -27,6 +28,7 @@
 // of the picture, a checked plan with exact messages. See CREDITS.md.
 
 import { checkShot, composeShot, REFERENCE_LIMIT } from './h3prompt.mjs'
+import { VOICE_ID } from './revoice.mjs'
 
 export const FILM_FILE = 'film.json'
 export const FILM_STARTS = ['text', 'cast', 'previous', 'image']
@@ -75,6 +77,8 @@ export function shotFromFilm(film, scene, shot, index) {
     }),
     seed: shot.seed,
   }
+  const clone = cloneOf(film, shot)
+  if (clone.voice) out.revoice = { engine: 'elevenlabs', voice: clone.voice }
   if (start === 'cast') {
     const refs = cast.flatMap((c) => (c.pictures ?? []).slice(0, 2))
     const placePics = (place?.pictures ?? []).slice(0, 2)
@@ -91,6 +95,18 @@ export function shotFromFilm(film, scene, shot, index) {
     if (before) out.after = shotFile(scene, before)
   }
   return out
+}
+
+// The cloned voice a shot's lines change to: only when every line is spoken by
+// characters with the same cloned voice (the voice changer changes every voice
+// it hears). { voice } or { why } when some lines have one and others do not.
+export function cloneOf(film, shot) {
+  const lines = shot.lines ?? []
+  if (!lines.length) return {}
+  const voices = lines.map((l) => (film.characters ?? []).find((c) => c.id === l.speaker)?.elevenlabsVoice ?? null)
+  if (voices.every((v) => !v)) return {}
+  if (voices.every((v) => v === voices[0])) return { voice: voices[0] }
+  return { why: 'Its lines are spoken in more than one voice, and the voice changer changes every voice it hears: the take keeps the voices H3 made. Give the lines to one cloned voice, or split the shot.' }
 }
 
 export const shotFile = (scene, shot) => `shots/${scene.id}-${shot.id}.json`
@@ -119,6 +135,7 @@ export function checkFilm(film, { exists = () => true } = {}) {
     if (!String(c.name ?? '').trim()) top.push(`Character "${c.id}" needs a name.`)
     if (!String(c.description ?? '').trim()) top.push(`Character "${c.id}" needs a description (it is repeated in every shot they are in).`)
     for (const p of c.pictures ?? []) if (!exists(p)) top.push(`Character "${c.id}": the picture ${p} is not in the project.`)
+    if (c.elevenlabsVoice !== undefined && !VOICE_ID.test(String(c.elevenlabsVoice))) top.push(`Character "${c.id}": elevenlabsVoice is the id of an ElevenLabs voice (like e1MAZ8in8PhkrhQwfrMh), not "${c.elevenlabsVoice}".`)
   }
   for (const l of locations) {
     if (!String(l.name ?? '').trim() || !String(l.description ?? '').trim()) top.push(`Location "${l.id}" needs a name and a description.`)
@@ -145,6 +162,8 @@ export function checkFilm(film, { exists = () => true } = {}) {
         if (!String(line.text ?? '').trim()) errors.push('A line has no text.')
         if (!(shot.cast ?? []).includes(line.speaker)) errors.push(`The speaker "${line.speaker}" of "${String(line.text ?? '').slice(0, 30)}" is not cast in the shot.`)
       }
+      const clone = cloneOf(film, shot)
+      if (clone.why) warnings.push(clone.why)
       const start = shot.start ?? 'text'
       if (!FILM_STARTS.includes(start)) errors.push(`start is one of ${FILM_STARTS.join(', ')}.`)
       if (start === 'image' && (!shot.image || !exists(shot.image))) errors.push(`start "image" needs an image of the project (${shot.image ?? 'none given'}).`)
