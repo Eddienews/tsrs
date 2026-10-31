@@ -172,6 +172,7 @@ export function createAgent(deps, root = projectsRoot()) {
         sdcpp: up(sdcpp) && !!sdcpp.ok,
         tasks: agenda.tasks.length,
         pendingAnswers: agenda.pending,
+        gpuQueue: deps.jobs ? deps.jobs.list().filter((j) => ['queued', 'running', 'canceling'].includes(j.status)).length : 0,
       }
       const text = [
         `TSRS ${result.version}${result.commit ? ` (${result.commit})` : ''}`,
@@ -179,6 +180,7 @@ export function createAgent(deps, root = projectsRoot()) {
         `Renderer: ${result.rendering ? 'rendering now' : 'ready'}`,
         `ComfyUI: ${result.comfy ? 'running' : 'not running'} · sd-server: ${result.sdcpp ? 'running' : 'not running'}`,
         `Schedule: ${result.tasks} task(s), ${result.pendingAnswers} answer(s) waiting in TSRS`,
+        `GPU queue: ${result.gpuQueue ? `${result.gpuQueue} job(s) waiting or running (tsrs jobs list)` : 'empty'}`,
       ].join('\n')
       return { text, result }
     },

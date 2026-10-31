@@ -284,8 +284,8 @@ tsrs agenda run "Resumo de IA"          # sai com 3: chama um modelo pago; com -
 
 | Tipo | Comandos | Sem `--yes` |
 | --- | --- | --- |
-| leitura | `status`, `projects list/files/read`, `design check`, `video check`, `board list`, `agenda list` | — |
-| escrita | `projects new/write`, `render motion`, `video run`, `board add/move/update/remove`, `image local` | substituir um arquivo, ou gerar voz no `video run`, só diz o que faria |
+| leitura | `status`, `projects list/files/read`, `design check`, `video check`, `h3 prompt`, `jobs list/status/wait`, `board list`, `agenda list` | — |
+| escrita | `projects new/write`, `render motion`, `video run`, `take`, `jobs cancel`, `board add/move/update/remove`, `image local` | substituir um arquivo, ou gerar voz no `video run`, só diz o que faria |
 | custo | `agenda run` | só diz qual modelo pago chamaria |
 
 `tsrs --help` lista todos e `tsrs <comando> --help` mostra os argumentos (a
@@ -401,6 +401,62 @@ tsrs video run formulario-seguro --yes
 Os vídeos vão para `videos/` com seus manifestos, que guardam também os hashes
 do roteiro e do arquivo de tempos.
 
+## Takes do MiniMax H3
+
+Vídeo com som, feito neste computador pelo MiniMax H3 no ComfyUI com os nós
+ComfyUI-MiniMaxH3-Easy, no mesmo grafo do workflow deles. O TSRS acha os
+arquivos pelo nome no que o ComfyUI tem: o modelo FL2VA
+(`diffusion_models/minimax_h3_fl2va*`; o Ref2VA para fotos de referência), um
+text encoder do H3 (Qwen3-VL-4B com a projeção ClipProj, ou outro), os dois VAEs
+do H3 e, se houver, uma LoRA de 4 passos (4 passos em vez de 20). Um take de
+3 s em 480P levou 83 s numa RTX 3070 Laptop (8 GB).
+
+Um shot é um arquivo JSON do projeto:
+
+```json
+{
+  "scene": "Seu Silva at his desk, morning light through the blinds",
+  "size": "MS", "angle": "eye level", "movement": "push-in",
+  "beats": ["he types slowly", "he stops and looks at the camera"],
+  "dialogue": [{ "speaker": "Seu Silva", "voice": "a calm, low voice", "text": "Bom dia.", "language": "pt" }],
+  "soundscape": "Keyboard clicks, a fan humming",
+  "seconds": 5
+}
+```
+
+```bash
+tsrs h3 prompt seu-silva-ep07 shots/s01.json             # o prompt do H3, os frames, o que corrigir
+tsrs take seu-silva-ep07 shots/s01.json --image midia/s01.png   # vai para a fila: responde na hora com o id
+tsrs jobs wait take-001-k3x9a --seconds 300              # espera (no máximo 600 s por chamada)
+tsrs jobs cancel take-001-k3x9a                          # para também no ComfyUI
+```
+
+- **Prompt.** O shot é escrito no formato do próprio H3 (`integrated_multimodal_description`,
+  `overall_soundscape`, `non_diegetic_music`; com referências, `subject_definitions`,
+  `retention_analysis`, `detailed_description`). Tamanho, ângulo e movimento
+  viram as frases de câmera do guia da MiniMax; as batidas viram "First, … Then,
+  … Finally, …" (nunca `[Shot 2]`, que pede um corte); cada fala vai em
+  `<d>[Portuguese] …</d>` com a frase que fecha a boca depois; um shot sem fala
+  diz "Mouths stay closed." e "Only ambient sound is heard."
+- **Duração.** O H3 aceita 17n+5 frames a 24 fps (22 a 362): 5 s = 124, 8 s = 192, 10 s = 243.
+- **Checagens** antes de renderizar: duração que o H3 não aceita, mais palavras
+  do que cabem (3,4 por segundo em inglês, 2,8 em português), fala escrita na
+  cena, prompt com mais de 7000 caracteres e frases com "no X" / "sem X": o H3
+  não tem prompt negativo, então nomear algo tende a trazê-lo. Erros barram o
+  take; avisos vêm junto.
+- **Início.** `--image` (primeiro quadro), `--last`, os dois, ou `--refs` (até 9
+  fotos de referência, Ref2VA); o arquivo do shot também pode trazê-los.
+- **Fila.** Um take por vez na GPU, em ordem; a resposta é o id do job. Um take
+  cancelado ou que passou do tempo sai da fila do ComfyUI e é interrompido.
+- **Saída.** `takes/<nome>.mp4` e `takes/<nome>.json` (status `pending`, prompt,
+  seed, passos, modelos, frames, fotos): o quadro conta com os takes do cartão.
+
+Vale a licença do próprio MiniMax H3 para o que ele faz. A licença comunitária
+publicada não cobre alguns territórios (UE, Reino Unido, Coreia do Sul e EUA,
+no momento em que isto foi escrito): confira, ou a licença comercial da
+MiniMax, antes de usar takes em trabalho de cliente. As regras de prompt seguem
+o Imagination Studio de Keys e Sam Wasserman (Apache-2.0): veja [CREDITS.md](CREDITS.md).
+
 ## Provedores
 
 Anthropic, OpenAI, Google Gemini, OpenRouter, DeepSeek, Mistral, xAI (Grok),
@@ -489,7 +545,8 @@ O que já existe e o que vem a seguir: [ROADMAP.pt-BR.md](ROADMAP.pt-BR.md).
 
 ## Licença
 
-[MIT](LICENSE). O anime.js e o lottie-web, incluídos em `public/motion/`, também
+[MIT](LICENSE). Créditos de ideias e regras de outros projetos: [CREDITS.md](CREDITS.md).
+O anime.js e o lottie-web, incluídos em `public/motion/`, também
 são MIT. As vozes locais usam o Transformers.js e o ONNX Runtime Web
 (Apache-2.0/MIT) e o piper_phonemize, feito sobre o espeak-ng (GPL-3.0),
 carregado só quando uma voz do Piper é usada; as vozes do Piper e os modelos

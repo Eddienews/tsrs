@@ -285,8 +285,8 @@ tsrs agenda run "AI news digest"        # exit 3: it calls a paid model; add --y
 
 | Kind | Commands | Without `--yes` |
 | --- | --- | --- |
-| read | `status`, `projects list/files/read`, `design check`, `video check`, `board list`, `agenda list` | — |
-| write | `projects new/write`, `render motion`, `video run`, `board add/move/update/remove`, `image local` | replacing a file, or making voice for `video run`, only says what it would do |
+| read | `status`, `projects list/files/read`, `design check`, `video check`, `h3 prompt`, `jobs list/status/wait`, `board list`, `agenda list` | — |
+| write | `projects new/write`, `render motion`, `video run`, `take`, `jobs cancel`, `board add/move/update/remove`, `image local` | replacing a file, or making voice for `video run`, only says what it would do |
 | cost | `agenda run` | only says which paid model it would call |
 
 `tsrs --help` lists them all and `tsrs <command> --help` gives the arguments.
@@ -406,6 +406,64 @@ tsrs video run formulario-seguro --yes
 The videos go to `videos/` with their manifests, which also record the script's
 and the timing lock's hashes.
 
+## MiniMax H3 takes
+
+Video with sound, made on this computer by MiniMax H3 through ComfyUI and the
+ComfyUI-MiniMaxH3-Easy nodes, the same graph as their own
+workflow. TSRS finds the files by name in what ComfyUI has: the FL2VA model
+(`diffusion_models/minimax_h3_fl2va*`; Ref2VA for reference pictures), an H3
+text encoder (Qwen3-VL-4B with its ClipProj projection, or another), both H3
+VAEs and, if present, a 4-step speed LoRA (4 steps instead of 20). A 3 s take at
+480P took 83 s on an RTX 3070 Laptop (8 GB).
+
+A shot is a JSON file of the project:
+
+```json
+{
+  "scene": "Seu Silva at his desk, morning light through the blinds",
+  "size": "MS", "angle": "eye level", "movement": "push-in",
+  "beats": ["he types slowly", "he stops and looks at the camera"],
+  "dialogue": [{ "speaker": "Seu Silva", "voice": "a calm, low voice", "text": "Bom dia.", "language": "pt" }],
+  "soundscape": "Keyboard clicks, a fan humming",
+  "seconds": 5
+}
+```
+
+```bash
+tsrs h3 prompt seu-silva-ep07 shots/s01.json             # the H3 prompt, its frames, what to fix
+tsrs take seu-silva-ep07 shots/s01.json --image midia/s01.png   # queued: answers with a job id at once
+tsrs jobs wait take-001-k3x9a --seconds 300              # waits (at most 600 s per call)
+tsrs jobs cancel take-001-k3x9a                          # stops it in ComfyUI too
+```
+
+- **Prompt.** The shot is written in H3's own form: `integrated_multimodal_description`,
+  `overall_soundscape` and `non_diegetic_music`; or, with reference pictures,
+  `subject_definitions`, `retention_analysis` and `detailed_description`. Size,
+  angle and movement become the camera phrases of MiniMax's guide; beats become
+  "First, … Then, … Finally, …" (never `[Shot 2]`, which asks for a cut); each
+  line is `<d>[Portuguese] …</d>` with the sentence that closes the mouth after
+  it; a shot without lines says "Mouths stay closed." and "Only ambient sound is heard."
+- **Length.** H3 takes 17n+5 frames at 24 fps (22 to 362): 5 s = 124, 8 s = 192, 10 s = 243.
+- **Checks** before anything renders: a length H3 does not take, more words than
+  fit the clip (3.4 a second in English, 2.8 in Portuguese), spoken words written
+  in the scene, a prompt over 7000 characters, and "no X" phrases: H3 has no
+  negative prompt, so naming a thing tends to bring it. Errors stop the take;
+  warnings are listed with it.
+- **Start.** `--image` (first frame), `--last`, both (first and last), or `--refs`
+  (up to 9 reference pictures, Ref2VA); the shot file may name them too
+  (`image`, `last`, `refs`).
+- **Queue.** Takes run one at a time on the GPU, in order; the answer is a job id.
+  A canceled or timed-out run is taken off ComfyUI's queue and interrupted.
+- **Output.** `takes/<name>.mp4` and `takes/<name>.json` (status `pending`, the
+  prompt, seed, steps, models, frames, pictures): the board counts it with the
+  card's takes.
+
+MiniMax H3's own license applies to what it makes. Its community license, as
+published, does not cover some territories (the EU, the UK, South Korea and the
+USA at the time of writing): check it, or MiniMax's commercial license, before
+using takes in client work. The prompt rules follow Imagination Studio by Keys
+and Sam Wasserman (Apache-2.0): see [CREDITS.md](CREDITS.md).
+
 ## Providers
 
 Anthropic, OpenAI, Google Gemini, OpenRouter, DeepSeek, Elorian, Mistral, xAI (Grok),
@@ -491,7 +549,8 @@ What is done and what comes next: [ROADMAP.md](ROADMAP.md).
 
 ## License
 
-[MIT](LICENSE). anime.js and lottie-web, bundled in `public/motion/`, are MIT too.
+[MIT](LICENSE). Credits for ideas and rules taken from other projects: [CREDITS.md](CREDITS.md).
+anime.js and lottie-web, bundled in `public/motion/`, are MIT too.
 The local voices use Transformers.js and ONNX Runtime Web (Apache-2.0/MIT) and
 piper_phonemize, built on espeak-ng (GPL-3.0), loaded only when a Piper voice is
 used; Piper's voices and the Whisper models have licenses of their own, listed
