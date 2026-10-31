@@ -106,6 +106,12 @@ tsrs jobs cancel <job id>                               # also stops it in Comfy
 - For the edit: `tsrs edit export <project> --music midia/<track>` writes the
   best take of each shot, trimmed, as FCPXML/EDL for DaVinci Resolve.
   `tsrs takes rate <project> <take> approved` pins the one the user chose.
+- A character with `elevenlabsVoice` (an ElevenLabs voice id) in film.json gets
+  their lines changed to that cloned voice after each take (timing kept; the
+  take's own sound stays in `takes/<take>.h3.mp4`). For an existing take:
+  `tsrs takes revoice <project> <take> --voice <id>` (uses ElevenLabs credits:
+  say so and wait for the user's yes before `--yes`). If the key is refused,
+  stop and tell the user; never ask for the key in chat.
 
 ## Directing a film (film.json)
 

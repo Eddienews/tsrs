@@ -507,6 +507,25 @@ tsrs film take seu-silva-ep07     # grava shots/*.json e põe um take de cada na
   anterior: movimento contínuo; espera aquele take na fila); `image` (abre numa
   foto do projeto).
 
+#### Falas na sua voz clonada (ElevenLabs)
+
+Dê a um personagem `"elevenlabsVoice": "<id da voz>"` (uma voz clonada no
+ElevenLabs) e todo take em que só ele fala sai com as falas nessa voz: depois
+que o H3 faz o take, o som passa pelo voice changer do ElevenLabs, que mantém o
+tempo, então a boca continua sincronizada; o volume é igualado ao do take, o som
+original fica em `takes/<take>.h3.mp4` e as checagens ouvem a voz clonada. Um
+shot com falas de mais de uma voz fica com as vozes do H3 (o voice changer muda
+todas as vozes que ouve), e o `film check` avisa. A chave é a variável
+`ELEVENLABS_API_KEY` (no Windows, `setx ELEVENLABS_API_KEY "..."` funciona sem
+reiniciar o TSRS); usa créditos do ElevenLabs, cerca de um segundo de áudio por
+segundo de fala. Chave recusada (HTTP 401/403) para na hora.
+
+```bash
+tsrs takes revoice seu-silva-ep07 c1-s01 --voice e1MAZ8in8PhkrhQwfrMh --yes   # um take que já existe
+tsrs takes revoice seu-silva-ep07 c1-s01 --voice h3                            # a voz do H3 de volta
+tsrs take seu-silva-ep07 shots/c1-s01.json --revoice no                        # este take sem trocar
+```
+
 ### Bots que dirigem: o modo estúdio, o ledger e o benchmark
 
 - **Acesso "Só o estúdio"** para o Claude Code e o Codex (Configurações): o

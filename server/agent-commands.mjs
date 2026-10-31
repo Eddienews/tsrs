@@ -131,6 +131,8 @@ export const COMMANDS = [
       { name: 'name', help: 'the take file name (without .mp4)' },
       { name: 'wait', type: 'number', help: 'seconds to wait for it before answering (default 0, at most 600)' },
       { name: 'check', help: 'yes or no: check the take when it is made (default yes)' },
+      { name: 'voice', help: "an ElevenLabs voice id: the lines are changed to it once the take is made, timing kept (default: the shot's, from the character's elevenlabsVoice in film.json; uses ElevenLabs credits)" },
+      { name: 'revoice', help: "yes or no: change the lines to the shot's cloned voice (default yes)" },
     ],
     example: 'tsrs take seu-silva-ep07 shots/s01.json --image midia/s01-first.png',
   },
@@ -200,6 +202,17 @@ export const COMMANDS = [
       { name: 'take', at: 1, required: true, help: 'the take name, like s01 or s01-2' },
     ],
     example: 'tsrs takes check seu-silva-ep07 s01',
+  },
+  {
+    name: 'takes revoice',
+    kind: 'cost',
+    summary: "Changes a take's lines to a cloned ElevenLabs voice (voice changer: the timing and the mouth stay), keeps the take's own sound in takes/<take>.h3.mp4, and checks the take again. --voice h3 puts the take's own voice back.",
+    args: [
+      { name: 'project', at: 0, required: true, help: 'project folder' },
+      { name: 'take', at: 1, required: true, help: 'the take name' },
+      { name: 'voice', help: "an ElevenLabs voice id, or h3 for the take's own voice (default: the shot's cloned voice)" },
+    ],
+    example: 'tsrs takes revoice seu-silva-ep07 c1-s01 --voice e1MAZ8in8PhkrhQwfrMh --yes',
   },
   {
     name: 'takes rate',

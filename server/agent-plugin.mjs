@@ -18,6 +18,7 @@ import { extensionsRoot } from './extensions.mjs'
 import { createQueue } from './jobs.mjs'
 import { createNightShift } from './nightshift.mjs'
 import { checkTake } from './takecheck.mjs'
+import { revoice } from './revoice.mjs'
 import { projectsRoot } from './projects.mjs'
 import { makeImage as sdcppImage, sdcppStatus } from './sdcpp.mjs'
 
@@ -86,6 +87,7 @@ export function tsrsAgent(agendaFor) {
         night,
         access,
         ffmpeg: ffmpegPath(),
+        revoice: (file, opts) => revoice(file, { ...opts, ffmpeg: ffmpegPath() }),
         checkTake: (file, opts) =>
           checkTake(file, { ...opts, ffmpeg: ffmpegPath(), hear: async (f, language) => (await transcribeWords([f], { language, ffmpeg: ffmpegPath(), log })).at(0) ?? [] }),
         sdcpp: { status: () => sdcppStatus(), makeImage: (job) => sdcppImage(job) },

@@ -26,6 +26,7 @@ import { checkFilm, describeFilm, FILM_FILE, filmShots } from './film.mjs'
 import { checkShot, composeShot, findNegations, framesFor, MAX_CHARS, secondsOf, STARTS } from './h3prompt.mjs'
 import { WAIT_MAX } from './jobs.mjs'
 import { edl, fcpxml, probe, resolveZip } from './nle.mjs'
+import { VOICE_ID } from './revoice.mjs'
 import { allowed, listFiles, openProject, projectFile, projectsRoot, readText, slug, writeFiles } from './projects.mjs'
 
 export const AGENT_PATH = '/__tsrs/agent'
@@ -78,6 +79,7 @@ const bytes = (n) => (n < 1024 ? `${n} B` : n < 1024 ** 2 ? `${(n / 1024).toFixe
 //                turnaroundModels(), makeTurnaround(job)
 //   jobs         the GPU queue (jobs.mjs)
 //   checkTake(file, { script, first, last })   the take checks (takecheck.mjs)
+//   revoice(file, { voice })   a take's lines in a cloned voice (revoice.mjs)
 //   ffmpeg       the ffmpeg command
 //   night        the night shift (nightshift.mjs)
 //   access       { info(), rotate() } the phone access (access.mjs)
@@ -157,7 +159,8 @@ export function createAgent(deps, root = projectsRoot()) {
 
   const jobLine = (j) => {
     const when = j.status === 'queued' ? `#${j.position} in the queue` : j.status
-    const made = j.result?.file ? ` → ${j.result.file}${j.result.checks ? ` (${checkLine(j.result.checks)})` : ''}` : ''
+    const voice = j.result?.revoice?.revoiced ? ' · lines in the cloned voice' : j.result?.revoice?.error ? ` · voice not changed: ${j.result.revoice.error}` : ''
+    const made = j.result?.file ? ` → ${j.result.file}${j.result.checks ? ` (${checkLine(j.result.checks)})` : ''}${voice}` : ''
     return `${j.id}  ${j.kind} "${j.title}"  ${when}${made}${j.error ? ` · ${j.error}` : ''}`
   }
 
@@ -254,6 +257,21 @@ export function createAgent(deps, root = projectsRoot()) {
     const { notes, at: _at, ...rest } = take
     await writeFiles(folder, [{ name: notes, content: JSON.stringify(rest, null, 2) + '\n' }])
   }
+  // The lines of a take changed to a cloned voice; the take is kept either way.
+  async function revoiceTake(folder, take, voice) {
+    if (!deps.revoice) return { error: 'This TSRS cannot change voices.' }
+    try {
+      const r = await deps.revoice(join(folder, take.video), { voice })
+      const revoiced = { engine: 'ElevenLabs voice changer', voice, original: relative(folder, r.original).split('\\').join('/'), gain: r.gain, at: new Date().toISOString() }
+      await saveTake(folder, { ...take, revoiced, revoiceError: undefined })
+      return { revoiced }
+    } catch (error) {
+      await saveTake(folder, { ...take, revoiceError: error.message })
+      return { error: error.message }
+    }
+  }
+  const takeStatus = (take, checks) => (take.status === 'approved' ? 'approved' : checks.passed ? (take.status === 'redo' ? 'pending' : take.status ?? 'pending') : 'redo')
+
   async function findTake(folder, ref) {
     const takes = await readTakes(folder)
     const want = String(ref ?? '').replace(/\.(json|mp4)$/i, '').replace(/^takes\//, '')
@@ -502,6 +520,14 @@ export function createAgent(deps, root = projectsRoot()) {
           },
         ])
         await note(folder, [video, notes])
+        // The lines in a cloned voice, before the checks: they hear what is kept.
+        let revoice = null
+        const voice = args.voice ?? shot.revoice?.voice
+        if (voice && String(args.revoice ?? 'yes') !== 'no') {
+          progress({ revoicing: true })
+          const take = (await readTakes(folder)).find((t) => t.name === name)
+          if (take) revoice = await revoiceTake(folder, take, String(voice))
+        }
         let verdict = null
         if (String(args.check ?? 'yes') !== 'no') {
           progress({ checking: true })
@@ -513,7 +539,7 @@ export function createAgent(deps, root = projectsRoot()) {
             verdict = { passed: null, reason: `the checks could not run: ${error.message}` }
           }
         }
-        return { file: video, notes, seed: made.seed, steps: made.steps, checks: verdict }
+        return { file: video, notes, seed: made.seed, steps: made.steps, checks: verdict, ...(revoice ? { revoice } : {}) }
       })
 
       const head = `Queued take ${job.id}: "${name}" in ${basename(folder)}, ${frames} frames (${secondsOf(frames)} s), ${resolution} ${aspect}, start ${start}.`
@@ -671,7 +697,7 @@ export function createAgent(deps, root = projectsRoot()) {
       const best = bestTakes(takes)
       const chosen = new Set(best.map((b) => b.take?.name).filter(Boolean))
       const text = takes
-        .map((t) => `${chosen.has(t.name) ? '★' : ' '} ${t.name}  ${t.status ?? 'pending'} · ${t.seconds ?? '?'} s · seed ${t.seed ?? '?'} · ${checkLine(t.checks)}`)
+        .map((t) => `${chosen.has(t.name) ? '★' : ' '} ${t.name}  ${t.status ?? 'pending'} · ${t.seconds ?? '?'} s · seed ${t.seed ?? '?'} · ${checkLine(t.checks)}${t.revoiced ? ' · cloned voice' : t.revoiceError ? ` · voice not changed: ${t.revoiceError}` : ''}`)
         .join('\n')
       return { text: `${text}\n★ best take of its shot`, result: { takes, best: best.map((b) => ({ shot: b.shot, take: b.take?.name ?? null })) } }
     },
@@ -681,11 +707,42 @@ export function createAgent(deps, root = projectsRoot()) {
       const take = await findTake(folder, args.take)
       if (!deps.checkTake) throw new AgentError('failed', 'This TSRS cannot check takes.')
       const checks = await runChecks(folder, take)
-      const status = take.status === 'approved' ? 'approved' : checks.passed ? (take.status === 'redo' ? 'pending' : take.status ?? 'pending') : 'redo'
+      const status = takeStatus(take, checks)
       await saveTake(folder, { ...take, checks, status })
       const window = checks.shot?.window && !checks.shot.window.whole ? `\nTrim to ${checks.shot.window.in}–${checks.shot.window.out} s (no cut inside).` : ''
       const heard = checks.words ? `\nHeard: "${checks.words.heard}"` : ''
       return { text: `${take.name}: ${checkLine(checks)} → ${status}${heard}${window}`, result: { take: take.name, status, checks } }
+    },
+
+    async 'takes revoice'(args, yes) {
+      const folder = await project(args.project)
+      const take = await findTake(folder, args.take)
+      let voice = args.voice ? String(args.voice) : null
+      if (!voice && take.shot) voice = (await readShot(folder, take.shot).catch(() => ({}))).revoice?.voice ?? null
+      if (!voice) throw invalid('Which voice? Give --voice <ElevenLabs voice id>, or set elevenlabsVoice on the character in film.json and run: tsrs film shots ' + basename(folder))
+      if (voice.toLowerCase() === 'h3') {
+        const original = take.revoiced?.original ?? take.video.replace(/\.mp4$/, '.h3.mp4')
+        if (!existsSync(join(folder, original))) throw invalid(`${take.name} has its own voice already.`)
+        await writeFiles(folder, [{ name: take.video, content: (await readFile(join(folder, original))).toString('base64'), encoding: 'base64' }])
+        await saveTake(folder, { ...take, revoiced: undefined, revoiceError: undefined })
+        return { text: `${take.name}: back to the voice H3 made.`, result: { take: take.name, voice: 'h3' } }
+      }
+      if (!VOICE_ID.test(voice)) throw invalid(`"${voice}" is not an ElevenLabs voice id (like e1MAZ8in8PhkrhQwfrMh).`)
+      if (!yes) throw confirm(`Would send the sound of ${take.name} (${take.seconds ?? '?'} s) to ElevenLabs to change its lines to the voice ${voice}; this uses ElevenLabs credits. Add --yes to do it.`)
+      const done = await revoiceTake(folder, take, voice)
+      if (done.error) throw new AgentError('failed', done.error)
+      let checks = null
+      let status = take.status ?? 'pending'
+      if (deps.checkTake) {
+        const now = await findTake(folder, take.name)
+        checks = await runChecks(folder, now)
+        status = takeStatus(now, checks)
+        await saveTake(folder, { ...now, checks, status })
+      }
+      return {
+        text: `${take.name}: the lines are in the voice ${voice} now (${done.revoiced.gain >= 0 ? '+' : ''}${done.revoiced.gain} dB to match); its own sound is in ${done.revoiced.original}.${checks ? `\n${checkLine(checks)} → ${status}${checks.words ? `\nHeard: "${checks.words.heard}"` : ''}` : ''}`,
+        result: { take: take.name, revoiced: done.revoiced, checks, status },
+      }
     },
 
     async 'takes rate'(args) {

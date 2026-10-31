@@ -503,7 +503,8 @@ quality bar does not depend on the model that wrote the plan.
 {
   "title": "Seu Silva — ep. 07", "language": "pt", "look": "warm natural light, soft film grain",
   "characters": [{ "id": "silva", "name": "Seu Silva", "description": "a man in his sixties with glasses and a grey beard",
-                   "voice": "a calm, warm voice", "pictures": ["midia/silva.png"] }],
+                   "voice": "a calm, warm voice", "pictures": ["midia/silva.png"],
+                   "elevenlabsVoice": "e1MAZ8in8PhkrhQwfrMh" }],
   "locations": [{ "id": "cozinha", "name": "the kitchen", "description": "a small kitchen, morning light" }],
   "scenes": [{ "id": "c1", "location": "cozinha", "shots": [
     { "id": "s01", "size": "MS", "movement": "locked", "seconds": 5, "cast": ["silva"],
@@ -529,6 +530,26 @@ tsrs film take seu-silva-ep07     # writes shots/*.json and queues a take of eac
   the same from shot to shot); `previous` (opens on the last frame of the take
   of the shot before: a continuous move; it waits for that take in the queue);
   `image` (opens on a picture of the project).
+
+#### Lines in a cloned voice (ElevenLabs)
+
+Give a character `"elevenlabsVoice": "<voice id>"` (a voice you cloned on
+ElevenLabs) and every take whose lines are all theirs comes out with the lines
+in that voice: once H3 has made the take, its sound goes through ElevenLabs'
+voice changer, which keeps the timing, so the mouth still matches; the loudness
+is matched to the take's own, the take's own sound is kept in
+`takes/<take>.h3.mp4`, and the checks hear the cloned voice. A shot whose lines
+are in more than one voice keeps H3's voices (the voice changer changes every
+voice it hears), and `film check` says so. The key is `ELEVENLABS_API_KEY` in
+the environment (on Windows, `setx ELEVENLABS_API_KEY "..."` works without
+restarting TSRS); it uses ElevenLabs credits, about a second of audio per
+second of speech. A refused key (HTTP 401/403) stops at once.
+
+```bash
+tsrs takes revoice seu-silva-ep07 c1-s01 --voice e1MAZ8in8PhkrhQwfrMh --yes   # an existing take
+tsrs takes revoice seu-silva-ep07 c1-s01 --voice h3                            # its own voice back
+tsrs take seu-silva-ep07 shots/c1-s01.json --revoice no                        # this take without it
+```
 
 ### Bots that direct: the studio leash, the ledger and the bench
 
