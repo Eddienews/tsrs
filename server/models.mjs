@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 // Whisper in ONNX for transformers.js, and the Piper voices.
-export const REPOS = [/^onnx-community\/whisper-(tiny|base|small)$/, /^rhasspy\/piper-voices$/]
+export const REPOS = [/^onnx-community\/whisper-(tiny|base|small)(_timestamped)?$/, /^rhasspy\/piper-voices$/]
 const MAX_FILE = 2 * 1024 * 1024 * 1024
 
 const TYPES = {

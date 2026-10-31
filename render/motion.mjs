@@ -55,13 +55,19 @@ const LIBRARIES = [
 // The scripts that go at the top of the composition's <head>, before its own:
 // the configuration, the runtime and the libraries it uses. `base` is the
 // address of the folder that holds runtime.js, ending in a slash.
-export function motionHead(code, base) {
+// `extra` (from the video pipeline, render/video.mjs):
+//   duration   seconds, instead of nwlab:duration (the narration's length)
+//   data       values the composition reads from NWLab.data; data.timeline is
+//              the narration's scenes and words (NWLab.scene, NWLab.word)
+//   captions   { cues, style }: captions the runtime draws over the frame
+export function motionHead(code, base, extra = {}) {
   const s = motionSettings(code)
   const config = {
-    duration: s.duration,
+    duration: Number(extra.duration) > 0 ? Number(extra.duration) : s.duration,
     viewport: [s.width, s.height],
     fps: s.fps,
-    data: {},
+    data: extra.data && typeof extra.data === 'object' ? extra.data : {},
+    ...(extra.captions?.cues?.length ? { captions: extra.captions } : {}),
   }
   const scripts = [
     `<style>html,body{margin:0;width:${s.width}px;height:${s.height}px;overflow:hidden}</style>`,

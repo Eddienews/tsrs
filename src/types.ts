@@ -333,7 +333,7 @@ export type ApiFormat = 'openai' | 'anthropic' | 'cli'
 
 // The coding agents TSRS can start, and what each may do in the project folder.
 export type CliAgent = 'claude' | 'codex'
-export type CliAccess = 'read' | 'edit' | 'full'
+export type CliAccess = 'read' | 'edit' | 'full' | 'studio'
 
 export interface Provider {
   id: string

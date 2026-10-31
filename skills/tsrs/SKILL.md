@@ -1,6 +1,6 @@
 ---
 name: tsrs
-description: Drive the TSRS app running on this computer from the terminal with the tsrs command — project folders, motion video renders (MP4), the design check, the production board, scheduled tasks and free local images. Use when the user asks to do something "in TSRS", on its board, in one of its projects, or to render a TSRS motion composition.
+description: Drive the TSRS app running on this computer from the terminal with the tsrs command — project folders, motion video renders (MP4), MiniMax H3 video takes on the local GPU (queued), the design check, the production board, scheduled tasks and free local images. Use when the user asks to do something "in TSRS", on its board, in one of its projects, or to render a TSRS motion composition.
 ---
 
 # tsrs: TSRS from the terminal
@@ -48,9 +48,101 @@ tsrs board move "Cafe Aurora ad" render
 tsrs image local "a cup of coffee by a window at dawn" --project cafe-aurora-ad
 ```
 
+## Narrated videos
+
+When a project has a `video.json` (scenes with their lines, voice, music, the
+composition, captions, 9:16 — see "Narrated videos" in the TSRS README):
+
+```bash
+tsrs video check <project>        # read first: problems, and what a run would make and spend
+tsrs video run <project>          # exit 3 when voice lines must be made: ask the user, then --yes
+```
+
+In the composition, land animations on the narration with
+`NWLab.word('scene-id', 'word')` (seconds) and read `NWLab.timeline`; the
+check reports words the script does not say.
+
 A motion composition is an HTML page with `nwlab:size`, `nwlab:duration` and
 `nwlab:fps` meta tags whose frames depend only on the time `t` (see "Motion
 video" in the TSRS README). The MP4 goes to the project's `videos/`.
+
+## MiniMax H3 takes (video with sound, on this computer's GPU)
+
+Write each shot as a JSON file of the project (`shots/s01.json`), then check it
+and queue it. Never write the H3 prompt by hand when a shot file will do: TSRS
+writes it in H3's own form with the fixes that are measured.
+
+```json
+{ "scene": "...", "size": "MS", "angle": "eye level", "movement": "push-in",
+  "beats": ["first thing that happens", "then this"],
+  "dialogue": [{ "speaker": "Seu Silva", "voice": "a calm, low voice", "text": "Bom dia.", "language": "pt" }],
+  "soundscape": "what is heard", "seconds": 5 }
+```
+
+```bash
+tsrs h3 prompt <project> shots/s01.json                 # read: the prompt, its frames, what to fix
+tsrs take <project> shots/s01.json --image midia/s01.png   # queued; answers at once with a job id
+tsrs jobs wait <job id> --seconds 300                   # repeat until it ends (each call ≤ 600 s)
+tsrs jobs cancel <job id>                               # also stops it in ComfyUI
+```
+
+- Fix every ✗ the check reports; read the ! warnings and fix them unless the
+  user wants otherwise.
+- Spoken words go only in `dialogue` (never in `scene`, `action` or `beats`),
+  with their `language`. At most about 3 words a second (2.8 in Portuguese).
+- Say what is there, never "no X" / "sem X": H3 has no negative prompt, so
+  naming a thing brings it ("no photographs" puts photographs on the walls).
+- One clip is one shot: use `beats`, never `[Shot 2]` (that asks for a cut).
+- Lengths are 17n+5 frames at 24 fps: 5 s = 124, 8 s = 192, 10 s = 243, 15 s = 362.
+- Frames: `--image` (first), `--last`, both; or `--refs a.png,b.png` (up to 9
+  reference pictures of the cast) — not both kinds.
+- One take at a time runs on the GPU; queue a scene's shots, then wait. Each
+  take writes `takes/<name>.mp4` and `takes/<name>.json` (status `pending`).
+  Report the job ids and files that really exist, not what you expect.
+- Each take is checked when made: the lines heard against the script, cuts
+  inside the shot, the frames. A failed take is marked `redo` with the reason;
+  read it (`tsrs takes list <project>`) and make another take (a new seed, or
+  fix the shot) instead of using it.
+- For the edit: `tsrs edit export <project> --music midia/<track>` writes the
+  best take of each shot, trimmed, as FCPXML/EDL for DaVinci Resolve.
+  `tsrs takes rate <project> <take> approved` pins the one the user chose.
+- A character with `elevenlabsVoice` (an ElevenLabs voice id) in film.json gets
+  their lines changed to that cloned voice after each take (timing kept; the
+  take's own sound stays in `takes/<take>.h3.mp4`). For an existing take:
+  `tsrs takes revoice <project> <take> --voice <id>` (uses ElevenLabs credits:
+  say so and wait for the user's yes before `--yes`). If the key is refused,
+  stop and tell the user; never ask for the key in chat.
+
+## Directing a film (film.json)
+
+For more than one shot, write the plan as `film.json` in the project (the bible
+and the scenes; see "A film planned and checked" in the TSRS README), then:
+
+```bash
+tsrs film check <project>     # fix every ✗ and check again until it says Ready
+tsrs film take <project>      # writes shots/ and queues every take, in order
+tsrs jobs wait <ids> --seconds 300
+tsrs takes list <project>     # redo the ones the checks failed
+```
+
+- Describe each character and place once, in the bible; it is repeated in
+  every shot for you. Cast everyone who appears; give lines a speaker who is cast.
+- `start: "cast"` when the cast has pictures (faces stay the same);
+  `"previous"` for a continuous move from the shot before.
+- Do only what was asked. When a call is refused, change what made it fail;
+  never send it again unchanged.
+- End your report with `tsrs ledger`: name only the files and takes it lists.
+
+## Overnight, faces, phone
+
+- `tsrs night plan <project> --start 23:00` queues the film's takes for the
+  night; `tsrs night status` shows them; the dailies (a reel with slates and
+  notes) land in `dailies/`. Plan it instead of queuing many takes by day.
+- `tsrs turnaround <project> midia/<character>.png --name <id>` makes five views
+  of a character; add the good ones to that character's `pictures` in
+  film.json and use `start: "cast"` so the face stays the same.
+- `tsrs access` prints the link for the user's phone (a secret: give it only to
+  the user who asked).
 
 ## As MCP tools
 

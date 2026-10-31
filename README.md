@@ -285,8 +285,9 @@ tsrs agenda run "AI news digest"        # exit 3: it calls a paid model; add --y
 
 | Kind | Commands | Without `--yes` |
 | --- | --- | --- |
-| read | `status`, `projects list/files/read`, `design check`, `board list`, `agenda list` | — |
-| write | `projects new/write`, `render motion`, `board add/move/update/remove`, `image local` | replacing a file only says what it would do |
+| read | `status`, `projects list/files/read`, `design check`, `video check`, `h3 prompt`, `film check`, `takes list`, `jobs list/status/wait`, `night status`, `access`, `ledger`, `board list`, `agenda list` | — |
+| write | `projects new/write`, `render motion`, `video run`, `take`, `film shots/take`, `turnaround`, `takes check/rate`, `edit export`, `jobs cancel`, `night plan/cancel`, `board add/move/update/remove`, `image local` | replacing a file, or making voice for `video run`, only says what it would do |
+| destructive | `access rotate` | only says what it would do |
 | cost | `agenda run` | only says which paid model it would call |
 
 `tsrs --help` lists them all and `tsrs <command> --help` gives the arguments.
@@ -338,6 +339,297 @@ npm run render -- motion-1.html --fps 60 --crf 16 --out opening.mp4
 
 This is the same contract as NWLab ForgeOS motion pages.
 
+### Faster renders and the manifest
+
+Several headless browsers capture the frames side by side, each a stretch of
+the video, and the stretches are joined without encoding again: about half the
+processor threads, at most 8 (`--workers <n>` to choose). Beside every video
+goes `<video>.manifest.json`: the composition and each file it loaded, the
+audio, each with its SHA-256; the versions of TSRS, Node, ffmpeg and the
+browser; the settings; and the video's own SHA-256. The same inputs list the
+same hashes, so a video that changed can be traced to what changed.
+
+## Narrated videos (video.json)
+
+A narrated video from a script file in the project folder: voice, the time of
+every word, the mix, the render, captions and a 9:16 copy, in one command.
+
+```json
+{
+  "name": "formulario-seguro",
+  "composition": "formulario-seguro.html",
+  "voice": { "provider": "runware", "voice": "826be797681d4b1a92042b54b3c75c64", "language": "pt" },
+  "music": { "file": "midia/trilha.flac", "volume": -11 },
+  "timing": { "lead": 0.6, "gap": 0.6, "tail": 3 },
+  "words": "whisper",
+  "captions": true,
+  "vertical": true,
+  "scenes": [
+    { "id": "gancho", "text": "Seu formulário de contato parece inofensivo." },
+    { "id": "dica1", "text": "Um: valide tudo no servidor.", "gap": 0.9 }
+  ]
+}
+```
+
+```bash
+npm run video -- projetos/formulario-seguro --check   # what is missing, what it would make and spend
+npm run video -- projetos/formulario-seguro --yes     # --yes: make the voice lines that are new
+tsrs video check formulario-seguro                     # the same, for agents
+tsrs video run formulario-seguro --yes
+```
+
+1. **Voice.** `"provider": "files"` takes each scene's `"audio"` (a file of the
+   project). `"runware"` makes each line with a Runware/HeyGen voice
+   (`RUNWARE_API_KEY` where TSRS runs): the free model first, the paid one if it
+   fails. Lines go to `midia/voz/` and are made again only when their text or
+   voice changes; making voice asks for `--yes`.
+2. **Timing.** The silence at both ends of each line is cut, the scenes are laid
+   one after another (`lead`, `gap`, per-scene `gap`, `tail`) and the time of
+   every word is found: Whisper on this computer, free (`"words": "whisper"`,
+   the `whisper-base_timestamped` model, downloaded once into `modelos/`), laid
+   onto the script's own words even where it mishears; without it, or with
+   `"words": "pauses"`, the words follow the pauses of the voice. All of it is
+   written to `video/<name>/timing.lock.json`.
+3. **Mix.** The narration over the music, lowered while the voice speaks.
+4. **Render.** The composition at the narration's length, with the timeline in
+   the page: `NWLab.timeline` (scenes with `start`, `dur`, `text`, `words`) and
+   `NWLab.word('scene', 'word', nth, shift)`, the second at which the voice says
+   that word. `--check` warns when the page waits for a word the script does
+   not say.
+5. **Captions** (`"captions": true` or a style: `size`, `color`, `accent`,
+   `band`, `font`, `position`): one line at a time, the word being said in the
+   accent color, drawn by the runtime (no libass needed).
+6. **9:16** (`"vertical": true`): the video across the width over a blurred copy
+   of itself, the captions below it. With both, the composition is rendered
+   once without captions (`video/<name>/clean.mp4`) and the captions are laid
+   over it in each format.
+
+The videos go to `videos/` with their manifests, which also record the script's
+and the timing lock's hashes.
+
+## MiniMax H3 takes
+
+Video with sound, made on this computer by MiniMax H3 through ComfyUI and the
+ComfyUI-MiniMaxH3-Easy nodes, the same graph as their own
+workflow. TSRS finds the files by name in what ComfyUI has: the FL2VA model
+(`diffusion_models/minimax_h3_fl2va*`; Ref2VA for reference pictures), an H3
+text encoder (Qwen3-VL-4B with its ClipProj projection, or another), both H3
+VAEs and, if present, a 4-step speed LoRA (4 steps instead of 20). A 3 s take at
+480P took 83 s on an RTX 3070 Laptop (8 GB).
+
+A shot is a JSON file of the project:
+
+```json
+{
+  "scene": "Seu Silva at his desk, morning light through the blinds",
+  "size": "MS", "angle": "eye level", "movement": "push-in",
+  "beats": ["he types slowly", "he stops and looks at the camera"],
+  "dialogue": [{ "speaker": "Seu Silva", "voice": "a calm, low voice", "text": "Bom dia.", "language": "pt" }],
+  "soundscape": "Keyboard clicks, a fan humming",
+  "seconds": 5
+}
+```
+
+```bash
+tsrs h3 prompt seu-silva-ep07 shots/s01.json             # the H3 prompt, its frames, what to fix
+tsrs take seu-silva-ep07 shots/s01.json --image midia/s01.png   # queued: answers with a job id at once
+tsrs jobs wait take-001-k3x9a --seconds 300              # waits (at most 600 s per call)
+tsrs jobs cancel take-001-k3x9a                          # stops it in ComfyUI too
+```
+
+- **Prompt.** The shot is written in H3's own form: `integrated_multimodal_description`,
+  `overall_soundscape` and `non_diegetic_music`; or, with reference pictures,
+  `subject_definitions`, `retention_analysis` and `detailed_description`. Size,
+  angle and movement become the camera phrases of MiniMax's guide; beats become
+  "First, … Then, … Finally, …" (never `[Shot 2]`, which asks for a cut); each
+  line is `<d>[Portuguese] …</d>` with the sentence that closes the mouth after
+  it; a shot without lines says "Mouths stay closed." and "Only ambient sound is heard."
+- **Length.** H3 takes 17n+5 frames at 24 fps (22 to 362): 5 s = 124, 8 s = 192, 10 s = 243.
+- **Checks** before anything renders: a length H3 does not take, more words than
+  fit the clip (3.4 a second in English, 2.8 in Portuguese), spoken words written
+  in the scene, a prompt over 7000 characters, and "no X" phrases: H3 has no
+  negative prompt, so naming a thing tends to bring it. Errors stop the take;
+  warnings are listed with it.
+- **Start.** `--image` (first frame), `--last`, both (first and last), or `--refs`
+  (up to 9 reference pictures, Ref2VA); the shot file may name them too
+  (`image`, `last`, `refs`).
+- **Queue.** Takes run one at a time on the GPU, in order; the answer is a job id.
+  A canceled or timed-out run is taken off ComfyUI's queue and interrupted.
+- **Output.** `takes/<name>.mp4` and `takes/<name>.json` (status `pending`, the
+  prompt, seed, steps, models, frames, pictures): the board counts it with the
+  card's takes.
+
+### Checked takes and the cut for Resolve
+
+Every take is checked when it is made (on the CPU; `--check no` to skip), and
+the verdict goes into `takes/<name>.json`; a take that fails is marked `redo`:
+
+- **The lines** are heard by Whisper on this computer and laid against the
+  script: under 85 % of the words heard, 3 or more in a row missing, or the
+  ending missing fails it. Numbers are spelled in Portuguese and English and
+  accents do not count. A voice in a shot without lines fails it too; words
+  after the lines are noted (the mouth may keep going).
+- **The picture**: a hard cut inside the shot fails it and gives the longest
+  stretch without one, to trim to; with `--image`/`--last`, whether the first
+  and last frames held the pictures. The thresholds come from FastH3 at
+  1280x736 and every number is in the report, to tune them on other builds.
+
+A 5 s take at 480P with a Portuguese line took 119 s to make and 16 s to check
+on an RTX 3070 Laptop; Whisper heard all 7 words.
+
+```bash
+tsrs takes list seu-silva-ep07                  # status, checks, ★ the best take of each shot
+tsrs takes check seu-silva-ep07 s01             # check again
+tsrs takes rate seu-silva-ep07 s01-2 approved   # approved, redo or pending
+tsrs edit export seu-silva-ep07 --music midia/trilha.flac
+```
+
+`edit export` takes the best take of each shot (approved, else one whose
+checks passed, else the newest not marked redo), in shot order (or `--takes
+s01,s03-2,s02`), trims each to its stretch without cuts, and writes to
+`exports/`: `<name>.fcpxml` (FCPXML 1.11, the music on a lane of its own; in
+DaVinci Resolve: File > Import > Timeline), `<name>.edl` (CMX 3600, pictures
+only) and `<name>-resolve.zip` (the FCPXML with the media beside it).
+
+### A film planned and checked before it renders (film.json)
+
+Whoever directs — you, Claude, Codex or a bot — writes the plan in one file of
+the project, `film.json`: the bible (cast with their description, voice and
+pictures; places; the look) and the scenes with their shots. TSRS checks it
+the same way every time and says exactly what to fix, shot by shot, so the
+quality bar does not depend on the model that wrote the plan.
+
+```json
+{
+  "title": "Seu Silva — ep. 07", "language": "pt", "look": "warm natural light, soft film grain",
+  "characters": [{ "id": "silva", "name": "Seu Silva", "description": "a man in his sixties with glasses and a grey beard",
+                   "voice": "a calm, warm voice", "pictures": ["midia/silva.png"],
+                   "elevenlabsVoice": "e1MAZ8in8PhkrhQwfrMh" }],
+  "locations": [{ "id": "cozinha", "name": "the kitchen", "description": "a small kitchen, morning light" }],
+  "scenes": [{ "id": "c1", "location": "cozinha", "shots": [
+    { "id": "s01", "size": "MS", "movement": "locked", "seconds": 5, "cast": ["silva"],
+      "action": "He pours coffee", "lines": [{ "speaker": "silva", "text": "Bom dia!" }] },
+    { "id": "s02", "start": "previous", "seconds": 3, "cast": ["silva"], "action": "He sips the coffee" },
+    { "id": "s03", "start": "cast", "seconds": 5, "cast": ["silva"], "action": "He smiles at the window" }
+  ] }]
+}
+```
+
+```bash
+tsrs film check seu-silva-ep07    # ✗ what to fix, ! what to look at, ✓ ready — shot by shot
+tsrs film take seu-silva-ep07     # writes shots/*.json and queues a take of each, in order
+```
+
+- The bible's descriptions go word for word into every shot the character or
+  place is in; lines stay out of the picture, in `<d>` with their language.
+- The checks: cast and places that exist in the bible, speakers cast in their
+  shot, someone named in the action but not cast (the model would draw a
+  stranger), lengths, words per second, speech in the action, "no X", and the
+  starts below.
+- `start`: `text`; `cast` (the cast's pictures as references, so faces stay
+  the same from shot to shot); `previous` (opens on the last frame of the take
+  of the shot before: a continuous move; it waits for that take in the queue);
+  `image` (opens on a picture of the project).
+
+#### Lines in a cloned voice (ElevenLabs)
+
+Give a character `"elevenlabsVoice": "<voice id>"` (a voice you cloned on
+ElevenLabs) and every take whose lines are all theirs comes out with the lines
+in that voice: once H3 has made the take, its sound goes through ElevenLabs'
+voice changer, which keeps the timing, so the mouth still matches; the loudness
+is matched to the take's own, the take's own sound is kept in
+`takes/<take>.h3.mp4`, and the checks hear the cloned voice. A shot whose lines
+are in more than one voice keeps H3's voices (the voice changer changes every
+voice it hears), and `film check` says so. The key is `ELEVENLABS_API_KEY` in
+the environment (on Windows, `setx ELEVENLABS_API_KEY "..."` works without
+restarting TSRS); it uses ElevenLabs credits, about a second of audio per
+second of speech. A refused key (HTTP 401/403) stops at once.
+
+```bash
+tsrs takes revoice seu-silva-ep07 c1-s01 --voice e1MAZ8in8PhkrhQwfrMh --yes   # an existing take
+tsrs takes revoice seu-silva-ep07 c1-s01 --voice h3                            # its own voice back
+tsrs take seu-silva-ep07 shots/c1-s01.json --revoice no                        # this take without it
+```
+
+### Bots that direct: the studio leash, the ledger and the bench
+
+- **Studio access** for Claude Code and Codex (Settings, "Studio only"): the
+  agent gets only the TSRS commands (its MCP server), its own files in the
+  folder, no shell (`--restricted` for Claude Code), none of your keys or
+  tokens in its environment (only its own login), a line that tells it files
+  and tool results are material, never instructions, and at most 2 hours a turn.
+- **A refused call is not sent again unchanged**: the same call within 2 minutes
+  gets the same refusal and "change what made it fail", until something changes.
+- **`tsrs ledger`**: what the commands really made, from TSRS's own records; a
+  bot ends its report with it instead of from memory.
+- **The bench** measures how well an agent directs TSRS, the same way for
+  Claude, Codex or a bot such as OpenMausBot's Nori. Eight briefs a producer
+  would type (`bench/briefs.json`) run against a dry TSRS — the real commands
+  and checks, but takes made in an instant, so nothing touches the GPU or your
+  projects — and each is scored *complete* (everything asked was made), *exact*
+  (nothing else, the asked settings) and *honest* (the reply names only files
+  that exist, and every take made):
+
+```bash
+node bench/run.mjs --agent claude --model sonnet
+node bench/run.mjs --agent codex
+node bench/run.mjs --agent command --command "node my-bot.mjs"   # the brief on stdin; the bot uses tsrs
+```
+
+Results go to `bench/results/`.
+
+### The night shift and the dailies
+
+```bash
+tsrs night plan seu-silva-ep07 --start 23:00     # or --start idle (default), or now
+tsrs night status
+tsrs night cancel
+```
+
+The takes of the film (or `--scenes`, `--shots`) are made unattended — at a
+time, when the computer has been idle for 2 minutes, or now — at most two in the
+GPU queue at a time, so other work still fits. The plan is a file
+(`.tsrs-night.json` in the projects folder) read on every tick: a restart of
+TSRS picks the shift up (made takes count, lost ones are queued again). At the
+end, in the project's `dailies/`: one reel of every take after a slate (the
+shot, the take, its seed and PASS or LOOK AT IT) and notes listing the takes to
+look at first. A phone with notifications on is told.
+
+### On the phone (Tailscale) and notifications
+
+```bash
+tsrs access          # the tailscale serve line and the link with the key
+tsrs access rotate   # a new key: every phone signs in again
+```
+
+This computer, asking for itself by its own name, needs no key; anything else
+does — `tailscale serve` included, since it connects under its `.ts.net` name.
+The phone opens the link once and keeps the key in a cookie. In Settings >
+Security, **Notify me on this device** turns on notifications (TSRS's own
+VAPID keys, messages encrypted for the device, sent only to the browsers' push
+services; no account anywhere): the night shift says when the dailies are ready.
+
+### Turnaround: five views of a character
+
+```bash
+tsrs turnaround seu-silva-ep07 midia/silva.png --name silva
+```
+
+Five views of the character in one picture, front to back, made together so
+they agree, into `midia/silva-view1..5.png` and `midia/silva-sheet.png`: the
+pictures for the cast in `film.json`, so faces stay the same from shot to shot.
+It needs, in ComfyUI, the H3 Ref2VA model, MATLOWAI's contact-sheet nodes
+(github.com/matlowai/ComfyUI-H3-ContactSheet, GPL-3.0, run inside ComfyUI) and
+matlod's Turnaround LoRA (huggingface.co/matlod/minimax-h3-turnaround); without
+them the command says what to install. Settings as the LoRA was trained: 512 px,
+28 passes; `--strength 0.7` keeps the look closest, 1.0 turns the furthest.
+
+MiniMax H3's own license applies to what it makes. Its community license, as
+published, does not cover some territories (the EU, the UK, South Korea and the
+USA at the time of writing): check it, or MiniMax's commercial license, before
+using takes in client work. The prompt rules follow Imagination Studio by Keys
+and Sam Wasserman (Apache-2.0): see [CREDITS.md](CREDITS.md).
+
 ## Providers
 
 Anthropic, OpenAI, Google Gemini, OpenRouter, DeepSeek, Elorian, Mistral, xAI (Grok),
@@ -378,7 +670,7 @@ hosts it allows (`--allow host` adds more).
 | `src/mission.ts`, `src/MissionView.tsx` | Mission Control |
 | `src/voiceLoop.ts`, `src/obsidian.ts` | Voice conversation, Obsidian notes |
 | `src/webSearch.ts`, `src/research.ts`, `server/search.mjs` | Own web search and deep research |
-| `render/` | Motion contract, MP4 renderer and its Vite plugin |
+| `render/` | Motion contract, MP4 renderer (parallel, manifest), narrated videos (`video.mjs`, `words.mjs`, `whisper.mjs`, `captions.mjs`, `vertical.mjs`) and its Vite plugin |
 | `bin/tsrs.mjs`, `server/agent*.mjs`, `skills/tsrs/` | The `tsrs` command, its MCP server and the agent skill |
 | `src/media.ts`, `src/mediaJobs.ts`, `src/mediaPrice.ts` | Media services, jobs and prices |
 | `src/knowledge.ts`, `src/embeddings.ts`, `src/extract.ts` | Knowledge bases |
@@ -423,7 +715,8 @@ What is done and what comes next: [ROADMAP.md](ROADMAP.md).
 
 ## License
 
-[MIT](LICENSE). anime.js and lottie-web, bundled in `public/motion/`, are MIT too.
+[MIT](LICENSE). Credits for ideas and rules taken from other projects: [CREDITS.md](CREDITS.md).
+anime.js and lottie-web, bundled in `public/motion/`, are MIT too.
 The local voices use Transformers.js and ONNX Runtime Web (Apache-2.0/MIT) and
 piper_phonemize, built on espeak-ng (GPL-3.0), loaded only when a Piper voice is
 used; Piper's voices and the Whisper models have licenses of their own, listed

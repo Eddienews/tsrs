@@ -12,7 +12,9 @@ test('reads the render options', () => {
     crf: 18,
     lufs: -14,
     online: true,
+    workers: null,
   })
+  expect(parseArgs(['a.html', '--workers', '40']).workers).toBe(16)
   expect(() => parseArgs(['a.html', '--fps'])).toThrow('--fps needs a value')
   expect(() => parseArgs(['a.html', '--crf', 'x'])).toThrow('--crf needs a number')
   expect(() => parseArgs(['a.html', '--loop'])).toThrow('unknown option --loop')

@@ -1,0 +1,64 @@
+{
+  "about": "Briefs a producer types to a directing agent, each with what TSRS must see happen. Scored by bench/run.mjs: complete (everything asked was made), exact (nothing else, the right settings), honest (the reply names only files that exist, and every take made).",
+  "briefs": [
+    {
+      "id": "one-take",
+      "brief": "No projeto cafe-aurora, faça um take de 5 segundos: uma xícara de café numa mesa de madeira perto da janela ao amanhecer, vapor subindo, câmera aproximando devagar. Sem falas.",
+      "setup": { "projects": ["cafe-aurora"] },
+      "expect": { "jobs": [{ "kind": "take", "n": 1, "project": "cafe-aurora", "seconds": [4.5, 5.5] }], "noLines": true }
+    },
+    {
+      "id": "line-pt",
+      "brief": "Projeto seu-silva-ep07: um take de 5 s do Seu Silva (homem de 60 anos, óculos, barba grisalha, camisa azul-clara) na cozinha dizendo \"Bom dia! Hoje o café está perfeito.\" em português.",
+      "setup": { "projects": ["seu-silva-ep07"] },
+      "expect": { "jobs": [{ "kind": "take", "n": 1, "project": "seu-silva-ep07" }], "linesHave": ["Bom dia", "perfeito"], "language": "Portuguese" }
+    },
+    {
+      "id": "first-frame",
+      "brief": "In project nori-rabbit-hole, make one 3-second take that opens on the picture midia/nori-desk.png: Nori the robot looks up from the desk and blinks. No dialogue.",
+      "setup": { "projects": ["nori-rabbit-hole"], "files": { "nori-rabbit-hole/midia/nori-desk.png": "png" } },
+      "expect": { "jobs": [{ "kind": "take", "n": 1, "project": "nori-rabbit-hole", "start": "first", "pictures": ["midia/nori-desk.png"] }] }
+    },
+    {
+      "id": "three-shots",
+      "brief": "Projeto milo-ep03: planeje e faça os takes de uma cena com 3 shots de 4 segundos cada, no parque: (1) plano geral do Milo, um menino de 8 anos de casaco amarelo, correndo; (2) close do Milo rindo; (3) o Milo pega uma pipa vermelha do chão. Sem falas.",
+      "setup": { "projects": ["milo-ep03"] },
+      "expect": { "jobs": [{ "kind": "take", "n": 3, "project": "milo-ep03" }], "noLines": true, "film": true }
+    },
+    {
+      "id": "fix-film",
+      "brief": "O film.json do projeto milo-ep04 está com erro. Corrija o que a checagem do TSRS apontar e faça os takes.",
+      "setup": {
+        "projects": ["milo-ep04"],
+        "files": {
+          "milo-ep04/film.json": { "title": "Milo ep 04", "language": "pt", "characters": [{ "id": "milo", "name": "Milo", "description": "an 8-year-old boy in a yellow coat" }], "locations": [{ "id": "parque", "name": "the park", "description": "a city park in autumn" }], "scenes": [{ "id": "c1", "location": "parque", "shots": [{ "id": "s01", "seconds": 3, "cast": ["milo"], "action": "Milo waves", "lines": [{ "speaker": "milo", "text": "Oi! Hoje eu vou contar uma história muito comprida sobre a minha pipa vermelha nova" }] }, { "id": "s02", "seconds": 4, "cast": ["mila"], "action": "Milo runs" }] }] }
+        }
+      },
+      "expect": { "jobs": [{ "kind": "take", "n": 2, "project": "milo-ep04" }], "filmValid": true }
+    },
+    {
+      "id": "only-check",
+      "brief": "Só confere o film.json do projeto milo-ep05 e me diz se está pronto. Não renderize nada.",
+      "setup": {
+        "projects": ["milo-ep05"],
+        "files": { "milo-ep05/film.json": { "title": "Milo ep 05", "characters": [{ "id": "milo", "name": "Milo", "description": "an 8-year-old boy in a yellow coat" }], "locations": [{ "id": "casa", "name": "the living room", "description": "a cozy living room" }], "scenes": [{ "id": "c1", "location": "casa", "shots": [{ "id": "s01", "seconds": 4, "cast": ["milo"], "action": "Milo reads a comic on the sofa" }] }] } }
+      },
+      "expect": { "jobs": [], "commands": [{ "name": "film check", "n": 1 }], "replyHas": ["pronto|ready"] }
+    },
+    {
+      "id": "export",
+      "brief": "No projeto ep-final, exporte a montagem para o DaVinci com a música midia/trilha.mp3.",
+      "setup": {
+        "projects": ["ep-final"],
+        "files": { "ep-final/midia/trilha.mp3": "mp4", "ep-final/takes/s01.mp4": "mp4", "ep-final/takes/s01.json": { "status": "approved", "name": "s01", "video": "takes/s01.mp4", "shot": "shots/s01.json", "made": "2026-10-31T10:00:00Z" }, "ep-final/takes/s02.mp4": "mp4", "ep-final/takes/s02.json": { "status": "pending", "name": "s02", "video": "takes/s02.mp4", "shot": "shots/s02.json", "made": "2026-10-31T10:01:00Z" } }
+      },
+      "expect": { "jobs": [], "commands": [{ "name": "edit export", "n": 1, "args": { "music": "midia/trilha.mp3" } }], "files": ["exports/*.fcpxml"] }
+    },
+    {
+      "id": "board",
+      "brief": "Add a card \"Milo ep 06\" to the TSRS board, kind episodio, series Milo, due 2026-11-14, linked to the project milo-ep06.",
+      "setup": { "projects": ["milo-ep06"] },
+      "expect": { "jobs": [], "commands": [{ "name": "board add", "n": 1, "args": { "series": "Milo", "due": "2026-11-14" } }] }
+    }
+  ]
+}

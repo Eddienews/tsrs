@@ -1234,6 +1234,22 @@ export const en: Record<string, string> = {
   'Acesso total': 'Full access',
   'Roda qualquer comando, sem perguntar. Use só em pastas e projetos em que você confia.':
     'Runs any command without asking. Use it only with folders and projects you trust.',
+  'Só o estúdio': 'Studio only',
+  'Celular e avisos': 'Phone and notifications',
+  'Para abrir o TSRS no celular pelo Tailscale, rode tsrs access neste computador: ele mostra a linha do tailscale serve e o link com a chave, que o celular pede uma vez. Os avisos dizem quando o turno da noite termina.':
+    'To open TSRS on a phone over Tailscale, run tsrs access on this computer: it shows the tailscale serve line and the link with the key, which the phone asks for once. Notifications say when the night shift ends.',
+  'Este navegador não recebe avisos.': 'This browser does not receive notifications.',
+  'Os avisos precisam de https (pelo Tailscale) ou do localhost.': 'Notifications need https (over Tailscale) or localhost.',
+  'Os avisos estão bloqueados nas configurações do navegador.': "Notifications are blocked in the browser's settings.",
+  'Avisos ligados': 'Notifications on',
+  'Avisar neste aparelho': 'Notify me on this device',
+  'Testar aviso': 'Send a test',
+  'Avisos ligados neste aparelho ({devices} no total).': 'Notifications on for this device ({devices} in all).',
+  'O navegador não deixou mostrar avisos.': 'The browser did not allow notifications.',
+  'Não deu: {error}': 'That did not work: {error}',
+  'Aviso de teste enviado para {sent} aparelho(s).': 'Test sent to {sent} device(s).',
+  'Para bots: usa só os comandos do TSRS (takes, filmes, quadro), mexe só nos arquivos da pasta, não roda comandos, não vê suas chaves e para em 2 horas.':
+    'For bots: uses only the TSRS commands (takes, films, the board), touches only the files in the folder, runs no commands, sees none of your keys and stops after 2 hours.',
   'Não encontrado.': 'Not found.',
   'Encontrado: {version}': 'Found: {version}',
   'Encontrado: {version} · {used}% do limite de uso': 'Found: {version} · {used}% of the usage limit',

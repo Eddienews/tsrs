@@ -365,6 +365,35 @@ Precisa do `npm run dev` rodando e do ffmpeg instalado. Peça ajustes à vontade
 ("deixe o título 1 segundo mais cedo", "troque a cor para laranja"): cada nova
 versão vira um MP4 novo, sem apagar os anteriores.
 
+### Vídeo narrado a partir de um roteiro (video.json)
+
+Para vídeos em série (anúncios, dicas, aulas), o roteiro pode ficar num arquivo
+`video.json` na pasta do projeto: as cenas com o texto de cada fala, a voz, a
+música, a página de animação e se você quer legendas e uma versão 9:16. Um
+comando faz o resto:
+
+```bash
+npm run video -- projetos/meu-anuncio --check   # confere tudo e diz o que faria e gastaria
+npm run video -- projetos/meu-anuncio --yes     # gera o vídeo
+```
+
+(ou, para agentes, `tsrs video check` e `tsrs video run`, capítulo 19)
+
+1. **Voz:** um arquivo de áudio por cena, ou gerada pelo Runware (`RUNWARE_API_KEY`),
+   primeiro com o modelo grátis. As falas ficam em `midia/voz/` e só são geradas
+   de novo quando o texto muda. Gerar voz pede `--yes`.
+2. **Tempo de cada palavra:** o Whisper do próprio computador ouve a narração e
+   marca quando cada palavra é dita (baixa uma vez cerca de 80 MB). A animação
+   pode reagir exatamente na palavra, com `NWLab.word('cena', 'palavra')`.
+3. **Mixagem, render, legendas e 9:16:** a música abaixa sob a voz; o vídeo é
+   renderizado com vários navegadores ao mesmo tempo; as legendas destacam a
+   palavra falada; a versão 9:16 põe o vídeo sobre um fundo desfocado com a
+   legenda abaixo.
+
+Os vídeos ficam em `videos/`, cada um com um `.manifest.json` que registra de
+onde ele veio (arquivos, versões e hashes). O exemplo completo do `video.json`
+está no README, em "Vídeos narrados".
+
 ### Vídeo curto (Reels, TikTok, Shorts)
 
 Um vídeo narrado, com imagens de banco e legendas palavra a palavra, feito a
@@ -922,6 +951,7 @@ mostra os argumentos e um exemplo. Os principais:
 | `tsrs projects new "Nome"` | Cria a pasta, com NOTES.md |
 | `tsrs projects write <pasta> <arquivo> --from ./arquivo` | Grava um arquivo (texto ou imagem) e anota no histórico |
 | `tsrs render motion <pasta> motion-1.html` | Gera o MP4 em `videos/` da pasta |
+| `tsrs video check` / `run <pasta>` | O vídeo narrado do `video.json`: confere; gera (voz nova pede `--yes`) |
 | `tsrs design check <pasta> index.html` | Abre a página em três larguras e diz o que não cabe |
 | `tsrs board list` / `add` / `move` / `update` / `remove` | O quadro de produção |
 | `tsrs agenda list` / `run` | As tarefas agendadas; rodar uma agora |
