@@ -149,10 +149,21 @@ export async function run(graph, kind, fetchImpl = fetch, wait = sleep, { signal
       const failure = messages.find((m) => m[0] === 'execution_error')?.[1]
       throw new Error(`ComfyUI: ${failure?.exception_message ?? 'the run failed'}`.slice(0, 400))
     }
+    const fetchFile = async (file) => {
+      const query = new URLSearchParams({ filename: file.filename, subfolder: file.subfolder ?? '', type: file.type ?? 'output' })
+      return Buffer.from(await (await ask(fetchImpl, `${base}/view?${query}`)).arrayBuffer())
+    }
+    if (kind === 'files') {
+      // Every image each node saved: [{ node, filename, bytes }].
+      const out = []
+      for (const [node, o] of Object.entries(history.outputs ?? {}))
+        for (const file of [...(o.images ?? [])].sort((a, b) => a.filename.localeCompare(b.filename))) out.push({ node, filename: file.filename, bytes: await fetchFile(file) })
+      if (!out.length) throw new Error('ComfyUI made no file.')
+      return out
+    }
     const file = outputFile(history.outputs, kind)
     if (!file) throw new Error('ComfyUI made no file.')
-    const query = new URLSearchParams({ filename: file.filename, subfolder: file.subfolder ?? '', type: file.type ?? 'output' })
-    return Buffer.from(await (await ask(fetchImpl, `${base}/view?${query}`)).arrayBuffer())
+    return fetchFile(file)
   }
 }
 
@@ -478,4 +489,69 @@ export async function makeTake(job, fetchImpl = fetch, wait = sleep) {
   const { graph, steps, unet, lora } = h3Graph(models, { ...job, prompt, images: names, seed, prefix: `tsrs-take/${Date.now()}` })
   const bytes = await run(graph, 'video', fetchImpl, wait, { signal: job.signal, maxWait: job.maxWait ?? 90 * 60_000, onStart: job.onStart })
   return { bytes, seed, steps, models: { unet, lora, clip: models.clip, projection: models.projection } }
+}
+
+// ---- Turnaround: five views of a character from one picture -----------------
+// matlod's Turnaround LoRA on MiniMax H3 Ref2VA, with MATLOWAI's contact-sheet
+// nodes (ComfyUI-H3-ContactSheet, GPL-3.0, run inside ComfyUI): five still
+// pictures ride where the five latent steps of a 17-frame clip would go, so
+// the model's consistency along time becomes consistency between the views.
+// Settings as the LoRA was trained (Imagination Studio's notes, Apache-2.0):
+// 512 px, res_multistep, simple, 28 passes; strength 1.0 turns the furthest,
+// about 0.7 keeps the look closest. The words "level" and "upright" stop the
+// model reading the orbit as a roll of the picture.
+export const TURNAROUND_PROMPT =
+  'the camera orbits horizontally around the subject of <Picture 1> at eye level, ninety degrees clockwise, the subject stays upright on the ground'
+export const TURNAROUND_SOURCES = {
+  nodes: 'https://github.com/matlowai/ComfyUI-H3-ContactSheet (GPL-3.0; into ComfyUI/custom_nodes)',
+  lora: 'https://huggingface.co/matlod/minimax-h3-turnaround (minimax_h3_five_view_512_s1500.safetensors, into ComfyUI/models/loras; under the MiniMax H3 Community License)',
+}
+
+export async function turnaroundModels(fetchImpl = fetch) {
+  const { models } = await h3Models(fetchImpl)
+  const [sheet, decode, lora] = await Promise.all(['H3ContactSheet', 'H3ContactSheetDecode', 'LoraLoaderModelOnly'].map((n) => info(fetchImpl, n)))
+  const loras = lora?.input?.required?.lora_name?.[0] ?? []
+  const turn = loras.find((n) => /turnaround|five[-_]view/i.test(String(n).split(/[\\/]/).pop()))
+  const missing = []
+  if (!sheet || !decode) missing.push(`the contact-sheet nodes: ${TURNAROUND_SOURCES.nodes}`)
+  if (!turn) missing.push(`the Turnaround LoRA: ${TURNAROUND_SOURCES.lora}`)
+  if (!models.ref2va) missing.push('the H3 Ref2VA model (diffusion_models/minimax_h3_ref2va*)')
+  if (!models.clip || !models.videoVae) missing.push('the H3 text encoder and video VAE')
+  return { ok: missing.length === 0, missing, models: { ...models, turnLora: turn ?? '' } }
+}
+
+export function turnaroundGraph(m, o) {
+  return {
+    1: { class_type: 'UNETLoader', inputs: { unet_name: m.ref2va, weight_dtype: 'default' } },
+    2: { class_type: 'LoraLoaderModelOnly', inputs: { model: ['1', 0], lora_name: m.turnLora, strength_model: o.strength ?? 1 } },
+    3: { class_type: 'CLIPLoader', inputs: { clip_name: m.clip, type: m.clipType, device: 'default' } },
+    ...(m.projection ? { 5: { class_type: 'ClipProjApply', inputs: { clip: ['3', 0], projection: m.projection } } } : {}),
+    4: { class_type: 'VAELoader', inputs: { vae_name: m.videoVae } },
+    6: { class_type: 'LoadImage', inputs: { image: o.image } },
+    7: { class_type: 'H3ContactSheet', inputs: { clip: [m.projection ? '5' : '3', 0], vae: ['4', 0], prompt: o.prompt ?? TURNAROUND_PROMPT, ref_image: ['6', 0], size: o.size ?? 512 } },
+    8: { class_type: 'RandomNoise', inputs: { noise_seed: o.seed } },
+    9: { class_type: 'KSamplerSelect', inputs: { sampler_name: 'res_multistep' } },
+    10: { class_type: 'BasicScheduler', inputs: { model: ['2', 0], scheduler: 'simple', steps: o.steps ?? 28, denoise: 1 } },
+    11: { class_type: 'BasicGuider', inputs: { model: ['2', 0], conditioning: ['7', 0] } },
+    12: { class_type: 'SamplerCustomAdvanced', inputs: { noise: ['8', 0], guider: ['11', 0], sampler: ['9', 0], sigmas: ['10', 0], latent_image: ['7', 1] } },
+    13: { class_type: 'H3ContactSheetDecode', inputs: { vae: ['4', 0], samples: ['12', 0] } },
+    14: { class_type: 'SaveImage', inputs: { images: ['13', 0], filename_prefix: `${o.prefix}_view` } },
+    15: { class_type: 'SaveImage', inputs: { images: ['13', 1], filename_prefix: `${o.prefix}_sheet` } },
+  }
+}
+
+// { image: { mime, data }, size, strength, steps, seed, signal } → { sheet, views: [5 Buffers], seed }
+export async function makeTurnaround(job, fetchImpl = fetch, wait = sleep) {
+  const size = Number(job.size ?? 512)
+  if (size % 32 || size < 512 || size > 2048) throw new Error('size is a multiple of 32 from 512 to 2048.')
+  const { ok, missing, models } = await turnaroundModels(fetchImpl)
+  if (!ok) throw new Error(`ComfyUI is missing ${missing.join('; ')}.`)
+  const seed = newSeed(job.seed)
+  const image = await upload(fetchImpl, job.image, 0)
+  const graph = turnaroundGraph(models, { image, size, strength: job.strength, steps: job.steps, seed, prefix: `tsrs-turn/${Date.now()}` })
+  const files = await run(graph, 'files', fetchImpl, wait, { signal: job.signal, maxWait: job.maxWait ?? 60 * 60_000 })
+  const views = files.filter((f) => f.node === '14').map((f) => f.bytes)
+  const sheet = files.find((f) => f.node === '15')?.bytes
+  if (views.length !== 5 || !sheet) throw new Error('ComfyUI finished without the five views.')
+  return { sheet, views, seed, strength: job.strength ?? 1 }
 }

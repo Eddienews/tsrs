@@ -285,8 +285,9 @@ tsrs agenda run "AI news digest"        # exit 3: it calls a paid model; add --y
 
 | Kind | Commands | Without `--yes` |
 | --- | --- | --- |
-| read | `status`, `projects list/files/read`, `design check`, `video check`, `h3 prompt`, `film check`, `takes list`, `jobs list/status/wait`, `ledger`, `board list`, `agenda list` | — |
-| write | `projects new/write`, `render motion`, `video run`, `take`, `film shots/take`, `takes check/rate`, `edit export`, `jobs cancel`, `board add/move/update/remove`, `image local` | replacing a file, or making voice for `video run`, only says what it would do |
+| read | `status`, `projects list/files/read`, `design check`, `video check`, `h3 prompt`, `film check`, `takes list`, `jobs list/status/wait`, `night status`, `access`, `ledger`, `board list`, `agenda list` | — |
+| write | `projects new/write`, `render motion`, `video run`, `take`, `film shots/take`, `turnaround`, `takes check/rate`, `edit export`, `jobs cancel`, `night plan/cancel`, `board add/move/update/remove`, `image local` | replacing a file, or making voice for `video run`, only says what it would do |
+| destructive | `access rotate` | only says what it would do |
 | cost | `agenda run` | only says which paid model it would call |
 
 `tsrs --help` lists them all and `tsrs <command> --help` gives the arguments.
@@ -555,6 +556,52 @@ node bench/run.mjs --agent command --command "node my-bot.mjs"   # the brief on 
 ```
 
 Results go to `bench/results/`.
+
+### The night shift and the dailies
+
+```bash
+tsrs night plan seu-silva-ep07 --start 23:00     # or --start idle (default), or now
+tsrs night status
+tsrs night cancel
+```
+
+The takes of the film (or `--scenes`, `--shots`) are made unattended — at a
+time, when the computer has been idle for 2 minutes, or now — at most two in the
+GPU queue at a time, so other work still fits. The plan is a file
+(`.tsrs-night.json` in the projects folder) read on every tick: a restart of
+TSRS picks the shift up (made takes count, lost ones are queued again). At the
+end, in the project's `dailies/`: one reel of every take after a slate (the
+shot, the take, its seed and PASS or LOOK AT IT) and notes listing the takes to
+look at first. A phone with notifications on is told.
+
+### On the phone (Tailscale) and notifications
+
+```bash
+tsrs access          # the tailscale serve line and the link with the key
+tsrs access rotate   # a new key: every phone signs in again
+```
+
+This computer, asking for itself by its own name, needs no key; anything else
+does — `tailscale serve` included, since it connects under its `.ts.net` name.
+The phone opens the link once and keeps the key in a cookie. In Settings >
+Security, **Notify me on this device** turns on notifications (TSRS's own
+VAPID keys, messages encrypted for the device, sent only to the browsers' push
+services; no account anywhere): the night shift says when the dailies are ready.
+
+### Turnaround: five views of a character
+
+```bash
+tsrs turnaround seu-silva-ep07 midia/silva.png --name silva
+```
+
+Five views of the character in one picture, front to back, made together so
+they agree, into `midia/silva-view1..5.png` and `midia/silva-sheet.png`: the
+pictures for the cast in `film.json`, so faces stay the same from shot to shot.
+It needs, in ComfyUI, the H3 Ref2VA model, MATLOWAI's contact-sheet nodes
+(github.com/matlowai/ComfyUI-H3-ContactSheet, GPL-3.0, run inside ComfyUI) and
+matlod's Turnaround LoRA (huggingface.co/matlod/minimax-h3-turnaround); without
+them the command says what to install. Settings as the LoRA was trained: 512 px,
+28 passes; `--strength 0.7` keeps the look closest, 1.0 turns the furthest.
 
 MiniMax H3's own license applies to what it makes. Its community license, as
 published, does not cover some territories (the EU, the UK, South Korea and the

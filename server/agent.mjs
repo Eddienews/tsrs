@@ -74,7 +74,8 @@ const bytes = (n) => (n < 1024 ? `${n} B` : n < 1024 ** 2 ? `${(n / 1024).toFixe
 //   renderMotion, renderBusy   from render/serve.mjs
 //   video        readSpec, checkVideo, describeCheck, runVideo from render/video.mjs
 //   inspectPage  from design.mjs
-//   comfy, sdcpp { status(), makeImage(job) }; comfy also h3Models(), makeTake(job)
+//   comfy, sdcpp { status(), makeImage(job) }; comfy also h3Models(), makeTake(job),
+//                turnaroundModels(), makeTurnaround(job)
 //   jobs         the GPU queue (jobs.mjs)
 //   checkTake(file, { script, first, last })   the take checks (takecheck.mjs)
 //   ffmpeg       the ffmpeg command
@@ -636,6 +637,31 @@ export function createAgent(deps, root = projectsRoot()) {
         ? rows.map((m) => `${new Date(m.at).toISOString().slice(11, 19)}  ${m.command}  ${m.what}`).join('\n')
         : 'Nothing was made or changed by the commands in that time.'
       return { text: `What TSRS's records say was made:\n${text}`, result: rows }
+    },
+
+    async turnaround(args) {
+      const folder = await project(args.project)
+      const pic = await picture(folder, args.picture)
+      if (!deps.comfy.turnaroundModels) throw new AgentError('failed', 'This TSRS cannot make turnarounds.')
+      const ready = await deps.comfy.turnaroundModels().catch((error) => {
+        throw invalid(error.message)
+      })
+      if (!ready.ok) throw invalid(`ComfyUI cannot make turnarounds yet. Install, then restart ComfyUI:\n- ${ready.missing.join('\n- ')}`)
+      const stem = slug(args.name || basename(String(args.picture)).replace(/\.[^.]+$/, '')).slice(0, 40) || 'turnaround'
+      const job = queue().submit({ kind: 'turnaround', title: stem, project: folder, params: { name: stem, picture: pic.rel } }, async (_job, { signal }) => {
+        const made = await deps.comfy.makeTurnaround({ image: pic, size: args.size, strength: args.strength, seed: args.seed, signal })
+        const files = [
+          { name: `midia/${stem}-sheet.png`, content: made.sheet.toString('base64'), encoding: 'base64' },
+          ...made.views.map((v, i) => ({ name: `midia/${stem}-view${i + 1}.png`, content: v.toString('base64'), encoding: 'base64' })),
+        ]
+        await writeFiles(folder, files)
+        await note(folder, files.map((f) => f.name))
+        return { file: files[0].name, files: files.map((f) => f.name), seed: made.seed }
+      })
+      return {
+        text: `Queued turnaround ${job.id}: five views of ${pic.rel}, into midia/${stem}-view1..5.png and midia/${stem}-sheet.png.\nThen add the views you like to the character's pictures in film.json.\nFollow it with: tsrs jobs wait ${job.id}`,
+        result: job,
+      }
     },
 
     async 'takes list'(args) {

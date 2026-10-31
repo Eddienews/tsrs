@@ -284,8 +284,8 @@ tsrs agenda run "Resumo de IA"          # sai com 3: chama um modelo pago; com -
 
 | Tipo | Comandos | Sem `--yes` |
 | --- | --- | --- |
-| leitura | `status`, `projects list/files/read`, `design check`, `video check`, `h3 prompt`, `film check`, `takes list`, `jobs list/status/wait`, `ledger`, `board list`, `agenda list` | — |
-| escrita | `projects new/write`, `render motion`, `video run`, `take`, `film shots/take`, `takes check/rate`, `edit export`, `jobs cancel`, `board add/move/update/remove`, `image local` | substituir um arquivo, ou gerar voz no `video run`, só diz o que faria |
+| leitura | `status`, `projects list/files/read`, `design check`, `video check`, `h3 prompt`, `film check`, `takes list`, `jobs list/status/wait`, `night status`, `access`, `ledger`, `board list`, `agenda list` | — |
+| escrita | `projects new/write`, `render motion`, `video run`, `take`, `film shots/take`, `turnaround`, `takes check/rate`, `edit export`, `jobs cancel`, `night plan/cancel`, `board add/move/update/remove`, `image local` | substituir um arquivo, ou gerar voz no `video run`, só diz o que faria |
 | custo | `agenda run` | só diz qual modelo pago chamaria |
 
 `tsrs --help` lista todos e `tsrs <comando> --help` mostra os argumentos (a
@@ -532,6 +532,52 @@ node bench/run.mjs --agent command --command "node meu-bot.mjs"   # o brief no s
 ```
 
 Os resultados vão para `bench/results/`.
+
+### O turno da noite e as dailies
+
+```bash
+tsrs night plan seu-silva-ep07 --start 23:00     # ou --start idle (padrão), ou now
+tsrs night status
+tsrs night cancel
+```
+
+Os takes do filme (ou `--scenes`, `--shots`) são feitos sem ninguém olhando — num
+horário, quando o computador fica 2 minutos ocioso, ou agora — no máximo dois na
+fila da GPU por vez. O plano é um arquivo (`.tsrs-night.json` na pasta de
+projetos) relido a cada passo: se o TSRS reiniciar, o turno continua de onde
+estava. No fim, em `dailies/` do projeto: um rolo com todos os takes, cada um
+depois de uma claquete (shot, take, seed e PASS ou LOOK AT IT), e notas com os
+takes para olhar primeiro. Um celular com avisos ligados é avisado.
+
+### No celular (Tailscale) e avisos
+
+```bash
+tsrs access          # a linha do tailscale serve e o link com a chave
+tsrs access rotate   # chave nova: todo celular entra de novo
+```
+
+Este computador, pedindo para si mesmo pelo próprio nome, não precisa de chave;
+qualquer outro precisa — o `tailscale serve` também, porque conecta com o nome
+`.ts.net`. O celular abre o link uma vez e guarda a chave num cookie. Em
+Configurações > Segurança, **Avisar neste aparelho** liga os avisos (chaves
+VAPID do próprio TSRS, mensagens cifradas para o aparelho, só para os serviços
+de push dos navegadores; nenhuma conta): o turno da noite avisa quando as
+dailies ficam prontas.
+
+### Turnaround: cinco vistas de um personagem
+
+```bash
+tsrs turnaround seu-silva-ep07 midia/silva.png --name silva
+```
+
+Cinco vistas do personagem de uma foto, de frente até de costas, feitas juntas
+para combinarem, em `midia/silva-view1..5.png` e `midia/silva-sheet.png`: as
+fotos do elenco no `film.json`, para o rosto não mudar de shot para shot. Precisa,
+no ComfyUI, do modelo H3 Ref2VA, dos nós de contact sheet do MATLOWAI
+(github.com/matlowai/ComfyUI-H3-ContactSheet, GPL-3.0, rodando dentro do ComfyUI)
+e da LoRA Turnaround do matlod (huggingface.co/matlod/minimax-h3-turnaround); sem
+eles, o comando diz o que instalar. `--strength 0.7` mantém o visual mais
+próximo; 1.0 gira mais.
 
 Vale a licença do próprio MiniMax H3 para o que ele faz. A licença comunitária
 publicada não cobre alguns territórios (UE, Reino Unido, Coreia do Sul e EUA,

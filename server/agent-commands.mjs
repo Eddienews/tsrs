@@ -171,6 +171,20 @@ export const COMMANDS = [
     example: 'tsrs film take seu-silva-ep07 --scenes c1',
   },
   {
+    name: 'turnaround',
+    kind: 'write',
+    summary: "Queues a turnaround: five views of a character (front to back) from one picture, made together so they agree — pictures for film.json's cast. On this computer's ComfyUI (H3 Ref2VA + the Turnaround LoRA).",
+    args: [
+      { name: 'project', at: 0, required: true, help: 'project folder' },
+      { name: 'picture', at: 1, required: true, help: 'the character, a picture of the project' },
+      { name: 'name', help: 'file names (default: the picture name)' },
+      { name: 'size', type: 'number', help: '512 (as trained, default) to 2048, a multiple of 32' },
+      { name: 'strength', type: 'number', help: 'the LoRA: 1.0 turns the furthest (default), about 0.7 keeps the look closest' },
+      { name: 'seed', type: 'number', help: 'the seed' },
+    ],
+    example: 'tsrs turnaround seu-silva-ep07 midia/silva.png --name silva',
+  },
+  {
     name: 'takes list',
     kind: 'read',
     summary: "A project's takes: status, what the checks found, and the best take of each shot.",

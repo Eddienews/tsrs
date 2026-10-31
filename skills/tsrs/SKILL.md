@@ -127,6 +127,17 @@ tsrs takes list <project>     # redo the ones the checks failed
   never send it again unchanged.
 - End your report with `tsrs ledger`: name only the files and takes it lists.
 
+## Overnight, faces, phone
+
+- `tsrs night plan <project> --start 23:00` queues the film's takes for the
+  night; `tsrs night status` shows them; the dailies (a reel with slates and
+  notes) land in `dailies/`. Plan it instead of queuing many takes by day.
+- `tsrs turnaround <project> midia/<character>.png --name <id>` makes five views
+  of a character; add the good ones to that character's `pictures` in
+  film.json and use `start: "cast"` so the face stays the same.
+- `tsrs access` prints the link for the user's phone (a secret: give it only to
+  the user who asked).
+
 ## As MCP tools
 
 `tsrs mcp` offers the same commands as an MCP server on stdio (tool names use

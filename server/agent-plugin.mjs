@@ -11,7 +11,7 @@ import { versionInfo } from '../render/version-plugin.mjs'
 import { checkVideo, describeCheck, readSpec, runVideo } from '../render/video.mjs'
 import { transcribeWords } from '../render/whisper.mjs'
 import { AGENT_PATH, agentFile, agentHandler, createAgent, writeAgentFile } from './agent.mjs'
-import { comfyStatus, h3Models, makeImage as comfyImage, makeTake } from './comfy.mjs'
+import { comfyStatus, h3Models, makeImage as comfyImage, makeTake, makeTurnaround, turnaroundModels } from './comfy.mjs'
 import { inspectPage } from './design.mjs'
 import { accessKey, notifyAll, vapidKeys } from './access.mjs'
 import { extensionsRoot } from './extensions.mjs'
@@ -74,7 +74,14 @@ export function tsrsAgent(agendaFor) {
         renderFolder: defaultFolder(),
         inspectPage,
         log,
-        comfy: { status: () => comfyStatus(), makeImage: (job) => comfyImage(job), h3Models: () => h3Models(), makeTake: (job) => makeTake(job) },
+        comfy: {
+          status: () => comfyStatus(),
+          makeImage: (job) => comfyImage(job),
+          h3Models: () => h3Models(),
+          makeTake: (job) => makeTake(job),
+          turnaroundModels: () => turnaroundModels(),
+          makeTurnaround: (job) => makeTurnaround(job),
+        },
         jobs,
         night,
         access,
