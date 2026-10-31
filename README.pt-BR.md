@@ -284,8 +284,8 @@ tsrs agenda run "Resumo de IA"          # sai com 3: chama um modelo pago; com -
 
 | Tipo | Comandos | Sem `--yes` |
 | --- | --- | --- |
-| leitura | `status`, `projects list/files/read`, `design check`, `video check`, `board list`, `agenda list` | — |
-| escrita | `projects new/write`, `render motion`, `video run`, `board add/move/update/remove`, `image local` | substituir um arquivo, ou gerar voz no `video run`, só diz o que faria |
+| leitura | `status`, `projects list/files/read`, `design check`, `video check`, `h3 prompt`, `film check`, `takes list`, `jobs list/status/wait`, `night status`, `access`, `ledger`, `board list`, `agenda list` | — |
+| escrita | `projects new/write`, `render motion`, `video run`, `take`, `film shots/take`, `turnaround`, `takes check/rate`, `edit export`, `jobs cancel`, `night plan/cancel`, `board add/move/update/remove`, `image local` | substituir um arquivo, ou gerar voz no `video run`, só diz o que faria |
 | custo | `agenda run` | só diz qual modelo pago chamaria |
 
 `tsrs --help` lista todos e `tsrs <comando> --help` mostra os argumentos (a
@@ -401,6 +401,209 @@ tsrs video run formulario-seguro --yes
 Os vídeos vão para `videos/` com seus manifestos, que guardam também os hashes
 do roteiro e do arquivo de tempos.
 
+## Takes do MiniMax H3
+
+Vídeo com som, feito neste computador pelo MiniMax H3 no ComfyUI com os nós
+ComfyUI-MiniMaxH3-Easy, no mesmo grafo do workflow deles. O TSRS acha os
+arquivos pelo nome no que o ComfyUI tem: o modelo FL2VA
+(`diffusion_models/minimax_h3_fl2va*`; o Ref2VA para fotos de referência), um
+text encoder do H3 (Qwen3-VL-4B com a projeção ClipProj, ou outro), os dois VAEs
+do H3 e, se houver, uma LoRA de 4 passos (4 passos em vez de 20). Um take de
+3 s em 480P levou 83 s numa RTX 3070 Laptop (8 GB).
+
+Um shot é um arquivo JSON do projeto:
+
+```json
+{
+  "scene": "Seu Silva at his desk, morning light through the blinds",
+  "size": "MS", "angle": "eye level", "movement": "push-in",
+  "beats": ["he types slowly", "he stops and looks at the camera"],
+  "dialogue": [{ "speaker": "Seu Silva", "voice": "a calm, low voice", "text": "Bom dia.", "language": "pt" }],
+  "soundscape": "Keyboard clicks, a fan humming",
+  "seconds": 5
+}
+```
+
+```bash
+tsrs h3 prompt seu-silva-ep07 shots/s01.json             # o prompt do H3, os frames, o que corrigir
+tsrs take seu-silva-ep07 shots/s01.json --image midia/s01.png   # vai para a fila: responde na hora com o id
+tsrs jobs wait take-001-k3x9a --seconds 300              # espera (no máximo 600 s por chamada)
+tsrs jobs cancel take-001-k3x9a                          # para também no ComfyUI
+```
+
+- **Prompt.** O shot é escrito no formato do próprio H3 (`integrated_multimodal_description`,
+  `overall_soundscape`, `non_diegetic_music`; com referências, `subject_definitions`,
+  `retention_analysis`, `detailed_description`). Tamanho, ângulo e movimento
+  viram as frases de câmera do guia da MiniMax; as batidas viram "First, … Then,
+  … Finally, …" (nunca `[Shot 2]`, que pede um corte); cada fala vai em
+  `<d>[Portuguese] …</d>` com a frase que fecha a boca depois; um shot sem fala
+  diz "Mouths stay closed." e "Only ambient sound is heard."
+- **Duração.** O H3 aceita 17n+5 frames a 24 fps (22 a 362): 5 s = 124, 8 s = 192, 10 s = 243.
+- **Checagens** antes de renderizar: duração que o H3 não aceita, mais palavras
+  do que cabem (3,4 por segundo em inglês, 2,8 em português), fala escrita na
+  cena, prompt com mais de 7000 caracteres e frases com "no X" / "sem X": o H3
+  não tem prompt negativo, então nomear algo tende a trazê-lo. Erros barram o
+  take; avisos vêm junto.
+- **Início.** `--image` (primeiro quadro), `--last`, os dois, ou `--refs` (até 9
+  fotos de referência, Ref2VA); o arquivo do shot também pode trazê-los.
+- **Fila.** Um take por vez na GPU, em ordem; a resposta é o id do job. Um take
+  cancelado ou que passou do tempo sai da fila do ComfyUI e é interrompido.
+- **Saída.** `takes/<nome>.mp4` e `takes/<nome>.json` (status `pending`, prompt,
+  seed, passos, modelos, frames, fotos): o quadro conta com os takes do cartão.
+
+### Takes checados e o corte para o Resolve
+
+Todo take é checado quando fica pronto (na CPU; `--check no` para pular), e o
+veredito vai para `takes/<nome>.json`; um take reprovado vira `redo`:
+
+- **As falas** são ouvidas pelo Whisper neste computador e comparadas com o
+  roteiro: menos de 85 % das palavras ouvidas, 3 ou mais seguidas faltando, ou
+  o final faltando reprova. Números são escritos por extenso em português e
+  inglês, e acentos não contam. Voz num shot sem fala também reprova; palavras
+  depois das falas ficam anotadas (a boca pode continuar mexendo).
+- **A imagem**: um corte dentro do shot reprova e dá o trecho mais longo sem
+  corte, para aparar; com `--image`/`--last`, se o primeiro e o último quadros
+  seguraram as fotos. Os limites vêm do FastH3 em 1280x736 e cada número fica
+  no relatório, para ajustar em outros builds.
+
+Um take de 5 s em 480P com uma fala em português levou 119 s para sair e 16 s
+para ser checado numa RTX 3070 Laptop; o Whisper ouviu as 7 palavras.
+
+```bash
+tsrs takes list seu-silva-ep07                  # status, checagens, ★ o melhor take de cada shot
+tsrs takes check seu-silva-ep07 s01             # checa de novo
+tsrs takes rate seu-silva-ep07 s01-2 approved   # approved, redo ou pending
+tsrs edit export seu-silva-ep07 --music midia/trilha.flac
+```
+
+O `edit export` pega o melhor take de cada shot (o aprovado; senão um que
+passou nas checagens; senão o mais novo que não está como redo), na ordem dos
+shots (ou `--takes s01,s03-2,s02`), apara cada um no trecho sem corte e grava em
+`exports/`: `<nome>.fcpxml` (FCPXML 1.11, a música numa trilha própria; no
+DaVinci Resolve: File > Import > Timeline), `<nome>.edl` (CMX 3600, só imagem) e
+`<nome>-resolve.zip` (o FCPXML com as mídias ao lado).
+
+### Um filme planejado e checado antes de renderizar (film.json)
+
+Quem dirige — você, o Claude, o Codex ou um bot — escreve o plano num arquivo
+do projeto, o `film.json`: a bíblia (elenco com descrição, voz e fotos; locais;
+o look) e as cenas com seus shots. O TSRS confere tudo do mesmo jeito sempre e
+diz exatamente o que corrigir, shot a shot, então a qualidade não depende do
+modelo que escreveu o plano. Formato e exemplo: veja a seção em inglês no
+README.md.
+
+```bash
+tsrs film check seu-silva-ep07    # ✗ o que corrigir, ! o que olhar, ✓ pronto — shot a shot
+tsrs film take seu-silva-ep07     # grava shots/*.json e põe um take de cada na fila, em ordem
+```
+
+- As descrições da bíblia entram palavra por palavra em todo shot do personagem
+  ou do local; as falas ficam fora da imagem, em `<d>` com o idioma.
+- As checagens: elenco e locais que existem na bíblia, quem fala está no shot,
+  alguém citado na ação mas fora do elenco (o modelo desenharia um estranho),
+  duração, palavras por segundo, fala na ação, "sem X" e os inícios abaixo.
+- `start`: `text`; `cast` (as fotos do elenco como referência: o rosto não muda
+  de shot para shot); `previous` (abre no último quadro do take do shot
+  anterior: movimento contínuo; espera aquele take na fila); `image` (abre numa
+  foto do projeto).
+
+#### Falas na sua voz clonada (ElevenLabs)
+
+Dê a um personagem `"elevenlabsVoice": "<id da voz>"` (uma voz clonada no
+ElevenLabs) e todo take em que só ele fala sai com as falas nessa voz: depois
+que o H3 faz o take, o som passa pelo voice changer do ElevenLabs, que mantém o
+tempo, então a boca continua sincronizada; o volume é igualado ao do take, o som
+original fica em `takes/<take>.h3.mp4` e as checagens ouvem a voz clonada. Um
+shot com falas de mais de uma voz fica com as vozes do H3 (o voice changer muda
+todas as vozes que ouve), e o `film check` avisa. A chave é a variável
+`ELEVENLABS_API_KEY` (no Windows, `setx ELEVENLABS_API_KEY "..."` funciona sem
+reiniciar o TSRS); usa créditos do ElevenLabs, cerca de um segundo de áudio por
+segundo de fala. Chave recusada (HTTP 401/403) para na hora.
+
+```bash
+tsrs takes revoice seu-silva-ep07 c1-s01 --voice e1MAZ8in8PhkrhQwfrMh --yes   # um take que já existe
+tsrs takes revoice seu-silva-ep07 c1-s01 --voice h3                            # a voz do H3 de volta
+tsrs take seu-silva-ep07 shots/c1-s01.json --revoice no                        # este take sem trocar
+```
+
+### Bots que dirigem: o modo estúdio, o ledger e o benchmark
+
+- **Acesso "Só o estúdio"** para o Claude Code e o Codex (Configurações): o
+  agente só tem os comandos do TSRS (o servidor MCP dele), os próprios arquivos
+  da pasta, nenhum terminal (`--restricted` no Claude Code), nenhuma das suas
+  chaves no ambiente (só o login dele), uma linha dizendo que arquivos e
+  resultados de ferramentas são material, nunca instrução, e no máximo 2 horas
+  por turno.
+- **Chamada recusada não é repetida igual**: a mesma chamada em 2 minutos
+  recebe a mesma recusa e "mude o que fez falhar", até algo mudar.
+- **`tsrs ledger`**: o que os comandos fizeram de verdade, pelos registros do
+  TSRS; o bot termina o relatório com ele em vez da memória.
+- **O benchmark** mede o quanto um agente dirige bem o TSRS, do mesmo jeito para
+  o Claude, o Codex ou um bot como o Nori do OpenMausBot. Oito briefs
+  (`bench/briefs.json`) rodam contra um TSRS de mentira — os comandos e
+  checagens reais, mas takes instantâneos, sem tocar na GPU nem nos seus
+  projetos — e cada um recebe nota *completo*, *exato* e *honesto*:
+
+```bash
+node bench/run.mjs --agent claude --model sonnet
+node bench/run.mjs --agent codex
+node bench/run.mjs --agent command --command "node meu-bot.mjs"   # o brief no stdin; o bot usa o tsrs
+```
+
+Os resultados vão para `bench/results/`.
+
+### O turno da noite e as dailies
+
+```bash
+tsrs night plan seu-silva-ep07 --start 23:00     # ou --start idle (padrão), ou now
+tsrs night status
+tsrs night cancel
+```
+
+Os takes do filme (ou `--scenes`, `--shots`) são feitos sem ninguém olhando — num
+horário, quando o computador fica 2 minutos ocioso, ou agora — no máximo dois na
+fila da GPU por vez. O plano é um arquivo (`.tsrs-night.json` na pasta de
+projetos) relido a cada passo: se o TSRS reiniciar, o turno continua de onde
+estava. No fim, em `dailies/` do projeto: um rolo com todos os takes, cada um
+depois de uma claquete (shot, take, seed e PASS ou LOOK AT IT), e notas com os
+takes para olhar primeiro. Um celular com avisos ligados é avisado.
+
+### No celular (Tailscale) e avisos
+
+```bash
+tsrs access          # a linha do tailscale serve e o link com a chave
+tsrs access rotate   # chave nova: todo celular entra de novo
+```
+
+Este computador, pedindo para si mesmo pelo próprio nome, não precisa de chave;
+qualquer outro precisa — o `tailscale serve` também, porque conecta com o nome
+`.ts.net`. O celular abre o link uma vez e guarda a chave num cookie. Em
+Configurações > Segurança, **Avisar neste aparelho** liga os avisos (chaves
+VAPID do próprio TSRS, mensagens cifradas para o aparelho, só para os serviços
+de push dos navegadores; nenhuma conta): o turno da noite avisa quando as
+dailies ficam prontas.
+
+### Turnaround: cinco vistas de um personagem
+
+```bash
+tsrs turnaround seu-silva-ep07 midia/silva.png --name silva
+```
+
+Cinco vistas do personagem de uma foto, de frente até de costas, feitas juntas
+para combinarem, em `midia/silva-view1..5.png` e `midia/silva-sheet.png`: as
+fotos do elenco no `film.json`, para o rosto não mudar de shot para shot. Precisa,
+no ComfyUI, do modelo H3 Ref2VA, dos nós de contact sheet do MATLOWAI
+(github.com/matlowai/ComfyUI-H3-ContactSheet, GPL-3.0, rodando dentro do ComfyUI)
+e da LoRA Turnaround do matlod (huggingface.co/matlod/minimax-h3-turnaround); sem
+eles, o comando diz o que instalar. `--strength 0.7` mantém o visual mais
+próximo; 1.0 gira mais.
+
+Vale a licença do próprio MiniMax H3 para o que ele faz. A licença comunitária
+publicada não cobre alguns territórios (UE, Reino Unido, Coreia do Sul e EUA,
+no momento em que isto foi escrito): confira, ou a licença comercial da
+MiniMax, antes de usar takes em trabalho de cliente. As regras de prompt seguem
+o Imagination Studio de Keys e Sam Wasserman (Apache-2.0): veja [CREDITS.md](CREDITS.md).
+
 ## Provedores
 
 Anthropic, OpenAI, Google Gemini, OpenRouter, DeepSeek, Mistral, xAI (Grok),
@@ -489,7 +692,8 @@ O que já existe e o que vem a seguir: [ROADMAP.pt-BR.md](ROADMAP.pt-BR.md).
 
 ## Licença
 
-[MIT](LICENSE). O anime.js e o lottie-web, incluídos em `public/motion/`, também
+[MIT](LICENSE). Créditos de ideias e regras de outros projetos: [CREDITS.md](CREDITS.md).
+O anime.js e o lottie-web, incluídos em `public/motion/`, também
 são MIT. As vozes locais usam o Transformers.js e o ONNX Runtime Web
 (Apache-2.0/MIT) e o piper_phonemize, feito sobre o espeak-ng (GPL-3.0),
 carregado só quando uma voz do Piper é usada; as vozes do Piper e os modelos

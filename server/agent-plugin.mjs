@@ -2,13 +2,23 @@
 // at /__tsrs/agent, and writes the agent file the `tsrs` command reads: this
 // server's address and a fresh token, readable by this computer's user only.
 
+import { spawnSync } from 'node:child_process'
 import { readFile, rm } from 'node:fs/promises'
+import { join } from 'node:path'
+import { ffmpegPath } from '../render/render.mjs'
 import { defaultFolder, exclusiveRender, renderBusy, renderMotion } from '../render/serve.mjs'
 import { versionInfo } from '../render/version-plugin.mjs'
 import { checkVideo, describeCheck, readSpec, runVideo } from '../render/video.mjs'
+import { transcribeWords } from '../render/whisper.mjs'
 import { AGENT_PATH, agentFile, agentHandler, createAgent, writeAgentFile } from './agent.mjs'
-import { comfyStatus, makeImage as comfyImage } from './comfy.mjs'
+import { comfyStatus, h3Models, makeImage as comfyImage, makeTake, makeTurnaround, turnaroundModels } from './comfy.mjs'
 import { inspectPage } from './design.mjs'
+import { accessKey, notifyAll, vapidKeys } from './access.mjs'
+import { extensionsRoot } from './extensions.mjs'
+import { createQueue } from './jobs.mjs'
+import { createNightShift } from './nightshift.mjs'
+import { checkTake } from './takecheck.mjs'
+import { revoice } from './revoice.mjs'
 import { projectsRoot } from './projects.mjs'
 import { makeImage as sdcppImage, sdcppStatus } from './sdcpp.mjs'
 
@@ -23,6 +33,37 @@ export function tsrsAgent(agendaFor) {
   const mount = (server, dev) => {
     const log = (line) => server.config.logger.info(`[tsrs] ${line}`)
     let token = null
+    // One GPU queue per server: H3 takes run one at a time.
+    const jobs = createQueue()
+    // The night shift runs takes through the same commands; it ticks every 5 s.
+    const night = createNightShift({
+      root: projectsRoot(),
+      run: (name, args) => runCommand(name, args),
+      queue: jobs,
+      ffmpeg: ffmpegPath(),
+      log,
+      notify: (message) => notifyAll(extensionsRoot(), message),
+    })
+    const access = {
+      async info() {
+        const ts = spawnSync('tailscale', ['status', '--json'], { encoding: 'utf8', timeout: 5000, windowsHide: true })
+        let name = null
+        try {
+          name = JSON.parse(ts.stdout).Self?.DNSName?.replace(/\.$/, '') ?? null
+        } catch {
+          // Tailscale not installed or not running
+        }
+        let devices = 0
+        try {
+          devices = JSON.parse(await readFile(join(extensionsRoot(), '.tsrs-push.json'), 'utf8')).length
+        } catch {
+          devices = 0
+        }
+        await vapidKeys(extensionsRoot())
+        return { key: await accessKey(extensionsRoot()), port: server.httpServer?.address()?.port ?? 5173, tailscale: name, devices }
+      },
+      rotate: () => accessKey(extensionsRoot(), { rotate: true }),
+    }
     const runCommand = createAgent(
       {
         agenda: agendaFor?.(server) ?? { list: async () => ({ tasks: [], pending: 0 }), runNow: async () => {} },
@@ -34,12 +75,31 @@ export function tsrsAgent(agendaFor) {
         renderFolder: defaultFolder(),
         inspectPage,
         log,
-        comfy: { status: () => comfyStatus(), makeImage: (job) => comfyImage(job) },
+        comfy: {
+          status: () => comfyStatus(),
+          makeImage: (job) => comfyImage(job),
+          h3Models: () => h3Models(),
+          makeTake: (job) => makeTake(job),
+          turnaroundModels: () => turnaroundModels(),
+          makeTurnaround: (job) => makeTurnaround(job),
+        },
+        jobs,
+        night,
+        access,
+        ffmpeg: ffmpegPath(),
+        revoice: (file, opts) => revoice(file, { ...opts, ffmpeg: ffmpegPath() }),
+        checkTake: (file, opts) =>
+          checkTake(file, { ...opts, ffmpeg: ffmpegPath(), hear: async (f, language) => (await transcribeWords([f], { language, ffmpeg: ffmpegPath(), log })).at(0) ?? [] }),
         sdcpp: { status: () => sdcppStatus(), makeImage: (job) => sdcppImage(job) },
       },
       projectsRoot(),
     )
     const handle = agentHandler(runCommand, () => token)
+    if (!process.env.VITEST) {
+      const timer = setInterval(() => night.tick().catch((error) => log(`night shift: ${error.message}`)), 5000)
+      timer.unref?.()
+      server.httpServer?.once('close', () => clearInterval(timer))
+    }
     server.middlewares.use(AGENT_PATH, async (req, res, next) => {
       try {
         if (!(await handle(req, res))) next()
