@@ -48,6 +48,20 @@ tsrs board move "Cafe Aurora ad" render
 tsrs image local "a cup of coffee by a window at dawn" --project cafe-aurora-ad
 ```
 
+## Narrated videos
+
+When a project has a `video.json` (scenes with their lines, voice, music, the
+composition, captions, 9:16 — see "Narrated videos" in the TSRS README):
+
+```bash
+tsrs video check <project>        # read first: problems, and what a run would make and spend
+tsrs video run <project>          # exit 3 when voice lines must be made: ask the user, then --yes
+```
+
+In the composition, land animations on the narration with
+`NWLab.word('scene-id', 'word')` (seconds) and read `NWLab.timeline`; the
+check reports words the script does not say.
+
 A motion composition is an HTML page with `nwlab:size`, `nwlab:duration` and
 `nwlab:fps` meta tags whose frames depend only on the time `t` (see "Motion
 video" in the TSRS README). The MP4 goes to the project's `videos/`.

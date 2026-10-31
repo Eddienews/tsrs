@@ -82,6 +82,27 @@ export const COMMANDS = [
     example: 'tsrs render motion cafe-aurora-ad cafe-aurora.html --audio midia/track.mp3',
   },
   {
+    name: 'video check',
+    kind: 'read',
+    summary: "Reads a project's narrated video script (video.json) and says what is missing or wrong, and what a run would make and spend.",
+    args: [
+      { name: 'project', at: 0, required: true, help: 'project folder' },
+      { name: 'spec', help: 'the script file (default video.json)' },
+    ],
+    example: 'tsrs video check formulario-seguro',
+  },
+  {
+    name: 'video run',
+    kind: 'write',
+    asks: true,
+    summary: 'Makes the narrated video of video.json: voice, word timing, mix, render, captions, 9:16 copy, manifest. Making voice (Runware) asks for --yes.',
+    args: [
+      { name: 'project', at: 0, required: true, help: 'project folder' },
+      { name: 'spec', help: 'the script file (default video.json)' },
+    ],
+    example: 'tsrs video run formulario-seguro --yes',
+  },
+  {
     name: 'design check',
     kind: 'read',
     summary: 'Opens a page of the project at three widths and reports what does not fit; the pictures go to .taste-skill/inspect/.',

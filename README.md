@@ -285,8 +285,8 @@ tsrs agenda run "AI news digest"        # exit 3: it calls a paid model; add --y
 
 | Kind | Commands | Without `--yes` |
 | --- | --- | --- |
-| read | `status`, `projects list/files/read`, `design check`, `board list`, `agenda list` | — |
-| write | `projects new/write`, `render motion`, `board add/move/update/remove`, `image local` | replacing a file only says what it would do |
+| read | `status`, `projects list/files/read`, `design check`, `video check`, `board list`, `agenda list` | — |
+| write | `projects new/write`, `render motion`, `video run`, `board add/move/update/remove`, `image local` | replacing a file, or making voice for `video run`, only says what it would do |
 | cost | `agenda run` | only says which paid model it would call |
 
 `tsrs --help` lists them all and `tsrs <command> --help` gives the arguments.
@@ -338,6 +338,74 @@ npm run render -- motion-1.html --fps 60 --crf 16 --out opening.mp4
 
 This is the same contract as NWLab ForgeOS motion pages.
 
+### Faster renders and the manifest
+
+Several headless browsers capture the frames side by side, each a stretch of
+the video, and the stretches are joined without encoding again: about half the
+processor threads, at most 8 (`--workers <n>` to choose). Beside every video
+goes `<video>.manifest.json`: the composition and each file it loaded, the
+audio, each with its SHA-256; the versions of TSRS, Node, ffmpeg and the
+browser; the settings; and the video's own SHA-256. The same inputs list the
+same hashes, so a video that changed can be traced to what changed.
+
+## Narrated videos (video.json)
+
+A narrated video from a script file in the project folder: voice, the time of
+every word, the mix, the render, captions and a 9:16 copy, in one command.
+
+```json
+{
+  "name": "formulario-seguro",
+  "composition": "formulario-seguro.html",
+  "voice": { "provider": "runware", "voice": "826be797681d4b1a92042b54b3c75c64", "language": "pt" },
+  "music": { "file": "midia/trilha.flac", "volume": -11 },
+  "timing": { "lead": 0.6, "gap": 0.6, "tail": 3 },
+  "words": "whisper",
+  "captions": true,
+  "vertical": true,
+  "scenes": [
+    { "id": "gancho", "text": "Seu formulário de contato parece inofensivo." },
+    { "id": "dica1", "text": "Um: valide tudo no servidor.", "gap": 0.9 }
+  ]
+}
+```
+
+```bash
+npm run video -- projetos/formulario-seguro --check   # what is missing, what it would make and spend
+npm run video -- projetos/formulario-seguro --yes     # --yes: make the voice lines that are new
+tsrs video check formulario-seguro                     # the same, for agents
+tsrs video run formulario-seguro --yes
+```
+
+1. **Voice.** `"provider": "files"` takes each scene's `"audio"` (a file of the
+   project). `"runware"` makes each line with a Runware/HeyGen voice
+   (`RUNWARE_API_KEY` where TSRS runs): the free model first, the paid one if it
+   fails. Lines go to `midia/voz/` and are made again only when their text or
+   voice changes; making voice asks for `--yes`.
+2. **Timing.** The silence at both ends of each line is cut, the scenes are laid
+   one after another (`lead`, `gap`, per-scene `gap`, `tail`) and the time of
+   every word is found: Whisper on this computer, free (`"words": "whisper"`,
+   the `whisper-base_timestamped` model, downloaded once into `modelos/`), laid
+   onto the script's own words even where it mishears; without it, or with
+   `"words": "pauses"`, the words follow the pauses of the voice. All of it is
+   written to `video/<name>/timing.lock.json`.
+3. **Mix.** The narration over the music, lowered while the voice speaks.
+4. **Render.** The composition at the narration's length, with the timeline in
+   the page: `NWLab.timeline` (scenes with `start`, `dur`, `text`, `words`) and
+   `NWLab.word('scene', 'word', nth, shift)`, the second at which the voice says
+   that word. `--check` warns when the page waits for a word the script does
+   not say.
+5. **Captions** (`"captions": true` or a style: `size`, `color`, `accent`,
+   `band`, `font`, `position`): one line at a time, the word being said in the
+   accent color, drawn by the runtime (no libass needed).
+6. **9:16** (`"vertical": true`): the video across the width over a blurred copy
+   of itself, the captions below it. With both, the composition is rendered
+   once without captions (`video/<name>/clean.mp4`) and the captions are laid
+   over it in each format.
+
+The videos go to `videos/` with their manifests, which also record the script's
+and the timing lock's hashes.
+
 ## Providers
 
 Anthropic, OpenAI, Google Gemini, OpenRouter, DeepSeek, Elorian, Mistral, xAI (Grok),
@@ -378,7 +446,7 @@ hosts it allows (`--allow host` adds more).
 | `src/mission.ts`, `src/MissionView.tsx` | Mission Control |
 | `src/voiceLoop.ts`, `src/obsidian.ts` | Voice conversation, Obsidian notes |
 | `src/webSearch.ts`, `src/research.ts`, `server/search.mjs` | Own web search and deep research |
-| `render/` | Motion contract, MP4 renderer and its Vite plugin |
+| `render/` | Motion contract, MP4 renderer (parallel, manifest), narrated videos (`video.mjs`, `words.mjs`, `whisper.mjs`, `captions.mjs`, `vertical.mjs`) and its Vite plugin |
 | `bin/tsrs.mjs`, `server/agent*.mjs`, `skills/tsrs/` | The `tsrs` command, its MCP server and the agent skill |
 | `src/media.ts`, `src/mediaJobs.ts`, `src/mediaPrice.ts` | Media services, jobs and prices |
 | `src/knowledge.ts`, `src/embeddings.ts`, `src/extract.ts` | Knowledge bases |

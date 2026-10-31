@@ -67,6 +67,7 @@ const bytes = (n) => (n < 1024 ? `${n} B` : n < 1024 ** 2 ? `${(n / 1024).toFixe
 //   agenda       the server's schedule (agenda.mjs)
 //   version()    { version, commit }
 //   renderMotion, renderBusy   from render/serve.mjs
+//   video        readSpec, checkVideo, describeCheck, runVideo from render/video.mjs
 //   inspectPage  from design.mjs
 //   comfy, sdcpp { status(), makeImage(job) }
 //   renderFolder where videos outside a project go
@@ -231,6 +232,39 @@ export function createAgent(deps, root = projectsRoot()) {
       return { text: `Rendered ${rel} in ${basename(folder)}.`, result: { project: folder, file: rel, path } }
     },
 
+    async 'video check'(args) {
+      const folder = await project(args.project)
+      const { spec } = await deps.video.readSpec(folder, args.spec ?? 'video.json').catch((error) => {
+        throw invalid(error.message)
+      })
+      const report = await deps.video.checkVideo(folder, spec)
+      return { text: deps.video.describeCheck(report), result: report }
+    },
+
+    async 'video run'(args, yes, progress) {
+      const folder = await project(args.project)
+      const { spec, path } = await deps.video.readSpec(folder, args.spec ?? 'video.json').catch((error) => {
+        throw invalid(error.message)
+      })
+      if (deps.renderBusy()) throw new AgentError('busy', 'A video is already being rendered. Try again when it ends.')
+      let made
+      try {
+        made = await deps.exclusiveRender(() =>
+          deps.video.runVideo(folder, spec, { yes, log: deps.log, specPath: path, onFrame: (frame, frames) => progress?.({ frame, frames }) }),
+        )
+      } catch (error) {
+        if (error?.code === 'confirm') throw confirm(error.message)
+        if (error?.code === 'invalid') throw invalid(error.message)
+        throw error
+      }
+      const files = [made.video, made.vertical].filter(Boolean).map((f) => relative(folder, f).split('\\').join('/'))
+      await note(folder, files)
+      return {
+        text: `Made ${files.join(' and ')} in ${basename(folder)} (${made.total.toFixed(1)} s, words from ${made.words}${made.made.length ? `, voice made for ${made.made.length} line(s)` : ''}).`,
+        result: { project: folder, files, timing: relative(folder, made.timing).split('\\').join('/'), seconds: made.total, words: made.words, voiceMade: made.made },
+      }
+    },
+
     async 'design check'(args) {
       const folder = await project(args.project)
       const widths = (args.widths ?? []).map(Number)
@@ -387,7 +421,7 @@ export function agentHandler(runCommand, token) {
     } catch (error) {
       return json(400, { ok: false, code: 'invalid', error: error.message })
     }
-    const streaming = job.command === 'render motion'
+    const streaming = job.command === 'render motion' || job.command === 'video run'
     if (streaming) res.writeHead(200, { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-store' })
     const finish = (value) => (streaming ? (res.end(JSON.stringify(value) + '\n'), true) : json(200, value))
     try {

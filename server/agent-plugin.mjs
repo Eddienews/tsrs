@@ -5,6 +5,7 @@
 import { readFile, rm } from 'node:fs/promises'
 import { defaultFolder, exclusiveRender, renderBusy, renderMotion } from '../render/serve.mjs'
 import { versionInfo } from '../render/version-plugin.mjs'
+import { checkVideo, describeCheck, readSpec, runVideo } from '../render/video.mjs'
 import { AGENT_PATH, agentFile, agentHandler, createAgent, writeAgentFile } from './agent.mjs'
 import { comfyStatus, makeImage as comfyImage } from './comfy.mjs'
 import { inspectPage } from './design.mjs'
@@ -27,6 +28,7 @@ export function tsrsAgent(agendaFor) {
         agenda: agendaFor?.(server) ?? { list: async () => ({ tasks: [], pending: 0 }), runNow: async () => {} },
         version: () => versionInfo(dev),
         renderMotion,
+        video: { readSpec, checkVideo, describeCheck, runVideo },
         renderBusy,
         exclusiveRender,
         renderFolder: defaultFolder(),
