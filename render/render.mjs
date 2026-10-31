@@ -247,7 +247,7 @@ function waitFor(child, what) {
 // One run of frames, captured by its own browser and encoded to its own file.
 // Over a video (a short's clips) the frames are drawn with a transparent
 // background and laid on the same stretch of it.
-async function captureRun({ origin, settings, fps, crf, online, background, transparent, from, to, file, ffmpeg, problems, blocked, onFrame, seen }) {
+async function captureRun({ origin, settings, fps, crf, online, background, transparent, from, to, file, ffmpeg, problems, blocked, onFrame, seen, threads }) {
   const browser = await launchBrowser()
   seen.browser = `${browser.browserType().name()} ${browser.version()}`
   let encoder
@@ -273,7 +273,9 @@ async function captureRun({ origin, settings, fps, crf, online, background, tran
     args.push('-f', 'image2pipe', '-framerate', String(fps), '-c:v', transparent ? 'png' : 'mjpeg', '-i', 'pipe:0')
     if (background) args.push('-filter_complex', '[0:v][1:v]overlay=0:0:format=auto:shortest=1[v]', '-map', '[v]')
     else args.push('-map', '0:v:0')
-    args.push('-an', '-c:v', 'libx264', '-preset', 'medium', '-crf', String(crf), '-pix_fmt', 'yuv420p', '-r', String(fps))
+    // Each encoder gets its share of the threads: eight encoders each taking
+    // all of them ran out of memory on a 16-thread laptop.
+    args.push('-an', '-c:v', 'libx264', '-preset', 'medium', '-crf', String(crf), '-pix_fmt', 'yuv420p', '-r', String(fps), '-threads', String(threads))
     args.push('-frames:v', String(to - from), file)
     encoder = spawn(ffmpeg, args, { stdio: ['pipe', 'ignore', 'pipe'] })
     const finished = waitFor(encoder, 'ffmpeg')
@@ -353,6 +355,7 @@ export async function render(options, log = console.log) {
           origin, settings, fps, crf: options.crf ?? 18, online: options.online, background,
           transparent: !!background || options.transparent === true,
           from, to, file: parts[i], ffmpeg, problems, blocked, onFrame, seen,
+          threads: Math.max(1, Math.floor(availableParallelism() / runs.length)),
         }),
       ),
     )
