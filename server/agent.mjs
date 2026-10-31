@@ -78,6 +78,7 @@ const bytes = (n) => (n < 1024 ? `${n} B` : n < 1024 ** 2 ? `${(n / 1024).toFixe
 //   jobs         the GPU queue (jobs.mjs)
 //   checkTake(file, { script, first, last })   the take checks (takecheck.mjs)
 //   ffmpeg       the ffmpeg command
+//   night        the night shift (nightshift.mjs)
 //   renderFolder where videos outside a project go
 export function createAgent(deps, root = projectsRoot()) {
   async function project(ref) {
@@ -558,6 +559,52 @@ export function createAgent(deps, root = projectsRoot()) {
         text: `Queued ${jobs.length} take(s):\n${jobs.map((j) => `${j.job}  ${j.shot} → takes/${j.name}.mp4`).join('\n')}\nFollow them with: tsrs jobs wait ${jobs.map((j) => j.job).join(',')}`,
         result: { jobs },
       }
+    },
+
+    async 'night plan'(args) {
+      if (!deps.night) throw new AgentError('failed', 'This TSRS has no night shift.')
+      const folder = await project(args.project)
+      let shots
+      const named = (args.shots ?? []).filter((s) => /\.json$/i.test(s))
+      if (named.length && named.length === (args.shots ?? []).length) {
+        for (const rel of named) await readShot(folder, rel)
+        shots = named
+      } else {
+        const { film } = await readFilm(folder)
+        const report = checkFilm(film, { exists: (rel) => { const f = projectFile(folder, rel); return !!f && existsSync(f) } })
+        if (!report.ok) throw invalid(`Fix film.json first:\n${describeFilm(report)}`)
+        const made = filmShots(film, { scenes: args.scenes, shots: args.shots })
+        if (!made.length) throw invalid('No shots match.')
+        await writeShots(folder, made, false)
+        shots = made.map((m) => m.file)
+      }
+      const plan = await deps.night.plan({ project: basename(folder), folder, shots, start: String(args.start ?? 'idle') }).catch((error) => {
+        throw invalid(error.message)
+      })
+      const when = plan.start === 'now' ? 'now' : plan.start === 'idle' ? 'when the computer has been idle for 2 minutes' : `at ${plan.start}`
+      return { text: `Night shift ${plan.id}: ${shots.length} shot(s) of ${basename(folder)}, starting ${when}. The dailies will be in dailies/.\nSee: tsrs night status`, result: plan }
+    },
+
+    async 'night status'() {
+      if (!deps.night) throw new AgentError('failed', 'This TSRS has no night shift.')
+      const plan = await deps.night.read()
+      if (!plan) return { text: 'No night shift planned.', result: null }
+      const head = plan.canceled
+        ? `Night shift ${plan.id} (${plan.project}): canceled.`
+        : plan.ended
+          ? `Night shift ${plan.id} (${plan.project}): ended ${plan.ended.slice(0, 16).replace('T', ' ')}.`
+          : plan.started
+            ? `Night shift ${plan.id} (${plan.project}): running since ${plan.started.slice(0, 16).replace('T', ' ')}.`
+            : `Night shift ${plan.id} (${plan.project}): waiting to start (${plan.start}).`
+      const rows = plan.items.map((i) => `  ${i.shot}  ${i.state}${i.take ? ` → takes/${i.take}.mp4` : ''}${i.passed === false ? ` · ${i.reason ?? 'checks failed'}` : i.passed ? ' · passed' : ''}${i.error ? ` · ${i.error}` : ''}`)
+      const dailies = plan.dailies?.reel || plan.dailies?.notes ? `\nDailies: ${[plan.dailies.reel, plan.dailies.notes].filter(Boolean).join(', ')}` : plan.dailies?.error ? `\nThe dailies failed: ${plan.dailies.error}` : ''
+      return { text: `${head}\n${rows.join('\n')}${dailies}`, result: plan }
+    },
+
+    async 'night cancel'() {
+      if (!deps.night) throw new AgentError('failed', 'This TSRS has no night shift.')
+      const plan = await deps.night.cancel()
+      return { text: plan ? `Canceled the night shift ${plan.id}.` : 'No night shift was running.', result: plan }
     },
 
     async ledger(args) {

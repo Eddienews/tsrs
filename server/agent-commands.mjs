@@ -212,6 +212,32 @@ export const COMMANDS = [
     example: 'tsrs edit export seu-silva-ep07 --music midia/trilha.flac',
   },
   {
+    name: 'night plan',
+    kind: 'write',
+    summary: 'Plans the night shift: the takes of a film (or of some shots) made unattended — at a time, when the computer is idle, or now — and the dailies (a reel with slates, notes) in dailies/ for the morning.',
+    args: [
+      { name: 'project', at: 0, required: true, help: 'project folder' },
+      { name: 'start', help: 'now, idle (2 minutes without GPU work) or a time like 23:00 (default idle)' },
+      { name: 'scenes', type: 'list', help: "only these scenes of film.json" },
+      { name: 'shots', type: 'list', help: 'shot files (shots/s01.json) or film shot ids; default: the whole film.json' },
+    ],
+    example: 'tsrs night plan seu-silva-ep07 --start 23:00',
+  },
+  {
+    name: 'night status',
+    kind: 'read',
+    summary: 'Where the night shift is: when it starts, each shot and its take, and the dailies when it ends.',
+    args: [],
+    example: 'tsrs night status',
+  },
+  {
+    name: 'night cancel',
+    kind: 'write',
+    summary: 'Cancels the night shift; its takes in the queue are canceled too. Takes already made stay.',
+    args: [],
+    example: 'tsrs night cancel',
+  },
+  {
     name: 'ledger',
     kind: 'read',
     summary: 'What the commands really made or changed lately, from TSRS’s own records: end a report with it instead of from memory.',

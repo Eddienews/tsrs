@@ -12,6 +12,7 @@ import { AGENT_PATH, agentFile, agentHandler, createAgent, writeAgentFile } from
 import { comfyStatus, h3Models, makeImage as comfyImage, makeTake } from './comfy.mjs'
 import { inspectPage } from './design.mjs'
 import { createQueue } from './jobs.mjs'
+import { createNightShift } from './nightshift.mjs'
 import { checkTake } from './takecheck.mjs'
 import { projectsRoot } from './projects.mjs'
 import { makeImage as sdcppImage, sdcppStatus } from './sdcpp.mjs'
@@ -29,6 +30,8 @@ export function tsrsAgent(agendaFor) {
     let token = null
     // One GPU queue per server: H3 takes run one at a time.
     const jobs = createQueue()
+    // The night shift runs takes through the same commands; it ticks every 5 s.
+    const night = createNightShift({ root: projectsRoot(), run: (name, args) => runCommand(name, args), queue: jobs, ffmpeg: ffmpegPath(), log })
     const runCommand = createAgent(
       {
         agenda: agendaFor?.(server) ?? { list: async () => ({ tasks: [], pending: 0 }), runNow: async () => {} },
@@ -42,6 +45,7 @@ export function tsrsAgent(agendaFor) {
         log,
         comfy: { status: () => comfyStatus(), makeImage: (job) => comfyImage(job), h3Models: () => h3Models(), makeTake: (job) => makeTake(job) },
         jobs,
+        night,
         ffmpeg: ffmpegPath(),
         checkTake: (file, opts) =>
           checkTake(file, { ...opts, ffmpeg: ffmpegPath(), hear: async (f, language) => (await transcribeWords([f], { language, ffmpeg: ffmpegPath(), log })).at(0) ?? [] }),
@@ -50,6 +54,11 @@ export function tsrsAgent(agendaFor) {
       projectsRoot(),
     )
     const handle = agentHandler(runCommand, () => token)
+    if (!process.env.VITEST) {
+      const timer = setInterval(() => night.tick().catch((error) => log(`night shift: ${error.message}`)), 5000)
+      timer.unref?.()
+      server.httpServer?.once('close', () => clearInterval(timer))
+    }
     server.middlewares.use(AGENT_PATH, async (req, res, next) => {
       try {
         if (!(await handle(req, res))) next()
