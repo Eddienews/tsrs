@@ -145,7 +145,7 @@ export function createAgent(deps, root = projectsRoot()) {
       throw invalid(error.message)
     })
     try {
-      const shot = JSON.parse(text)
+      const shot = JSON.parse(text.replace(/^\uFEFF/, ''))
       if (!shot || typeof shot !== 'object' || Array.isArray(shot)) throw new Error('not an object')
       return shot
     } catch (error) {
@@ -172,7 +172,7 @@ export function createAgent(deps, root = projectsRoot()) {
       throw invalid(`No ${file} in ${basename(folder)}. Write the film plan there first (see the tsrs skill: film.json).`)
     })
     try {
-      return { film: JSON.parse(text) }
+      return { film: JSON.parse(text.replace(/^\uFEFF/, '')) } // a BOM: Windows editors write one
     } catch (error) {
       throw invalid(`${file} is not valid JSON: ${error.message}`)
     }
