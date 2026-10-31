@@ -23,6 +23,7 @@ import { readBoard, saveBoard } from './board.mjs'
 import { extensionsRoot } from './extensions.mjs'
 import { checkShot, composeShot, findNegations, framesFor, MAX_CHARS, secondsOf, STARTS } from './h3prompt.mjs'
 import { WAIT_MAX } from './jobs.mjs'
+import { edl, fcpxml, probe, resolveZip } from './nle.mjs'
 import { allowed, listFiles, openProject, projectFile, projectsRoot, readText, slug, writeFiles } from './projects.mjs'
 
 export const AGENT_PATH = '/__tsrs/agent'
@@ -73,6 +74,8 @@ const bytes = (n) => (n < 1024 ? `${n} B` : n < 1024 ** 2 ? `${(n / 1024).toFixe
 //   inspectPage  from design.mjs
 //   comfy, sdcpp { status(), makeImage(job) }; comfy also h3Models(), makeTake(job)
 //   jobs         the GPU queue (jobs.mjs)
+//   checkTake(file, { script, first, last })   the take checks (takecheck.mjs)
+//   ffmpeg       the ffmpeg command
 //   renderFolder where videos outside a project go
 export function createAgent(deps, root = projectsRoot()) {
   async function project(ref) {
@@ -149,13 +152,66 @@ export function createAgent(deps, root = projectsRoot()) {
 
   const jobLine = (j) => {
     const when = j.status === 'queued' ? `#${j.position} in the queue` : j.status
-    const made = j.result?.file ? ` → ${j.result.file}` : ''
+    const made = j.result?.file ? ` → ${j.result.file}${j.result.checks ? ` (${checkLine(j.result.checks)})` : ''}` : ''
     return `${j.id}  ${j.kind} "${j.title}"  ${when}${made}${j.error ? ` · ${j.error}` : ''}`
   }
 
   function queue() {
     if (!deps.jobs) throw new AgentError('failed', 'This TSRS has no GPU queue.')
     return deps.jobs
+  }
+
+  // ---- takes ----
+  const TAKE_STATUS = ['approved', 'redo', 'pending']
+  async function readTakes(folder) {
+    let names = []
+    try {
+      names = (await readdir(join(folder, 'takes'))).filter((n) => n.endsWith('.json'))
+    } catch {
+      return []
+    }
+    const out = []
+    for (const n of names) {
+      try {
+        const take = JSON.parse(await readFile(join(folder, 'takes', n), 'utf8'))
+        out.push({ ...take, name: take.name ?? n.replace(/\.json$/, ''), notes: `takes/${n}`, video: take.video ?? `takes/${n.replace(/\.json$/, '.mp4')}`, at: Date.parse(take.made ?? '') || (await stat(join(folder, 'takes', n))).mtimeMs })
+      } catch {
+        // A file being written, or not a take.
+      }
+    }
+    return out
+  }
+  const shotOf = (t) => t.shot ?? t.name.replace(/-\d+$/, '')
+  const natural = (a, b) => a.localeCompare(b, undefined, { numeric: true })
+  // The best take of each shot: approved (the newest), else one whose checks
+  // passed, else the newest not marked redo. Shots in name order.
+  function bestTakes(takes) {
+    const shots = new Map()
+    for (const t of takes) shots.set(shotOf(t), [...(shots.get(shotOf(t)) ?? []), t])
+    const rank = (t) => (t.status === 'approved' ? 3 : t.status === 'redo' ? 0 : t.checks?.passed === true ? 2 : t.checks?.passed === false ? 0.5 : 1)
+    return [...shots.keys()].sort(natural).map((shot) => ({ shot, take: [...shots.get(shot)].filter((t) => rank(t) > 0.5).sort((a, b) => rank(b) - rank(a) || b.at - a.at)[0] ?? null }))
+  }
+  const linesOf = (prompt) => [...String(prompt ?? '').matchAll(/<d>\[([^\]]+)\]\s*([\s\S]*?)<\/d>/g)].map((m) => ({ language: m[1], text: m[2].trim() }))
+  const checkLine = (c) => (!c ? 'not checked' : c.passed ? `checks passed${c.words ? ` (${c.words.matched}/${c.words.words} words)` : ''}` : `checks: ${c.reason}`)
+
+  async function runChecks(folder, take) {
+    if (!deps.checkTake) return null
+    const pics = take.pictures ?? []
+    const at = (rel) => (rel ? projectFile(folder, rel) : undefined)
+    const first = ['first', 'first-last'].includes(take.start) ? at(pics[0]) : undefined
+    const last = take.start === 'first-last' ? at(pics[1]) : take.start === 'last' ? at(pics[0]) : undefined
+    return deps.checkTake(join(folder, take.video), { script: linesOf(take.prompt), first, last })
+  }
+  async function saveTake(folder, take) {
+    const { notes, at: _at, ...rest } = take
+    await writeFiles(folder, [{ name: notes, content: JSON.stringify(rest, null, 2) + '\n' }])
+  }
+  async function findTake(folder, ref) {
+    const takes = await readTakes(folder)
+    const want = String(ref ?? '').replace(/\.(json|mp4)$/i, '').replace(/^takes\//, '')
+    const take = takes.find((t) => t.name === want)
+    if (!take) throw invalid(`No take ${ref} in ${basename(folder)}. See: tsrs takes list ${basename(folder)}`)
+    return take
   }
 
   const run = {
@@ -378,13 +434,24 @@ export function createAgent(deps, root = projectsRoot()) {
             name: notes,
             content: JSON.stringify({
               status: 'pending', name, video, shot: args.shot ?? null, start, frames, seconds: secondsOf(frames), resolution, aspect,
-              pictures: params.pictures, seed: made.seed, steps: made.steps, models: made.models, prompt, checks, job: _job.id,
+              pictures: params.pictures, seed: made.seed, steps: made.steps, models: made.models, prompt, warnings: checks, job: _job.id,
               made: new Date().toISOString(), engine: 'MiniMax H3 (ComfyUI)',
             }, null, 2) + '\n',
           },
         ])
         await note(folder, [video, notes])
-        return { file: video, notes, seed: made.seed, steps: made.steps }
+        let verdict = null
+        if (String(args.check ?? 'yes') !== 'no') {
+          progress({ checking: true })
+          const take = (await readTakes(folder)).find((t) => t.name === name)
+          try {
+            verdict = take ? await runChecks(folder, take) : null
+            if (verdict) await saveTake(folder, { ...take, checks: verdict, status: verdict.passed ? take.status : 'redo' })
+          } catch (error) {
+            verdict = { passed: null, reason: `the checks could not run: ${error.message}` }
+          }
+        }
+        return { file: video, notes, seed: made.seed, steps: made.steps, checks: verdict }
       })
 
       const head = `Queued take ${job.id}: "${name}" in ${basename(folder)}, ${frames} frames (${secondsOf(frames)} s), ${resolution} ${aspect}, start ${start}.`
@@ -397,6 +464,81 @@ export function createAgent(deps, root = projectsRoot()) {
         return { text: `${head}${warns}\n${jobLine(after)}`, result: after }
       }
       return { text: `${head}${job.position > 1 ? ` #${job.position} in the queue.` : ''}${warns}\nFollow it with: tsrs jobs wait ${job.id}`, result: job }
+    },
+
+    async 'takes list'(args) {
+      const folder = await project(args.project)
+      const takes = (await readTakes(folder)).sort((a, b) => natural(a.name, b.name))
+      if (!takes.length) return { text: `No takes yet in ${basename(folder)}.`, result: { takes: [], best: [] } }
+      const best = bestTakes(takes)
+      const chosen = new Set(best.map((b) => b.take?.name).filter(Boolean))
+      const text = takes
+        .map((t) => `${chosen.has(t.name) ? '★' : ' '} ${t.name}  ${t.status ?? 'pending'} · ${t.seconds ?? '?'} s · seed ${t.seed ?? '?'} · ${checkLine(t.checks)}`)
+        .join('\n')
+      return { text: `${text}\n★ best take of its shot`, result: { takes, best: best.map((b) => ({ shot: b.shot, take: b.take?.name ?? null })) } }
+    },
+
+    async 'takes check'(args) {
+      const folder = await project(args.project)
+      const take = await findTake(folder, args.take)
+      if (!deps.checkTake) throw new AgentError('failed', 'This TSRS cannot check takes.')
+      const checks = await runChecks(folder, take)
+      const status = take.status === 'approved' ? 'approved' : checks.passed ? (take.status === 'redo' ? 'pending' : take.status ?? 'pending') : 'redo'
+      await saveTake(folder, { ...take, checks, status })
+      const window = checks.shot?.window && !checks.shot.window.whole ? `\nTrim to ${checks.shot.window.in}–${checks.shot.window.out} s (no cut inside).` : ''
+      const heard = checks.words ? `\nHeard: "${checks.words.heard}"` : ''
+      return { text: `${take.name}: ${checkLine(checks)} → ${status}${heard}${window}`, result: { take: take.name, status, checks } }
+    },
+
+    async 'takes rate'(args) {
+      const folder = await project(args.project)
+      const status = String(args.status).toLowerCase()
+      if (!TAKE_STATUS.includes(status)) throw invalid('status is approved, redo or pending.')
+      const take = await findTake(folder, args.take)
+      await saveTake(folder, { ...take, status })
+      return { text: `${take.name} → ${status}`, result: { take: take.name, status } }
+    },
+
+    async 'edit export'(args) {
+      const folder = await project(args.project)
+      const takes = await readTakes(folder)
+      let chosen
+      if (args.takes?.length) chosen = await Promise.all(args.takes.map((t) => findTake(folder, t)))
+      else {
+        const best = bestTakes(takes)
+        const missing = best.filter((b) => !b.take).map((b) => b.shot)
+        if (missing.length) throw invalid(`No usable take for: ${missing.join(', ')} (all marked redo or failed). Make another, or name the takes with --takes.`)
+        chosen = best.map((b) => b.take)
+      }
+      if (!chosen.length) throw invalid(`No takes in ${basename(folder)}.`)
+      const ffmpeg = deps.ffmpeg ?? 'ffmpeg'
+      const clips = chosen.map((t) => {
+        const file = join(folder, t.video)
+        if (!existsSync(file)) throw invalid(`The video of ${t.name} (${t.video}) is not there.`)
+        const info = probe(file, ffmpeg)
+        const w = t.checks?.shot?.window
+        return { file, name: t.name, in: w && !w.whole ? w.in : 0, out: w && !w.whole ? w.out : info.duration, info }
+      })
+      let music = null
+      if (args.music) {
+        const file = projectFile(folder, args.music)
+        if (!file || !existsSync(file)) throw invalid(`No file named ${args.music} in the project.`)
+        music = { file, info: probe(file, ffmpeg) }
+      }
+      const name = slug(args.name || 'cut') || 'cut'
+      const files = [
+        { name: `exports/${name}.fcpxml`, content: fcpxml(clips, { name, music }) },
+        { name: `exports/${name}.edl`, content: edl(clips, { name }) },
+      ]
+      if (String(args.zip ?? 'yes') !== 'no') files.push({ name: `exports/${name}-resolve.zip`, content: resolveZip(clips, { name, music }).toString('base64'), encoding: 'base64' })
+      await writeFiles(folder, files)
+      await note(folder, files.map((f) => f.name))
+      const total = clips.reduce((s, c) => s + (c.out - c.in), 0)
+      const trimmed = clips.filter((c) => c.in > 0 || c.out < c.info.duration - 0.05).map((c) => c.name)
+      return {
+        text: `Exported ${clips.length} take(s), ${total.toFixed(1)} s: ${files.map((f) => f.name).join(', ')}.${trimmed.length ? ` Trimmed to the stretch without cuts: ${trimmed.join(', ')}.` : ''}\nIn Resolve: File > Import > Timeline > ${name}.fcpxml.`,
+        result: { files: files.map((f) => f.name), takes: clips.map((c) => ({ take: c.name, in: c.in, out: c.out })), seconds: total },
+      }
     },
 
     async 'jobs list'() {

@@ -3,13 +3,16 @@
 // server's address and a fresh token, readable by this computer's user only.
 
 import { readFile, rm } from 'node:fs/promises'
+import { ffmpegPath } from '../render/render.mjs'
 import { defaultFolder, exclusiveRender, renderBusy, renderMotion } from '../render/serve.mjs'
 import { versionInfo } from '../render/version-plugin.mjs'
 import { checkVideo, describeCheck, readSpec, runVideo } from '../render/video.mjs'
+import { transcribeWords } from '../render/whisper.mjs'
 import { AGENT_PATH, agentFile, agentHandler, createAgent, writeAgentFile } from './agent.mjs'
 import { comfyStatus, h3Models, makeImage as comfyImage, makeTake } from './comfy.mjs'
 import { inspectPage } from './design.mjs'
 import { createQueue } from './jobs.mjs'
+import { checkTake } from './takecheck.mjs'
 import { projectsRoot } from './projects.mjs'
 import { makeImage as sdcppImage, sdcppStatus } from './sdcpp.mjs'
 
@@ -39,6 +42,9 @@ export function tsrsAgent(agendaFor) {
         log,
         comfy: { status: () => comfyStatus(), makeImage: (job) => comfyImage(job), h3Models: () => h3Models(), makeTake: (job) => makeTake(job) },
         jobs,
+        ffmpeg: ffmpegPath(),
+        checkTake: (file, opts) =>
+          checkTake(file, { ...opts, ffmpeg: ffmpegPath(), hear: async (f, language) => (await transcribeWords([f], { language, ffmpeg: ffmpegPath(), log })).at(0) ?? [] }),
         sdcpp: { status: () => sdcppStatus(), makeImage: (job) => sdcppImage(job) },
       },
       projectsRoot(),
