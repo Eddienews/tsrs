@@ -15,6 +15,12 @@ The MiniMax H3 prompt rules in `server/h3prompt.mjs` follow Imagination Studio
   sentences for shots without lines;
 - the soundscape under its own heading in the reference form.
 
+The take checks in `server/takecheck.mjs` follow its `wordcheck.py` (after
+TensorFold's drama3 `verify.py`, Apache-2.0) and `shot.py`: the redo policy
+(85 % of the words, 3 missing in a row, the ending), the word alignment with
+near misses, and the cut and keyframe thresholds. The FCPXML/EDL/zip export in
+`server/nle.mjs` follows its timeline export.
+
 Imagination Studio was built by **Keys (github.com/drowzeys)**, with production
 design and workflow by **Sam Wasserman / Wasserman Productions
 (wassermanproductions.com)**. The code in TSRS is a new implementation in

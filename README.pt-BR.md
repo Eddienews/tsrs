@@ -284,8 +284,8 @@ tsrs agenda run "Resumo de IA"          # sai com 3: chama um modelo pago; com -
 
 | Tipo | Comandos | Sem `--yes` |
 | --- | --- | --- |
-| leitura | `status`, `projects list/files/read`, `design check`, `video check`, `h3 prompt`, `jobs list/status/wait`, `board list`, `agenda list` | — |
-| escrita | `projects new/write`, `render motion`, `video run`, `take`, `jobs cancel`, `board add/move/update/remove`, `image local` | substituir um arquivo, ou gerar voz no `video run`, só diz o que faria |
+| leitura | `status`, `projects list/files/read`, `design check`, `video check`, `h3 prompt`, `takes list`, `jobs list/status/wait`, `board list`, `agenda list` | — |
+| escrita | `projects new/write`, `render motion`, `video run`, `take`, `takes check/rate`, `edit export`, `jobs cancel`, `board add/move/update/remove`, `image local` | substituir um arquivo, ou gerar voz no `video run`, só diz o que faria |
 | custo | `agenda run` | só diz qual modelo pago chamaria |
 
 `tsrs --help` lista todos e `tsrs <comando> --help` mostra os argumentos (a
@@ -450,6 +450,38 @@ tsrs jobs cancel take-001-k3x9a                          # para também no Comfy
   cancelado ou que passou do tempo sai da fila do ComfyUI e é interrompido.
 - **Saída.** `takes/<nome>.mp4` e `takes/<nome>.json` (status `pending`, prompt,
   seed, passos, modelos, frames, fotos): o quadro conta com os takes do cartão.
+
+### Takes checados e o corte para o Resolve
+
+Todo take é checado quando fica pronto (na CPU; `--check no` para pular), e o
+veredito vai para `takes/<nome>.json`; um take reprovado vira `redo`:
+
+- **As falas** são ouvidas pelo Whisper neste computador e comparadas com o
+  roteiro: menos de 85 % das palavras ouvidas, 3 ou mais seguidas faltando, ou
+  o final faltando reprova. Números são escritos por extenso em português e
+  inglês, e acentos não contam. Voz num shot sem fala também reprova; palavras
+  depois das falas ficam anotadas (a boca pode continuar mexendo).
+- **A imagem**: um corte dentro do shot reprova e dá o trecho mais longo sem
+  corte, para aparar; com `--image`/`--last`, se o primeiro e o último quadros
+  seguraram as fotos. Os limites vêm do FastH3 em 1280x736 e cada número fica
+  no relatório, para ajustar em outros builds.
+
+Um take de 5 s em 480P com uma fala em português levou 119 s para sair e 16 s
+para ser checado numa RTX 3070 Laptop; o Whisper ouviu as 7 palavras.
+
+```bash
+tsrs takes list seu-silva-ep07                  # status, checagens, ★ o melhor take de cada shot
+tsrs takes check seu-silva-ep07 s01             # checa de novo
+tsrs takes rate seu-silva-ep07 s01-2 approved   # approved, redo ou pending
+tsrs edit export seu-silva-ep07 --music midia/trilha.flac
+```
+
+O `edit export` pega o melhor take de cada shot (o aprovado; senão um que
+passou nas checagens; senão o mais novo que não está como redo), na ordem dos
+shots (ou `--takes s01,s03-2,s02`), apara cada um no trecho sem corte e grava em
+`exports/`: `<nome>.fcpxml` (FCPXML 1.11, a música numa trilha própria; no
+DaVinci Resolve: File > Import > Timeline), `<nome>.edl` (CMX 3600, só imagem) e
+`<nome>-resolve.zip` (o FCPXML com as mídias ao lado).
 
 Vale a licença do próprio MiniMax H3 para o que ele faz. A licença comunitária
 publicada não cobre alguns territórios (UE, Reino Unido, Coreia do Sul e EUA,

@@ -99,6 +99,13 @@ tsrs jobs cancel <job id>                               # also stops it in Comfy
 - One take at a time runs on the GPU; queue a scene's shots, then wait. Each
   take writes `takes/<name>.mp4` and `takes/<name>.json` (status `pending`).
   Report the job ids and files that really exist, not what you expect.
+- Each take is checked when made: the lines heard against the script, cuts
+  inside the shot, the frames. A failed take is marked `redo` with the reason;
+  read it (`tsrs takes list <project>`) and make another take (a new seed, or
+  fix the shot) instead of using it.
+- For the edit: `tsrs edit export <project> --music midia/<track>` writes the
+  best take of each shot, trimmed, as FCPXML/EDL for DaVinci Resolve.
+  `tsrs takes rate <project> <take> approved` pins the one the user chose.
 
 ## As MCP tools
 

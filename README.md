@@ -285,8 +285,8 @@ tsrs agenda run "AI news digest"        # exit 3: it calls a paid model; add --y
 
 | Kind | Commands | Without `--yes` |
 | --- | --- | --- |
-| read | `status`, `projects list/files/read`, `design check`, `video check`, `h3 prompt`, `jobs list/status/wait`, `board list`, `agenda list` | — |
-| write | `projects new/write`, `render motion`, `video run`, `take`, `jobs cancel`, `board add/move/update/remove`, `image local` | replacing a file, or making voice for `video run`, only says what it would do |
+| read | `status`, `projects list/files/read`, `design check`, `video check`, `h3 prompt`, `takes list`, `jobs list/status/wait`, `board list`, `agenda list` | — |
+| write | `projects new/write`, `render motion`, `video run`, `take`, `takes check/rate`, `edit export`, `jobs cancel`, `board add/move/update/remove`, `image local` | replacing a file, or making voice for `video run`, only says what it would do |
 | cost | `agenda run` | only says which paid model it would call |
 
 `tsrs --help` lists them all and `tsrs <command> --help` gives the arguments.
@@ -457,6 +457,38 @@ tsrs jobs cancel take-001-k3x9a                          # stops it in ComfyUI t
 - **Output.** `takes/<name>.mp4` and `takes/<name>.json` (status `pending`, the
   prompt, seed, steps, models, frames, pictures): the board counts it with the
   card's takes.
+
+### Checked takes and the cut for Resolve
+
+Every take is checked when it is made (on the CPU; `--check no` to skip), and
+the verdict goes into `takes/<name>.json`; a take that fails is marked `redo`:
+
+- **The lines** are heard by Whisper on this computer and laid against the
+  script: under 85 % of the words heard, 3 or more in a row missing, or the
+  ending missing fails it. Numbers are spelled in Portuguese and English and
+  accents do not count. A voice in a shot without lines fails it too; words
+  after the lines are noted (the mouth may keep going).
+- **The picture**: a hard cut inside the shot fails it and gives the longest
+  stretch without one, to trim to; with `--image`/`--last`, whether the first
+  and last frames held the pictures. The thresholds come from FastH3 at
+  1280x736 and every number is in the report, to tune them on other builds.
+
+A 5 s take at 480P with a Portuguese line took 119 s to make and 16 s to check
+on an RTX 3070 Laptop; Whisper heard all 7 words.
+
+```bash
+tsrs takes list seu-silva-ep07                  # status, checks, ★ the best take of each shot
+tsrs takes check seu-silva-ep07 s01             # check again
+tsrs takes rate seu-silva-ep07 s01-2 approved   # approved, redo or pending
+tsrs edit export seu-silva-ep07 --music midia/trilha.flac
+```
+
+`edit export` takes the best take of each shot (approved, else one whose
+checks passed, else the newest not marked redo), in shot order (or `--takes
+s01,s03-2,s02`), trims each to its stretch without cuts, and writes to
+`exports/`: `<name>.fcpxml` (FCPXML 1.11, the music on a lane of its own; in
+DaVinci Resolve: File > Import > Timeline), `<name>.edl` (CMX 3600, pictures
+only) and `<name>-resolve.zip` (the FCPXML with the media beside it).
 
 MiniMax H3's own license applies to what it makes. Its community license, as
 published, does not cover some territories (the EU, the UK, South Korea and the
