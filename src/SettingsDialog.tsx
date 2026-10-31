@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils'
 import type { AutoBackupState } from './autoBackup'
 import { DEFAULT_WHISPER, downloadedBytes, WHISPER_MB, WHISPER_SIZES, whisperRepo, type WhisperSize } from './localVoiceInfo'
 import { LANGUAGES, locale, t, type Language } from './i18n'
+import PhoneFields from './PhoneFields'
 import { EyeButton } from './EyeButton'
 import CliProviderFields from './CliProviderFields'
 import { ObsidianFields, SectionsFields } from './WorkspaceSettings'
@@ -534,6 +535,7 @@ export default function SettingsDialog(props: Props) {
 
             {section === 'security' && (
               <div className="space-y-4">
+                <PhoneFields />
                 <h3 className="text-sm font-medium">{t('Segurança das chaves')}</h3>
                 {vaultNote && (
                   <p

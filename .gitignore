@@ -14,3 +14,4 @@ evals/cases.generated.json
 
 evals/results*.json
 evals/*.log
+bench/results/

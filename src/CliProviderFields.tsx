@@ -20,6 +20,11 @@ export function accessOptions(): { id: CliAccess; name: string; note: string }[]
       name: t('Acesso total'),
       note: t('Roda qualquer comando, sem perguntar. Use só em pastas e projetos em que você confia.'),
     },
+    {
+      id: 'studio',
+      name: t('Só o estúdio'),
+      note: t('Para bots: usa só os comandos do TSRS (takes, filmes, quadro), mexe só nos arquivos da pasta, não roda comandos, não vê suas chaves e para em 2 horas.'),
+    },
   ]
 }
 

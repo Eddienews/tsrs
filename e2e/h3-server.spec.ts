@@ -261,3 +261,19 @@ test('the take and jobs commands: check the shot, queue the take, write the vide
   expect((await run('jobs cancel', { job: second.result.id })).text).toContain('canceling')
   await expect(run('jobs status', { job: 'nope' })).rejects.toMatchObject({ code: 'invalid' })
 })
+
+test('a turnaround: says what to install when it cannot, and builds the contact-sheet graph when it can', async () => {
+  const { turnaroundGraph, turnaroundModels, makeTurnaround, TURNAROUND_PROMPT } = await import('../server/comfy.mjs')
+  const comfy = fakeComfy()
+  const missing = await turnaroundModels(comfy.fetchImpl as any)
+  expect(missing.ok).toBe(false)
+  expect(missing.missing.join('\n')).toContain('github.com/matlowai/ComfyUI-H3-ContactSheet')
+  expect(missing.missing.join('\n')).toContain('huggingface.co/matlod/minimax-h3-turnaround')
+  await expect(makeTurnaround({ image: { mime: 'image/png', data: PNG.toString('base64') } }, comfy.fetchImpl as any, async () => {})).rejects.toThrow('ComfyUI is missing')
+  const g = turnaroundGraph({ ref2va: 'minimax_h3_ref2va.safetensors', turnLora: 'minimax_h3_five_view_512_s1500.safetensors', clip: 'qwen3vl_4b.safetensors', clipType: 'krea2', projection: 'mmh3-4b-ClipProj-v3.1-mlp.safetensors', videoVae: 'vae.safetensors' }, { image: 'tsrs/a.png', seed: 3, prefix: 'p' }) as any
+  expect(g[7]).toMatchObject({ class_type: 'H3ContactSheet', inputs: { clip: ['5', 0], prompt: TURNAROUND_PROMPT, size: 512 } })
+  expect(g[2].inputs).toMatchObject({ lora_name: 'minimax_h3_five_view_512_s1500.safetensors', strength_model: 1 })
+  expect(g[9].inputs.sampler_name).toBe('res_multistep')
+  expect(g[10].inputs.steps).toBe(28)
+  expect(g[13].class_type).toBe('H3ContactSheetDecode')
+})

@@ -14,6 +14,7 @@
 // itself uses on the server: project folders, the renderer, the board file,
 // the schedule, the local image servers and the design check.
 
+import { spawnSync } from 'node:child_process'
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { appendFile, chmod, mkdir, readFile, readdir, rename, stat, writeFile } from 'node:fs/promises'
@@ -21,9 +22,11 @@ import { basename, isAbsolute, join, relative, resolve } from 'node:path'
 import { checkArgs, findCommand } from './agent-commands.mjs'
 import { readBoard, saveBoard } from './board.mjs'
 import { extensionsRoot } from './extensions.mjs'
+import { checkFilm, describeFilm, FILM_FILE, filmShots } from './film.mjs'
 import { checkShot, composeShot, findNegations, framesFor, MAX_CHARS, secondsOf, STARTS } from './h3prompt.mjs'
 import { WAIT_MAX } from './jobs.mjs'
 import { edl, fcpxml, probe, resolveZip } from './nle.mjs'
+import { VOICE_ID } from './revoice.mjs'
 import { allowed, listFiles, openProject, projectFile, projectsRoot, readText, slug, writeFiles } from './projects.mjs'
 
 export const AGENT_PATH = '/__tsrs/agent'
@@ -72,10 +75,14 @@ const bytes = (n) => (n < 1024 ? `${n} B` : n < 1024 ** 2 ? `${(n / 1024).toFixe
 //   renderMotion, renderBusy   from render/serve.mjs
 //   video        readSpec, checkVideo, describeCheck, runVideo from render/video.mjs
 //   inspectPage  from design.mjs
-//   comfy, sdcpp { status(), makeImage(job) }; comfy also h3Models(), makeTake(job)
+//   comfy, sdcpp { status(), makeImage(job) }; comfy also h3Models(), makeTake(job),
+//                turnaroundModels(), makeTurnaround(job)
 //   jobs         the GPU queue (jobs.mjs)
 //   checkTake(file, { script, first, last })   the take checks (takecheck.mjs)
+//   revoice(file, { voice })   a take's lines in a cloned voice (revoice.mjs)
 //   ffmpeg       the ffmpeg command
+//   night        the night shift (nightshift.mjs)
+//   access       { info(), rotate() } the phone access (access.mjs)
 //   renderFolder where videos outside a project go
 export function createAgent(deps, root = projectsRoot()) {
   async function project(ref) {
@@ -140,7 +147,7 @@ export function createAgent(deps, root = projectsRoot()) {
       throw invalid(error.message)
     })
     try {
-      const shot = JSON.parse(text)
+      const shot = JSON.parse(text.replace(/^\uFEFF/, ''))
       if (!shot || typeof shot !== 'object' || Array.isArray(shot)) throw new Error('not an object')
       return shot
     } catch (error) {
@@ -152,13 +159,57 @@ export function createAgent(deps, root = projectsRoot()) {
 
   const jobLine = (j) => {
     const when = j.status === 'queued' ? `#${j.position} in the queue` : j.status
-    const made = j.result?.file ? ` → ${j.result.file}${j.result.checks ? ` (${checkLine(j.result.checks)})` : ''}` : ''
+    const voice = j.result?.revoice?.revoiced ? ' · lines in the cloned voice' : j.result?.revoice?.error ? ` · voice not changed: ${j.result.revoice.error}` : ''
+    const made = j.result?.file ? ` → ${j.result.file}${j.result.checks ? ` (${checkLine(j.result.checks)})` : ''}${voice}` : ''
     return `${j.id}  ${j.kind} "${j.title}"  ${when}${made}${j.error ? ` · ${j.error}` : ''}`
   }
 
   function queue() {
     if (!deps.jobs) throw new AgentError('failed', 'This TSRS has no GPU queue.')
     return deps.jobs
+  }
+
+  // ---- films ----
+  async function readFilm(folder, file = FILM_FILE) {
+    const text = await readText(folder, file).catch(() => {
+      throw invalid(`No ${file} in ${basename(folder)}. Write the film plan there first (see the tsrs skill: film.json).`)
+    })
+    try {
+      return { film: JSON.parse(text.replace(/^\uFEFF/, '')) } // a BOM: Windows editors write one
+    } catch (error) {
+      throw invalid(`${file} is not valid JSON: ${error.message}`)
+    }
+  }
+  async function writeShots(folder, shots, yes) {
+    const theirs = []
+    for (const s of shots) {
+      const path = join(folder, s.file)
+      if (!existsSync(path)) continue
+      try {
+        if (JSON.parse(await readFile(path, 'utf8')).from !== FILM_FILE) theirs.push(s.file)
+      } catch {
+        theirs.push(s.file)
+      }
+    }
+    if (theirs.length && !yes) throw confirm(`Would replace shot files not made from the film: ${theirs.join(', ')}. Add --yes to replace them.`)
+    await writeFiles(folder, shots.map((s) => ({ name: s.file, content: JSON.stringify(s.shot, null, 2) + '\n' })))
+  }
+
+  // What the commands made, for `tsrs ledger`: a bot reports from this, not from memory.
+  const made = []
+  const remember = (command, args, out) => {
+    const r = out?.result ?? {}
+    const files = [r.file, ...(r.files ?? []), r.notes, r.path].filter(Boolean).map(String)
+    const what = [
+      args.project ? `[${args.project}]` : '',
+      files.length ? files.join(', ') : '',
+      r.id ? `job ${r.id}` : '',
+      r.jobs ? `jobs ${r.jobs.map((j) => j.job).join(', ')}` : '',
+      r.take ? `take ${r.take}${r.status ? ` → ${r.status}` : ''}` : '',
+      r.title && !r.id ? `"${r.title}"` : '',
+    ].filter(Boolean).join(' ')
+    made.push({ at: Date.now(), command, what: what || '(done)' })
+    if (made.length > 200) made.shift()
   }
 
   // ---- takes ----
@@ -206,6 +257,21 @@ export function createAgent(deps, root = projectsRoot()) {
     const { notes, at: _at, ...rest } = take
     await writeFiles(folder, [{ name: notes, content: JSON.stringify(rest, null, 2) + '\n' }])
   }
+  // The lines of a take changed to a cloned voice; the take is kept either way.
+  async function revoiceTake(folder, take, voice) {
+    if (!deps.revoice) return { error: 'This TSRS cannot change voices.' }
+    try {
+      const r = await deps.revoice(join(folder, take.video), { voice })
+      const revoiced = { engine: 'ElevenLabs voice changer', voice, original: relative(folder, r.original).split('\\').join('/'), gain: r.gain, at: new Date().toISOString() }
+      await saveTake(folder, { ...take, revoiced, revoiceError: undefined })
+      return { revoiced }
+    } catch (error) {
+      await saveTake(folder, { ...take, revoiceError: error.message })
+      return { error: error.message }
+    }
+  }
+  const takeStatus = (take, checks) => (take.status === 'approved' ? 'approved' : checks.passed ? (take.status === 'redo' ? 'pending' : take.status ?? 'pending') : 'redo')
+
   async function findTake(folder, ref) {
     const takes = await readTakes(folder)
     const want = String(ref ?? '').replace(/\.(json|mp4)$/i, '').replace(/^takes\//, '')
@@ -382,8 +448,11 @@ export function createAgent(deps, root = projectsRoot()) {
       const refs = args.refs ?? shot.refs ?? []
       const first = args.image ?? shot.image
       const last = args.last ?? shot.last
+      // Opens on the last frame of the shot before: found when the take runs,
+      // so the one before (earlier in the queue) has been made by then.
+      const after = !first && !refs.length && shot.after ? String(shot.after) : null
       if (refs.length && (first || last)) throw invalid('Reference pictures do not combine with a first or last frame: give one or the other.')
-      const start = refs.length ? 'reference' : first && last ? 'first-last' : first ? 'first' : last ? 'last' : STARTS.includes(shot.start) && !['first', 'last', 'first-last', 'reference'].includes(shot.start) ? shot.start : 'text'
+      const start = refs.length ? 'reference' : (first || after) && last ? 'first-last' : first || after ? 'first' : last ? 'last' : STARTS.includes(shot.start) && !['first', 'last', 'first-last', 'reference'].includes(shot.start) ? shot.start : 'text'
       if (args.seconds !== undefined) shot.seconds = args.seconds
       let prompt
       let frames
@@ -418,9 +487,20 @@ export function createAgent(deps, root = projectsRoot()) {
       const reserved = new Set(queue().list().filter((j) => j.kind === 'take' && j.project === folder).map((j) => j.params?.name))
       let name = stem
       for (let n = 2; existsSync(join(folder, 'takes', `${name}.mp4`)) || reserved.has(name); n++) name = `${stem}-${n}`
-      const params = { name, frames, seconds: secondsOf(frames), start, resolution, aspect, shot: args.shot ?? null, pictures: pictures.map((p) => p.rel) }
+      const params = { name, frames, seconds: secondsOf(frames), start, resolution, aspect, shot: args.shot ?? null, pictures: pictures.map((p) => p.rel), after }
 
       const job = queue().submit({ kind: 'take', title: name, project: folder, params }, async (_job, { signal, progress }) => {
+        if (after) {
+          const before = bestTakes((await readTakes(folder)).filter((t) => t.shot === after))[0]?.take
+          if (!before) throw new Error(`The shot before (${after}) has no usable take: make it first, or give --image.`)
+          const rel = `midia/frames/${before.name}-last.png`
+          const out = projectFile(folder, rel)
+          await mkdir(join(folder, 'midia', 'frames'), { recursive: true })
+          const r = spawnSync(deps.ffmpeg ?? 'ffmpeg', ['-v', 'error', '-y', '-sseof', '-0.1', '-i', join(folder, before.video), '-frames:v', '1', '-update', '1', out])
+          if (r.status !== 0 || !existsSync(out)) throw new Error(`Could not take the last frame of ${before.video}.`)
+          pictures.unshift(await picture(folder, rel))
+          params.pictures = pictures.map((p) => p.rel)
+        }
         const made = await deps.comfy.makeTake({
           prompt, frames, mode: start === 'reference' ? 'reference' : 'image', role: start === 'last' ? 'last' : 'first',
           images: pictures, resolution, aspect, seed: args.seed ?? shot.seed, steps: args.steps ?? shot.steps, signal,
@@ -440,6 +520,14 @@ export function createAgent(deps, root = projectsRoot()) {
           },
         ])
         await note(folder, [video, notes])
+        // The lines in a cloned voice, before the checks: they hear what is kept.
+        let revoice = null
+        const voice = args.voice ?? shot.revoice?.voice
+        if (voice && String(args.revoice ?? 'yes') !== 'no') {
+          progress({ revoicing: true })
+          const take = (await readTakes(folder)).find((t) => t.name === name)
+          if (take) revoice = await revoiceTake(folder, take, String(voice))
+        }
         let verdict = null
         if (String(args.check ?? 'yes') !== 'no') {
           progress({ checking: true })
@@ -451,7 +539,7 @@ export function createAgent(deps, root = projectsRoot()) {
             verdict = { passed: null, reason: `the checks could not run: ${error.message}` }
           }
         }
-        return { file: video, notes, seed: made.seed, steps: made.steps, checks: verdict }
+        return { file: video, notes, seed: made.seed, steps: made.steps, checks: verdict, ...(revoice ? { revoice } : {}) }
       })
 
       const head = `Queued take ${job.id}: "${name}" in ${basename(folder)}, ${frames} frames (${secondsOf(frames)} s), ${resolution} ${aspect}, start ${start}.`
@@ -466,6 +554,142 @@ export function createAgent(deps, root = projectsRoot()) {
       return { text: `${head}${job.position > 1 ? ` #${job.position} in the queue.` : ''}${warns}\nFollow it with: tsrs jobs wait ${job.id}`, result: job }
     },
 
+    async 'film check'(args) {
+      const folder = await project(args.project)
+      const { film } = await readFilm(folder, args.file)
+      const report = checkFilm(film, { exists: (rel) => { const f = projectFile(folder, rel); return !!f && existsSync(f) } })
+      return { text: describeFilm(report), result: report }
+    },
+
+    async 'film shots'(args, yes) {
+      const folder = await project(args.project)
+      const { film } = await readFilm(folder, args.file)
+      const shots = filmShots(film, { scenes: args.scenes, shots: args.shots })
+      if (!shots.length) throw invalid('No shots match. See: tsrs film check ' + basename(folder))
+      await writeShots(folder, shots, yes)
+      return { text: `Wrote ${shots.length} shot file(s): ${shots.map((s) => s.file).join(', ')}`, result: { files: shots.map((s) => s.file) } }
+    },
+
+    async 'film take'(args, yes) {
+      const folder = await project(args.project)
+      const { film } = await readFilm(folder, args.file)
+      const report = checkFilm(film, { exists: (rel) => { const f = projectFile(folder, rel); return !!f && existsSync(f) } })
+      if (!report.ok) throw invalid(`Fix film.json first:\n${describeFilm(report)}`)
+      const shots = filmShots(film, { scenes: args.scenes, shots: args.shots })
+      if (!shots.length) throw invalid('No shots match. See: tsrs film check ' + basename(folder))
+      await writeShots(folder, shots, yes)
+      const jobs = []
+      for (const s of shots) {
+        const queued = await run.take({ project: args.project, shot: s.file })
+        jobs.push({ shot: s.file, job: queued.result.id, name: queued.result.params?.name })
+      }
+      return {
+        text: `Queued ${jobs.length} take(s):\n${jobs.map((j) => `${j.job}  ${j.shot} → takes/${j.name}.mp4`).join('\n')}\nFollow them with: tsrs jobs wait ${jobs.map((j) => j.job).join(',')}`,
+        result: { jobs },
+      }
+    },
+
+    async 'night plan'(args) {
+      if (!deps.night) throw new AgentError('failed', 'This TSRS has no night shift.')
+      const folder = await project(args.project)
+      let shots
+      const named = (args.shots ?? []).filter((s) => /\.json$/i.test(s))
+      if (named.length && named.length === (args.shots ?? []).length) {
+        for (const rel of named) await readShot(folder, rel)
+        shots = named
+      } else {
+        const { film } = await readFilm(folder)
+        const report = checkFilm(film, { exists: (rel) => { const f = projectFile(folder, rel); return !!f && existsSync(f) } })
+        if (!report.ok) throw invalid(`Fix film.json first:\n${describeFilm(report)}`)
+        const made = filmShots(film, { scenes: args.scenes, shots: args.shots })
+        if (!made.length) throw invalid('No shots match.')
+        await writeShots(folder, made, false)
+        shots = made.map((m) => m.file)
+      }
+      const plan = await deps.night.plan({ project: basename(folder), folder, shots, start: String(args.start ?? 'idle') }).catch((error) => {
+        throw invalid(error.message)
+      })
+      const when = plan.start === 'now' ? 'now' : plan.start === 'idle' ? 'when the computer has been idle for 2 minutes' : `at ${plan.start}`
+      return { text: `Night shift ${plan.id}: ${shots.length} shot(s) of ${basename(folder)}, starting ${when}. The dailies will be in dailies/.\nSee: tsrs night status`, result: plan }
+    },
+
+    async 'night status'() {
+      if (!deps.night) throw new AgentError('failed', 'This TSRS has no night shift.')
+      const plan = await deps.night.read()
+      if (!plan) return { text: 'No night shift planned.', result: null }
+      const head = plan.canceled
+        ? `Night shift ${plan.id} (${plan.project}): canceled.`
+        : plan.ended
+          ? `Night shift ${plan.id} (${plan.project}): ended ${plan.ended.slice(0, 16).replace('T', ' ')}.`
+          : plan.started
+            ? `Night shift ${plan.id} (${plan.project}): running since ${plan.started.slice(0, 16).replace('T', ' ')}.`
+            : `Night shift ${plan.id} (${plan.project}): waiting to start (${plan.start}).`
+      const rows = plan.items.map((i) => `  ${i.shot}  ${i.state}${i.take ? ` → takes/${i.take}.mp4` : ''}${i.passed === false ? ` · ${i.reason ?? 'checks failed'}` : i.passed ? ' · passed' : ''}${i.error ? ` · ${i.error}` : ''}`)
+      const dailies = plan.dailies?.reel || plan.dailies?.notes ? `\nDailies: ${[plan.dailies.reel, plan.dailies.notes].filter(Boolean).join(', ')}` : plan.dailies?.error ? `\nThe dailies failed: ${plan.dailies.error}` : ''
+      return { text: `${head}\n${rows.join('\n')}${dailies}`, result: plan }
+    },
+
+    async 'night cancel'() {
+      if (!deps.night) throw new AgentError('failed', 'This TSRS has no night shift.')
+      const plan = await deps.night.cancel()
+      return { text: plan ? `Canceled the night shift ${plan.id}.` : 'No night shift was running.', result: plan }
+    },
+
+    async access() {
+      if (!deps.access) throw new AgentError('failed', 'This TSRS has no phone access.')
+      const a = await deps.access.info()
+      const lines = [
+        a.tailscale
+          ? `1. On this computer, once: tailscale serve --bg ${a.port}`
+          : `1. Install Tailscale on this computer and the phone, signed in to the same account; then, once: tailscale serve --bg ${a.port}`,
+        `2. On the phone (in Tailscale), open once: https://${a.tailscale ?? '<this computer>.<your tailnet>.ts.net'}/?key=${a.key}`,
+        '   The key is kept by the phone after that. Keep the link to yourself; tsrs access rotate makes a new one.',
+        `Notifications: on the phone, TSRS > Settings > Security > "Notify me on this device" (${a.devices} device(s) so far).`,
+      ]
+      return { text: lines.join('\n'), result: a }
+    },
+
+    async 'access rotate'(_args, yes) {
+      if (!deps.access) throw new AgentError('failed', 'This TSRS has no phone access.')
+      if (!yes) throw confirm('Would make a new key: every phone opened with the old link is signed out. Add --yes to do it.')
+      await deps.access.rotate()
+      return { text: 'New key made. See the new link with: tsrs access', result: { rotated: true } }
+    },
+
+    async ledger(args) {
+      const since = Date.now() - Math.max(1, Number(args.minutes ?? 120)) * 60_000
+      const rows = made.filter((m) => m.at >= since)
+      const text = rows.length
+        ? rows.map((m) => `${new Date(m.at).toISOString().slice(11, 19)}  ${m.command}  ${m.what}`).join('\n')
+        : 'Nothing was made or changed by the commands in that time.'
+      return { text: `What TSRS's records say was made:\n${text}`, result: rows }
+    },
+
+    async turnaround(args) {
+      const folder = await project(args.project)
+      const pic = await picture(folder, args.picture)
+      if (!deps.comfy.turnaroundModels) throw new AgentError('failed', 'This TSRS cannot make turnarounds.')
+      const ready = await deps.comfy.turnaroundModels().catch((error) => {
+        throw invalid(error.message)
+      })
+      if (!ready.ok) throw invalid(`ComfyUI cannot make turnarounds yet. Install, then restart ComfyUI:\n- ${ready.missing.join('\n- ')}`)
+      const stem = slug(args.name || basename(String(args.picture)).replace(/\.[^.]+$/, '')).slice(0, 40) || 'turnaround'
+      const job = queue().submit({ kind: 'turnaround', title: stem, project: folder, params: { name: stem, picture: pic.rel } }, async (_job, { signal }) => {
+        const made = await deps.comfy.makeTurnaround({ image: pic, size: args.size, strength: args.strength, seed: args.seed, signal })
+        const files = [
+          { name: `midia/${stem}-sheet.png`, content: made.sheet.toString('base64'), encoding: 'base64' },
+          ...made.views.map((v, i) => ({ name: `midia/${stem}-view${i + 1}.png`, content: v.toString('base64'), encoding: 'base64' })),
+        ]
+        await writeFiles(folder, files)
+        await note(folder, files.map((f) => f.name))
+        return { file: files[0].name, files: files.map((f) => f.name), seed: made.seed }
+      })
+      return {
+        text: `Queued turnaround ${job.id}: five views of ${pic.rel}, into midia/${stem}-view1..5.png and midia/${stem}-sheet.png.\nThen add the views you like to the character's pictures in film.json.\nFollow it with: tsrs jobs wait ${job.id}`,
+        result: job,
+      }
+    },
+
     async 'takes list'(args) {
       const folder = await project(args.project)
       const takes = (await readTakes(folder)).sort((a, b) => natural(a.name, b.name))
@@ -473,7 +697,7 @@ export function createAgent(deps, root = projectsRoot()) {
       const best = bestTakes(takes)
       const chosen = new Set(best.map((b) => b.take?.name).filter(Boolean))
       const text = takes
-        .map((t) => `${chosen.has(t.name) ? '★' : ' '} ${t.name}  ${t.status ?? 'pending'} · ${t.seconds ?? '?'} s · seed ${t.seed ?? '?'} · ${checkLine(t.checks)}`)
+        .map((t) => `${chosen.has(t.name) ? '★' : ' '} ${t.name}  ${t.status ?? 'pending'} · ${t.seconds ?? '?'} s · seed ${t.seed ?? '?'} · ${checkLine(t.checks)}${t.revoiced ? ' · cloned voice' : t.revoiceError ? ` · voice not changed: ${t.revoiceError}` : ''}`)
         .join('\n')
       return { text: `${text}\n★ best take of its shot`, result: { takes, best: best.map((b) => ({ shot: b.shot, take: b.take?.name ?? null })) } }
     },
@@ -483,11 +707,42 @@ export function createAgent(deps, root = projectsRoot()) {
       const take = await findTake(folder, args.take)
       if (!deps.checkTake) throw new AgentError('failed', 'This TSRS cannot check takes.')
       const checks = await runChecks(folder, take)
-      const status = take.status === 'approved' ? 'approved' : checks.passed ? (take.status === 'redo' ? 'pending' : take.status ?? 'pending') : 'redo'
+      const status = takeStatus(take, checks)
       await saveTake(folder, { ...take, checks, status })
       const window = checks.shot?.window && !checks.shot.window.whole ? `\nTrim to ${checks.shot.window.in}–${checks.shot.window.out} s (no cut inside).` : ''
       const heard = checks.words ? `\nHeard: "${checks.words.heard}"` : ''
       return { text: `${take.name}: ${checkLine(checks)} → ${status}${heard}${window}`, result: { take: take.name, status, checks } }
+    },
+
+    async 'takes revoice'(args, yes) {
+      const folder = await project(args.project)
+      const take = await findTake(folder, args.take)
+      let voice = args.voice ? String(args.voice) : null
+      if (!voice && take.shot) voice = (await readShot(folder, take.shot).catch(() => ({}))).revoice?.voice ?? null
+      if (!voice) throw invalid('Which voice? Give --voice <ElevenLabs voice id>, or set elevenlabsVoice on the character in film.json and run: tsrs film shots ' + basename(folder))
+      if (voice.toLowerCase() === 'h3') {
+        const original = take.revoiced?.original ?? take.video.replace(/\.mp4$/, '.h3.mp4')
+        if (!existsSync(join(folder, original))) throw invalid(`${take.name} has its own voice already.`)
+        await writeFiles(folder, [{ name: take.video, content: (await readFile(join(folder, original))).toString('base64'), encoding: 'base64' }])
+        await saveTake(folder, { ...take, revoiced: undefined, revoiceError: undefined })
+        return { text: `${take.name}: back to the voice H3 made.`, result: { take: take.name, voice: 'h3' } }
+      }
+      if (!VOICE_ID.test(voice)) throw invalid(`"${voice}" is not an ElevenLabs voice id (like e1MAZ8in8PhkrhQwfrMh).`)
+      if (!yes) throw confirm(`Would send the sound of ${take.name} (${take.seconds ?? '?'} s) to ElevenLabs to change its lines to the voice ${voice}; this uses ElevenLabs credits. Add --yes to do it.`)
+      const done = await revoiceTake(folder, take, voice)
+      if (done.error) throw new AgentError('failed', done.error)
+      let checks = null
+      let status = take.status ?? 'pending'
+      if (deps.checkTake) {
+        const now = await findTake(folder, take.name)
+        checks = await runChecks(folder, now)
+        status = takeStatus(now, checks)
+        await saveTake(folder, { ...now, checks, status })
+      }
+      return {
+        text: `${take.name}: the lines are in the voice ${voice} now (${done.revoiced.gain >= 0 ? '+' : ''}${done.revoiced.gain} dB to match); its own sound is in ${done.revoiced.original}.${checks ? `\n${checkLine(checks)} → ${status}${checks.words ? `\nHeard: "${checks.words.heard}"` : ''}` : ''}`,
+        result: { take: take.name, revoiced: done.revoiced, checks, status },
+      }
     },
 
     async 'takes rate'(args) {
@@ -691,14 +946,38 @@ export function createAgent(deps, root = projectsRoot()) {
     },
   }
 
+  // A call that was refused for its arguments is not sent again unchanged: a
+  // small model may repeat it forever. The same call is answered with the
+  // same refusal and what to do, for 2 minutes.
+  const refused = new Map()
+  const REFUSED_MS = 2 * 60_000
+
   // Runs one command; errors carry a code: invalid, confirm, busy or failed.
   return async function runCommand(name, args = {}, yes = false, progress) {
     const command = findCommand(name)
     if (!command) throw invalid(`No command "${name}". See: tsrs --help`)
     checkArgs(command, args)
+    const key = `${name} ${JSON.stringify(args)} ${yes}`
+    const before = refused.get(key)
+    if (before && Date.now() - before.at < REFUSED_MS) {
+      throw invalid(`This exact call was refused a moment ago: ${before.message}\nDo not repeat it: change what made it fail (the arguments, the files), or ask the user.`)
+    }
     // destructive and cost commands check `yes` themselves, after saying
     // exactly what they would do.
-    return run[name](args, yes, progress)
+    try {
+      const out = await run[name](args, yes, progress)
+      refused.delete(key)
+      if (command.kind !== 'read') {
+        remember(name, args, out)
+        // Something changed: a call refused before may be right now.
+        refused.clear()
+      }
+      return out
+    } catch (error) {
+      if (error?.code === 'invalid') refused.set(key, { at: Date.now(), message: error.message })
+      for (const [k, v] of refused) if (Date.now() - v.at > REFUSED_MS) refused.delete(k)
+      throw error
+    }
   }
 }
 
