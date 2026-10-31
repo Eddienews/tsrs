@@ -21,6 +21,8 @@ import { basename, isAbsolute, join, relative, resolve } from 'node:path'
 import { checkArgs, findCommand } from './agent-commands.mjs'
 import { readBoard, saveBoard } from './board.mjs'
 import { extensionsRoot } from './extensions.mjs'
+import { checkShot, composeShot, findNegations, framesFor, MAX_CHARS, secondsOf, STARTS } from './h3prompt.mjs'
+import { WAIT_MAX } from './jobs.mjs'
 import { allowed, listFiles, openProject, projectFile, projectsRoot, readText, slug, writeFiles } from './projects.mjs'
 
 export const AGENT_PATH = '/__tsrs/agent'
@@ -69,7 +71,8 @@ const bytes = (n) => (n < 1024 ? `${n} B` : n < 1024 ** 2 ? `${(n / 1024).toFixe
 //   renderMotion, renderBusy   from render/serve.mjs
 //   video        readSpec, checkVideo, describeCheck, runVideo from render/video.mjs
 //   inspectPage  from design.mjs
-//   comfy, sdcpp { status(), makeImage(job) }
+//   comfy, sdcpp { status(), makeImage(job) }; comfy also h3Models(), makeTake(job)
+//   jobs         the GPU queue (jobs.mjs)
 //   renderFolder where videos outside a project go
 export function createAgent(deps, root = projectsRoot()) {
   async function project(ref) {
@@ -119,6 +122,41 @@ export function createAgent(deps, root = projectsRoot()) {
   }
   const cardLine = (card, board) =>
     `${card.title}  [${board.columns.find((c) => c.id === card.column)?.name ?? card.column}]${card.kind ? ` · ${card.kind}` : ''}${card.series ? ` · ${card.series}` : ''}${card.due ? ` · due ${card.due}` : ''}  (${card.id})`
+
+  const PICTURES = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' }
+  async function picture(folder, rel) {
+    const file = projectFile(folder, rel)
+    if (!file || !existsSync(file)) throw invalid(`No picture named ${rel} in the project.`)
+    const mime = PICTURES[(/\.[^.]+$/.exec(file)?.[0] ?? '').toLowerCase()]
+    if (!mime) throw invalid(`${rel}: a frame or reference is a PNG, JPEG or WebP picture.`)
+    return { rel: relative(folder, file).split('\\').join('/'), mime, data: (await readFile(file)).toString('base64') }
+  }
+
+  async function readShot(folder, rel) {
+    const text = await readText(folder, rel).catch((error) => {
+      throw invalid(error.message)
+    })
+    try {
+      const shot = JSON.parse(text)
+      if (!shot || typeof shot !== 'object' || Array.isArray(shot)) throw new Error('not an object')
+      return shot
+    } catch (error) {
+      throw invalid(`${rel} is not a shot (a JSON object): ${error.message}`)
+    }
+  }
+
+  const checkLines = (checks) => checks.map((c) => `${c.level === 'error' ? '✗' : '!'} ${c.text}`)
+
+  const jobLine = (j) => {
+    const when = j.status === 'queued' ? `#${j.position} in the queue` : j.status
+    const made = j.result?.file ? ` → ${j.result.file}` : ''
+    return `${j.id}  ${j.kind} "${j.title}"  ${when}${made}${j.error ? ` · ${j.error}` : ''}`
+  }
+
+  function queue() {
+    if (!deps.jobs) throw new AgentError('failed', 'This TSRS has no GPU queue.')
+    return deps.jobs
+  }
 
   const run = {
     async status() {
@@ -263,6 +301,135 @@ export function createAgent(deps, root = projectsRoot()) {
         text: `Made ${files.join(' and ')} in ${basename(folder)} (${made.total.toFixed(1)} s, words from ${made.words}${made.made.length ? `, voice made for ${made.made.length} line(s)` : ''}).`,
         result: { project: folder, files, timing: relative(folder, made.timing).split('\\').join('/'), seconds: made.total, words: made.words, voiceMade: made.made },
       }
+    },
+
+    async 'h3 prompt'(args) {
+      const folder = await project(args.project)
+      const shot = await readShot(folder, args.shot)
+      const made = composeShot(shot)
+      const checks = checkShot(shot, made.prompt)
+      const text = [
+        `${made.frames} frames (${made.seconds} s at 24 fps) · start: ${made.form} · ${made.prompt.length} characters`,
+        '',
+        made.prompt,
+        ...(checks.length ? ['', ...checkLines(checks)] : ['', 'Nothing to fix.']),
+      ].join('\n')
+      return { text, result: { ...made, checks } }
+    },
+
+    async take(args, _yes, progress) {
+      const folder = await project(args.project)
+      const shot = args.shot ? await readShot(folder, args.shot) : {}
+      if (!args.shot && !args.prompt) throw invalid('Give a shot file or --prompt "…".')
+      const refs = args.refs ?? shot.refs ?? []
+      const first = args.image ?? shot.image
+      const last = args.last ?? shot.last
+      if (refs.length && (first || last)) throw invalid('Reference pictures do not combine with a first or last frame: give one or the other.')
+      const start = refs.length ? 'reference' : first && last ? 'first-last' : first ? 'first' : last ? 'last' : STARTS.includes(shot.start) && !['first', 'last', 'first-last', 'reference'].includes(shot.start) ? shot.start : 'text'
+      if (args.seconds !== undefined) shot.seconds = args.seconds
+      let prompt
+      let frames
+      let checks
+      if (args.prompt) {
+        prompt = String(args.prompt).trim()
+        frames = framesFor(shot.seconds ?? 5)
+        checks = [
+          ...(prompt.length > MAX_CHARS ? [{ level: 'error', text: `The prompt is ${prompt.length} characters; H3 reads at most ${MAX_CHARS}.` }] : []),
+          ...findNegations(prompt).map((p) => ({ level: 'warn', text: `"${p}": H3 has no negative prompt, so naming a thing tends to bring it.` })),
+        ]
+      } else {
+        const made = composeShot({ ...shot, start, subjects: shot.subjects ?? (refs.length ? refs.map(() => '') : undefined) })
+        prompt = made.prompt
+        frames = made.frames
+        checks = checkShot({ ...shot, start }, prompt)
+      }
+      const errors = checks.filter((c) => c.level === 'error')
+      if (errors.length) throw invalid(`Fix the shot first:\n${checkLines(errors).join('\n')}`)
+      const resolution = String(args.resolution ?? shot.resolution ?? '540P').toUpperCase()
+      const aspect = String(args.aspect ?? shot.aspect ?? '16:9')
+      const pictures = []
+      for (const rel of refs.length ? refs : [first, last].filter(Boolean)) pictures.push(await picture(folder, rel))
+      if (pictures.length > 9) throw invalid('At most 9 reference pictures.')
+
+      const h3 = await deps.comfy.h3Models().catch((error) => {
+        throw invalid(error.message)
+      })
+      if (!h3.ok) throw invalid(`ComfyUI cannot make H3 takes yet: missing ${h3.missing.join(', ')}.`)
+
+      const stem = slug(args.name || (args.shot ? basename(String(args.shot)).replace(/\.json$/i, '') : 'take')).slice(0, 48) || 'take'
+      const reserved = new Set(queue().list().filter((j) => j.kind === 'take' && j.project === folder).map((j) => j.params?.name))
+      let name = stem
+      for (let n = 2; existsSync(join(folder, 'takes', `${name}.mp4`)) || reserved.has(name); n++) name = `${stem}-${n}`
+      const params = { name, frames, seconds: secondsOf(frames), start, resolution, aspect, shot: args.shot ?? null, pictures: pictures.map((p) => p.rel) }
+
+      const job = queue().submit({ kind: 'take', title: name, project: folder, params }, async (_job, { signal, progress }) => {
+        const made = await deps.comfy.makeTake({
+          prompt, frames, mode: start === 'reference' ? 'reference' : 'image', role: start === 'last' ? 'last' : 'first',
+          images: pictures, resolution, aspect, seed: args.seed ?? shot.seed, steps: args.steps ?? shot.steps, signal,
+          onStart: (id) => progress({ comfy: id }),
+        })
+        const video = `takes/${name}.mp4`
+        const notes = `takes/${name}.json`
+        await writeFiles(folder, [
+          { name: video, content: made.bytes.toString('base64'), encoding: 'base64' },
+          {
+            name: notes,
+            content: JSON.stringify({
+              status: 'pending', name, video, shot: args.shot ?? null, start, frames, seconds: secondsOf(frames), resolution, aspect,
+              pictures: params.pictures, seed: made.seed, steps: made.steps, models: made.models, prompt, checks, job: _job.id,
+              made: new Date().toISOString(), engine: 'MiniMax H3 (ComfyUI)',
+            }, null, 2) + '\n',
+          },
+        ])
+        await note(folder, [video, notes])
+        return { file: video, notes, seed: made.seed, steps: made.steps }
+      })
+
+      const head = `Queued take ${job.id}: "${name}" in ${basename(folder)}, ${frames} frames (${secondsOf(frames)} s), ${resolution} ${aspect}, start ${start}.`
+      const warns = checks.length ? `\n${checkLines(checks).join('\n')}` : ''
+      if (Number(args.wait) > 0) {
+        const tick = progress ? setInterval(() => progress({ waiting: true }), 20_000) : null
+        const [after] = await queue()
+          .wait([job.id], Math.min(WAIT_MAX, Number(args.wait)))
+          .finally(() => tick && clearInterval(tick))
+        return { text: `${head}${warns}\n${jobLine(after)}`, result: after }
+      }
+      return { text: `${head}${job.position > 1 ? ` #${job.position} in the queue.` : ''}${warns}\nFollow it with: tsrs jobs wait ${job.id}`, result: job }
+    },
+
+    async 'jobs list'() {
+      const jobs = queue().list()
+      return { text: jobs.length ? jobs.map(jobLine).join('\n') : 'The GPU queue is empty.', result: jobs }
+    },
+
+    async 'jobs status'(args) {
+      const job = queue().get(args.job)
+      if (!job) throw invalid(`No job ${args.job}. See: tsrs jobs list`)
+      return { text: jobLine(job), result: job }
+    },
+
+    async 'jobs wait'(args, _yes, progress) {
+      const seconds = Math.min(WAIT_MAX, args.seconds ?? 50)
+      const tick = progress ? setInterval(() => progress({ waiting: true }), 20_000) : null
+      try {
+        const jobs = await queue().wait(args.jobs, seconds).catch((error) => {
+          throw invalid(error.message)
+        })
+        const open = jobs.filter((j) => ['queued', 'running', 'canceling'].includes(j.status)).length
+        return { text: `${jobs.map(jobLine).join('\n')}${open ? `\n${open} still going after ${seconds} s; wait again.` : ''}`, result: jobs }
+      } finally {
+        if (tick) clearInterval(tick)
+      }
+    },
+
+    async 'jobs cancel'(args) {
+      let job
+      try {
+        job = queue().cancel(args.job)
+      } catch (error) {
+        throw invalid(error.message)
+      }
+      return { text: jobLine(job), result: job }
     },
 
     async 'design check'(args) {
@@ -421,7 +588,8 @@ export function agentHandler(runCommand, token) {
     } catch (error) {
       return json(400, { ok: false, code: 'invalid', error: error.message })
     }
-    const streaming = job.command === 'render motion' || job.command === 'video run'
+    // Long answers stream lines of JSON, so no client gives up waiting for headers.
+    const streaming = ['render motion', 'video run', 'jobs wait', 'take'].includes(job.command)
     if (streaming) res.writeHead(200, { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-store' })
     const finish = (value) => (streaming ? (res.end(JSON.stringify(value) + '\n'), true) : json(200, value))
     try {

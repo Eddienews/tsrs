@@ -82,9 +82,40 @@ export async function comfyStatus(fetchImpl = fetch) {
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms))
 
-// Queues a graph, waits for it and returns the first file of `kind` it saved.
-async function run(graph, kind, fetchImpl, wait) {
+// Stops a run of ours: takes it off ComfyUI's queue, and interrupts it when
+// it is the one running. Without this a run TSRS gave up on kept the GPU busy.
+export async function stopRun(id, fetchImpl = fetch) {
   const base = comfyUrl()
+  const post = (path, body) =>
+    fetchImpl(`${base}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => null)
+  let running = true
+  try {
+    const queue = await (await fetchImpl(`${base}/queue`)).json()
+    running = (queue?.queue_running ?? []).some((item) => item?.[1] === id)
+  } catch {
+    // Not knowing, interrupt: ComfyUI runs one prompt at a time.
+  }
+  await post('/queue', { delete: [id] })
+  if (running) await post('/interrupt', { prompt_id: id })
+  return running
+}
+
+const VIDEO_FILE = /\.(mp4|webm|mov|mkv)$/i
+
+// The first file of `kind` in a run's outputs. Videos are listed under
+// images, gifs or videos, by node.
+function outputFile(outputs, kind) {
+  const all = Object.values(outputs ?? {})
+  if (kind === 'video') return all.flatMap((o) => [...(o.gifs ?? []), ...(o.videos ?? []), ...(o.images ?? [])]).find((f) => VIDEO_FILE.test(f?.filename ?? ''))
+  return all.flatMap((o) => o[kind] ?? [])[0]
+}
+
+// Queues a graph, waits for it and returns the first file of `kind` it saved.
+// `signal` cancels it (the run is stopped in ComfyUI too); after `maxWait`
+// it is stopped as well.
+export async function run(graph, kind, fetchImpl = fetch, wait = sleep, { signal, maxWait = MAX_WAIT_MS, onStart } = {}) {
+  const base = comfyUrl()
+  if (signal?.aborted) throw cancelled()
   const queued = await (
     await ask(fetchImpl, `${base}/prompt`, {
       method: 'POST',
@@ -93,26 +124,42 @@ async function run(graph, kind, fetchImpl, wait) {
     })
   ).json()
   if (queued.node_errors && Object.keys(queued.node_errors).length) {
-    throw new Error(`ComfyUI refused the graph: ${JSON.stringify(queued.node_errors).slice(0, 300)}`)
+    throw new Error(`ComfyUI refused the graph: ${JSON.stringify(queued.node_errors).slice(0, 600)}`)
   }
   const id = queued.prompt_id
+  onStart?.(id)
   const started = Date.now()
   for (;;) {
     await wait(1000)
+    if (signal?.aborted) {
+      await stopRun(id, fetchImpl)
+      throw cancelled()
+    }
     const history = (await (await ask(fetchImpl, `${base}/history/${id}`)).json())[id]
     if (!history) {
-      if (Date.now() - started > MAX_WAIT_MS) throw new Error('ComfyUI took more than 15 minutes.')
+      if (Date.now() - started > maxWait) {
+        await stopRun(id, fetchImpl)
+        throw new Error(`ComfyUI took more than ${Math.round(maxWait / 60_000)} minutes; the run was stopped.`)
+      }
       continue
     }
     if (history.status?.status_str !== 'success') {
-      const failure = (history.status?.messages ?? []).find((m) => m[0] === 'execution_error')?.[1]
+      const messages = history.status?.messages ?? []
+      if (messages.some((m) => m[0] === 'execution_interrupted')) throw cancelled()
+      const failure = messages.find((m) => m[0] === 'execution_error')?.[1]
       throw new Error(`ComfyUI: ${failure?.exception_message ?? 'the run failed'}`.slice(0, 400))
     }
-    const file = Object.values(history.outputs ?? {}).flatMap((o) => o[kind] ?? [])[0]
+    const file = outputFile(history.outputs, kind)
     if (!file) throw new Error('ComfyUI made no file.')
     const query = new URLSearchParams({ filename: file.filename, subfolder: file.subfolder ?? '', type: file.type ?? 'output' })
     return Buffer.from(await (await ask(fetchImpl, `${base}/view?${query}`)).arrayBuffer())
   }
+}
+
+function cancelled() {
+  const error = new Error('Canceled.')
+  error.code = 'canceled'
+  return error
 }
 
 const newSeed = (seed) => (Number.isInteger(seed) ? seed : Math.floor(Math.random() * 2 ** 31))
@@ -121,7 +168,7 @@ const newSeed = (seed) => (Number.isInteger(seed) ? seed : Math.floor(Math.rando
 export async function makeAudio(job, fetchImpl = fetch, wait = sleep) {
   const { text, seconds } = audioPrompt(job)
   const seed = newSeed(job.seed)
-  const bytes = await run(audioGraph(text, seconds, seed, `tsrs-audio/${Date.now()}`), 'audio', fetchImpl, wait)
+  const bytes = await run(audioGraph(text, seconds, seed, `tsrs-audio/${Date.now()}`), 'audio', fetchImpl, wait, { signal: job.signal })
   return { mime: 'audio/flac', data: bytes.toString('base64'), seed, prompt: text, seconds }
 }
 
@@ -254,6 +301,181 @@ export async function makeImage(job, fetchImpl = fetch, wait = sleep) {
     if (!m.zUnet || !m.zClip || !m.zVae) throw missingModel('Z-Image Turbo')
     graph = zImageGraph(m, prompt, ROUND(Number(job.width) || 1344), ROUND(Number(job.height) || 768), seed, prefix)
   }
-  const bytes = await run(graph, 'images', fetchImpl, wait)
+  const bytes = await run(graph, 'images', fetchImpl, wait, { signal: job.signal })
   return { mime: 'image/png', data: bytes.toString('base64'), seed, model: images.length ? 'qwen-image-edit-2511' : 'z-image-turbo' }
+}
+
+// ---- MiniMax H3 takes -------------------------------------------------------
+// Video with sound from a prompt, made on this computer by MiniMax H3 through
+// the ComfyUI-MiniMaxH3-Easy nodes (github: ComfyUI-MiniMaxH3-Easy), the same
+// graph as its own workflow: Easy Model Adapter → MiniMax H3 Easy → Easy
+// Output → SamplerCustomAdvanced → decoders → video file. Found by name:
+//   diffusion_models/minimax_h3_fl2va*        first/last frame and text
+//   diffusion_models/minimax_h3_ref2va*       reference pictures (optional)
+//   text_encoders/qwen3vl_4b* (+ clip_projections/mmh3-4b-ClipProj*) or another H3 text encoder
+//   vae/minimax_h3_video_vae*, vae/minimax_h3_audio_vae*
+//   loras/minimax_h3*4step*fl2va* (optional: 4 steps instead of 20)
+// MiniMax H3's own license applies to what it makes; check the territories it covers.
+const H3_FILES = {
+  fl2va: /minimax[-_]h3[-_]fl2va/i,
+  ref2va: /minimax[-_]h3[-_]ref2va/i,
+  clip: [/qwen3[-_]?vl[-_]4b/i, /qwen3[-_]?vl/i, /minimax[-_]h3.*text/i],
+  videoVae: /minimax[-_]h3[-_]video[-_]vae/i,
+  audioVae: /minimax[-_]h3[-_]audio[-_]vae/i,
+  flLora: /minimax[-_]h3.*(4|8)[-_]?step.*fl2v/i,
+  refLora: /(minimax[-_]h3|lightx2v).*ref2v.*(4|8)[-_]?step|ref2v.*turbo/i,
+}
+export const H3_RESOLUTIONS = ['360P', '416P', '480P', '540P', '640P', '720P', '768P', '832P']
+export const H3_DEFAULT_STEPS = 20
+
+async function info(fetchImpl, node) {
+  try {
+    return (await (await ask(fetchImpl, `${comfyUrl()}/object_info/${node}`)).json())?.[node] ?? null
+  } catch (error) {
+    if (/not answering/.test(error.message)) throw error
+    return null
+  }
+}
+
+// What ComfyUI has for H3: { ok, missing[], models }.
+export async function h3Models(fetchImpl = fetch) {
+  const [easy, unet, clip, vae, lora, proj, vhs, attention] = await Promise.all(
+    ['MiniMaxH3Easy', 'UNETLoader', 'CLIPLoader', 'VAELoader', 'LoraLoaderModelOnly', 'ClipProjApply', 'VHS_VideoCombine', 'ModelAttentionBackend'].map((n) => info(fetchImpl, n)),
+  )
+  const list = (node, input) => {
+    const v = node?.input?.required?.[input]?.[0]
+    return Array.isArray(v) ? v : Array.isArray(node?.input?.required?.[input]?.[1]?.options) ? node.input.required[input][1].options : []
+  }
+  const base = (name) => String(name).split(/[\\/]/).pop()
+  const find = (names, patterns) => {
+    for (const p of [].concat(patterns)) {
+      const hit = names.find((n) => p.test(base(n)))
+      if (hit) return hit
+    }
+    return ''
+  }
+  const unets = list(unet, 'unet_name')
+  const clips = list(clip, 'clip_name')
+  const vaes = list(vae, 'vae_name')
+  const loras = list(lora, 'lora_name')
+  const projections = list(proj, 'projection').filter((n) => !n.startsWith('<'))
+  const models = {
+    fl2va: find(unets, H3_FILES.fl2va),
+    ref2va: find(unets, H3_FILES.ref2va),
+    clip: find(clips, H3_FILES.clip),
+    clipType: /qwen3[-_]?vl[-_]4b/i.test(base(find(clips, H3_FILES.clip))) ? 'krea2' : 'minimax',
+    projection: base(find(clips, H3_FILES.clip)).match(/4b/i) ? find(projections, [/ClipProj[-_]v3/i, /4b.*ClipProj/i]) : '',
+    videoVae: find(vaes, H3_FILES.videoVae),
+    audioVae: find(vaes, H3_FILES.audioVae),
+    flLora: find(loras, H3_FILES.flLora),
+    refLora: find(loras, H3_FILES.refLora),
+    vhs: !!vhs,
+    attention: list(attention, 'attention').includes('comfy kitchen attention') ? 'comfy kitchen attention' : '',
+  }
+  const missing = []
+  if (!easy) missing.push('the ComfyUI-MiniMaxH3-Easy nodes')
+  if (!models.fl2va && !models.ref2va) missing.push('diffusion_models/minimax_h3_fl2va*')
+  if (!models.clip) missing.push('an H3 text encoder (text_encoders/qwen3vl_4b*)')
+  if (!models.videoVae) missing.push('vae/minimax_h3_video_vae*')
+  if (!models.audioVae) missing.push('vae/minimax_h3_audio_vae*')
+  return { ok: missing.length === 0, missing, models }
+}
+
+// The API graph. `o`: { prompt, mode: 'image' | 'reference', images: [names in
+// ComfyUI's input folder], role: 'first' | 'last', resolution, aspect, frames,
+// seed, steps, prefix }.
+export function h3Graph(m, o) {
+  const reference = o.mode === 'reference'
+  const unet = reference ? m.ref2va || m.fl2va : m.fl2va || m.ref2va
+  const lora = reference ? (m.ref2va ? m.refLora : m.flLora) : m.fl2va ? m.flLora : m.refLora
+  const steps = Number(o.steps) > 0 ? Number(o.steps) : lora ? 4 : H3_DEFAULT_STEPS
+  const g = {
+    1: { class_type: 'UNETLoader', inputs: { unet_name: unet, weight_dtype: 'default' } },
+    2: { class_type: 'CLIPLoader', inputs: { clip_name: m.clip, type: m.clipType, device: 'default' } },
+    4: { class_type: 'VAELoader', inputs: { vae_name: m.videoVae } },
+    5: { class_type: 'VAELoader', inputs: { vae_name: m.audioVae } },
+    6: {
+      class_type: 'MiniMaxH3EasyModelAdapter',
+      inputs: { text_encoder: [m.projection ? '3' : '2', 0], video_vae: ['4', 0], audio_vae: ['5', 0], [unet === m.ref2va && m.ref2va ? 'ref2va_model' : 'fl2va_model']: ['1', 0] },
+    },
+    8: {
+      class_type: 'MiniMaxH3Easy',
+      inputs: {
+        h3_bundle: ['6', 0],
+        mode: reference ? 'reference' : 'image',
+        prompt: o.prompt,
+        resolution: o.resolution ?? '540P',
+        aspect_ratio: o.aspect ?? '16:9',
+        width: 1344,
+        height: 768,
+        // The node rounds seconds to 17n+5 frames the same way.
+        seconds: Math.round((o.frames / 24) * 1000) / 1000,
+        advanced: false,
+        fps: 24,
+        keyframe_role: o.role === 'last' ? 'last' : 'first',
+        // References no larger than the clip: what matters most on 8 GB.
+        ref_image_size: 'match',
+        reference_mention_mode: 'index',
+        prompt_optimizer_settings: false,
+        prompt_optimizer_scene_guide: 'none',
+      },
+    },
+    11: { class_type: 'MiniMaxH3EasyOutput', inputs: { h3_context: ['8', 1] } },
+    12: { class_type: 'BasicScheduler', inputs: { model: ['10', 0], scheduler: 'simple', steps, denoise: 1 } },
+    13: { class_type: 'KSamplerSelect', inputs: { sampler_name: 'euler' } },
+    14: { class_type: 'RandomNoise', inputs: { noise_seed: o.seed } },
+    15: { class_type: 'BasicGuider', inputs: { model: ['10', 0], conditioning: ['11', 0] } },
+    16: { class_type: 'SamplerCustomAdvanced', inputs: { noise: ['14', 0], guider: ['15', 0], sampler: ['13', 0], sigmas: ['12', 0], latent_image: ['11', 1] } },
+    17: { class_type: 'VAEDecode', inputs: { samples: ['16', 0], vae: ['11', 2] } },
+    18: { class_type: 'VAEDecodeAudio', inputs: { samples: ['16', 1], vae: ['11', 3] } },
+  }
+  if (m.projection) g[3] = { class_type: 'ClipProjApply', inputs: { clip: ['2', 0], projection: m.projection } }
+  const images = o.images ?? []
+  if (images.length) {
+    const bridge = { image_count: images.length, video_count: 0, audio_count: 0 }
+    images.forEach((name, i) => {
+      g[30 + i] = { class_type: 'LoadImage', inputs: { image: name } }
+      bridge[`image_${i + 1}`] = [String(30 + i), 0]
+    })
+    g[7] = { class_type: 'MiniMaxH3EasyMediaBridge', inputs: bridge }
+    g[8].inputs.media = ['7', 0]
+  }
+  // The model, through the speed LoRA and the attention backend.
+  let model = ['8', 0]
+  if (lora) {
+    g[9] = { class_type: 'LoraLoaderModelOnly', inputs: { model, lora_name: lora, strength_model: 1 } }
+    model = ['9', 0]
+  } else {
+    // The base model's own sampling: video shift 12, audio 3.
+    g[9] = { class_type: 'MiniMaxH3SigmaShift', inputs: { model, shift_video: 12, shift_audio: 3 } }
+    model = ['9', 0]
+  }
+  g[10] = m.attention ? { class_type: 'ModelAttentionBackend', inputs: { model, attention: m.attention } } : { class_type: 'MiniMaxLowVRAMAttention', inputs: { model, head_chunks: 4 } }
+  if (m.vhs) {
+    g[19] = {
+      class_type: 'VHS_VideoCombine',
+      inputs: { images: ['17', 0], audio: ['18', 0], frame_rate: 24, loop_count: 0, filename_prefix: o.prefix, format: 'video/h264-mp4', pingpong: false, save_output: true },
+    }
+  } else {
+    g[19] = { class_type: 'CreateVideo', inputs: { images: ['17', 0], audio: ['18', 0], fps: ['11', 4] } }
+    g[20] = { class_type: 'SaveVideo', inputs: { video: ['19', 0], filename_prefix: o.prefix, format: 'auto', codec: 'auto' } }
+  }
+  return { graph: g, steps, unet, lora }
+}
+
+// One take: { prompt, frames, mode, images: [{ mime, data }], role,
+// resolution, aspect, seed, steps, signal, onStart }. Returns the MP4 as a
+// Buffer, with the seed and the files used.
+export async function makeTake(job, fetchImpl = fetch, wait = sleep) {
+  const prompt = String(job.prompt ?? '').trim()
+  if (!prompt) throw new Error('A take needs a prompt.')
+  if (!H3_RESOLUTIONS.includes(job.resolution ?? '540P')) throw new Error(`resolution is one of ${H3_RESOLUTIONS.join(', ')}.`)
+  const { ok, missing, models } = await h3Models(fetchImpl)
+  if (!ok) throw new Error(`ComfyUI is missing ${missing.join(', ')}.`)
+  const seed = newSeed(job.seed)
+  const names = []
+  for (const [i, image] of (job.images ?? []).slice(0, 9).entries()) names.push(await upload(fetchImpl, image, i))
+  const { graph, steps, unet, lora } = h3Graph(models, { ...job, prompt, images: names, seed, prefix: `tsrs-take/${Date.now()}` })
+  const bytes = await run(graph, 'video', fetchImpl, wait, { signal: job.signal, maxWait: job.maxWait ?? 90 * 60_000, onStart: job.onStart })
+  return { bytes, seed, steps, models: { unet, lora, clip: models.clip, projection: models.projection } }
 }

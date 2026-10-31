@@ -7,8 +7,9 @@ import { defaultFolder, exclusiveRender, renderBusy, renderMotion } from '../ren
 import { versionInfo } from '../render/version-plugin.mjs'
 import { checkVideo, describeCheck, readSpec, runVideo } from '../render/video.mjs'
 import { AGENT_PATH, agentFile, agentHandler, createAgent, writeAgentFile } from './agent.mjs'
-import { comfyStatus, makeImage as comfyImage } from './comfy.mjs'
+import { comfyStatus, h3Models, makeImage as comfyImage, makeTake } from './comfy.mjs'
 import { inspectPage } from './design.mjs'
+import { createQueue } from './jobs.mjs'
 import { projectsRoot } from './projects.mjs'
 import { makeImage as sdcppImage, sdcppStatus } from './sdcpp.mjs'
 
@@ -23,6 +24,8 @@ export function tsrsAgent(agendaFor) {
   const mount = (server, dev) => {
     const log = (line) => server.config.logger.info(`[tsrs] ${line}`)
     let token = null
+    // One GPU queue per server: H3 takes run one at a time.
+    const jobs = createQueue()
     const runCommand = createAgent(
       {
         agenda: agendaFor?.(server) ?? { list: async () => ({ tasks: [], pending: 0 }), runNow: async () => {} },
@@ -34,7 +37,8 @@ export function tsrsAgent(agendaFor) {
         renderFolder: defaultFolder(),
         inspectPage,
         log,
-        comfy: { status: () => comfyStatus(), makeImage: (job) => comfyImage(job) },
+        comfy: { status: () => comfyStatus(), makeImage: (job) => comfyImage(job), h3Models: () => h3Models(), makeTake: (job) => makeTake(job) },
+        jobs,
         sdcpp: { status: () => sdcppStatus(), makeImage: (job) => sdcppImage(job) },
       },
       projectsRoot(),
