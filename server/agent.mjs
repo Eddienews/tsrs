@@ -79,6 +79,7 @@ const bytes = (n) => (n < 1024 ? `${n} B` : n < 1024 ** 2 ? `${(n / 1024).toFixe
 //   checkTake(file, { script, first, last })   the take checks (takecheck.mjs)
 //   ffmpeg       the ffmpeg command
 //   night        the night shift (nightshift.mjs)
+//   access       { info(), rotate() } the phone access (access.mjs)
 //   renderFolder where videos outside a project go
 export function createAgent(deps, root = projectsRoot()) {
   async function project(ref) {
@@ -605,6 +606,27 @@ export function createAgent(deps, root = projectsRoot()) {
       if (!deps.night) throw new AgentError('failed', 'This TSRS has no night shift.')
       const plan = await deps.night.cancel()
       return { text: plan ? `Canceled the night shift ${plan.id}.` : 'No night shift was running.', result: plan }
+    },
+
+    async access() {
+      if (!deps.access) throw new AgentError('failed', 'This TSRS has no phone access.')
+      const a = await deps.access.info()
+      const lines = [
+        a.tailscale
+          ? `1. On this computer, once: tailscale serve --bg ${a.port}`
+          : `1. Install Tailscale on this computer and the phone, signed in to the same account; then, once: tailscale serve --bg ${a.port}`,
+        `2. On the phone (in Tailscale), open once: https://${a.tailscale ?? '<this computer>.<your tailnet>.ts.net'}/?key=${a.key}`,
+        '   The key is kept by the phone after that. Keep the link to yourself; tsrs access rotate makes a new one.',
+        `Notifications: on the phone, TSRS > Settings > Security > "Notify me on this device" (${a.devices} device(s) so far).`,
+      ]
+      return { text: lines.join('\n'), result: a }
+    },
+
+    async 'access rotate'(_args, yes) {
+      if (!deps.access) throw new AgentError('failed', 'This TSRS has no phone access.')
+      if (!yes) throw confirm('Would make a new key: every phone opened with the old link is signed out. Add --yes to do it.')
+      await deps.access.rotate()
+      return { text: 'New key made. See the new link with: tsrs access', result: { rotated: true } }
     },
 
     async ledger(args) {

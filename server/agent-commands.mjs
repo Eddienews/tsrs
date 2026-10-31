@@ -238,6 +238,20 @@ export const COMMANDS = [
     example: 'tsrs night cancel',
   },
   {
+    name: 'access',
+    kind: 'read',
+    summary: "How to open this TSRS on a phone over Tailscale: the tailscale serve line and the link with the key (needed once on each phone). Keep the link to yourself.",
+    args: [],
+    example: 'tsrs access',
+  },
+  {
+    name: 'access rotate',
+    kind: 'destructive',
+    summary: 'Makes a new key: every phone opened with the old link is signed out and needs the new one.',
+    args: [],
+    example: 'tsrs access rotate --yes',
+  },
+  {
     name: 'ledger',
     kind: 'read',
     summary: 'What the commands really made or changed lately, from TSRS’s own records: end a report with it instead of from memory.',
