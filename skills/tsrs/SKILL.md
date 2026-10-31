@@ -107,6 +107,26 @@ tsrs jobs cancel <job id>                               # also stops it in Comfy
   best take of each shot, trimmed, as FCPXML/EDL for DaVinci Resolve.
   `tsrs takes rate <project> <take> approved` pins the one the user chose.
 
+## Directing a film (film.json)
+
+For more than one shot, write the plan as `film.json` in the project (the bible
+and the scenes; see "A film planned and checked" in the TSRS README), then:
+
+```bash
+tsrs film check <project>     # fix every ✗ and check again until it says Ready
+tsrs film take <project>      # writes shots/ and queues every take, in order
+tsrs jobs wait <ids> --seconds 300
+tsrs takes list <project>     # redo the ones the checks failed
+```
+
+- Describe each character and place once, in the bible; it is repeated in
+  every shot for you. Cast everyone who appears; give lines a speaker who is cast.
+- `start: "cast"` when the cast has pictures (faces stay the same);
+  `"previous"` for a continuous move from the shot before.
+- Do only what was asked. When a call is refused, change what made it fail;
+  never send it again unchanged.
+- End your report with `tsrs ledger`: name only the files and takes it lists.
+
 ## As MCP tools
 
 `tsrs mcp` offers the same commands as an MCP server on stdio (tool names use

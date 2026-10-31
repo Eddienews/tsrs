@@ -21,6 +21,15 @@ TensorFold's drama3 `verify.py`, Apache-2.0) and `shot.py`: the redo policy
 near misses, and the cut and keyframe thresholds. The FCPXML/EDL/zip export in
 `server/nle.mjs` follows its timeline export.
 
+The film plan in `server/film.mjs` follows its Director and Slate: the bible
+repeated word for word in every prompt, lines kept out of the picture, a
+checked plan answered with exact messages, the shot before as the opening of a
+continuous move. The studio leash in `server/cli.mjs` (the agent's tools held
+to TSRS, secrets kept out of its environment, the line about material and
+instructions), the refusal of a repeated failed call and the ledger in
+`server/agent.mjs`, and the bench in `bench/` (briefs with machine-checkable
+specs, a dry studio, complete/exact/honest) follow its agent room and bench.
+
 Imagination Studio was built by **Keys (github.com/drowzeys)**, with production
 design and workflow by **Sam Wasserman / Wasserman Productions
 (wassermanproductions.com)**. The code in TSRS is a new implementation in

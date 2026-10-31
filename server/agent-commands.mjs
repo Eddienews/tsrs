@@ -135,6 +135,42 @@ export const COMMANDS = [
     example: 'tsrs take seu-silva-ep07 shots/s01.json --image midia/s01-first.png',
   },
   {
+    name: 'film check',
+    kind: 'read',
+    summary: "Checks a project's film.json (the bible: cast, places, look; the scenes and their shots) and says exactly what to fix, shot by shot.",
+    args: [
+      { name: 'project', at: 0, required: true, help: 'project folder' },
+      { name: 'file', help: 'the film file (default film.json)' },
+    ],
+    example: 'tsrs film check seu-silva-ep07',
+  },
+  {
+    name: 'film shots',
+    kind: 'write',
+    summary: 'Writes the shot files of film.json into shots/ (the bible repeated in each), ready for tsrs take. Replacing a shot file not made from the film asks for --yes.',
+    asks: true,
+    args: [
+      { name: 'project', at: 0, required: true, help: 'project folder' },
+      { name: 'file', help: 'the film file (default film.json)' },
+      { name: 'scenes', type: 'list', help: 'only these scenes (ids)' },
+      { name: 'shots', type: 'list', help: 'only these shots (ids, or scene-shot)' },
+    ],
+    example: 'tsrs film shots seu-silva-ep07 --scenes c1',
+  },
+  {
+    name: 'film take',
+    kind: 'write',
+    summary: 'Checks film.json, writes its shot files and queues a take of each shot, in order (a shot that opens on the one before waits for its take). Answers with the job ids.',
+    asks: true,
+    args: [
+      { name: 'project', at: 0, required: true, help: 'project folder' },
+      { name: 'file', help: 'the film file (default film.json)' },
+      { name: 'scenes', type: 'list', help: 'only these scenes (ids)' },
+      { name: 'shots', type: 'list', help: 'only these shots (ids, or scene-shot)' },
+    ],
+    example: 'tsrs film take seu-silva-ep07 --scenes c1',
+  },
+  {
     name: 'takes list',
     kind: 'read',
     summary: "A project's takes: status, what the checks found, and the best take of each shot.",
@@ -174,6 +210,13 @@ export const COMMANDS = [
       { name: 'zip', help: 'yes or no: also the zip with the media (default yes)' },
     ],
     example: 'tsrs edit export seu-silva-ep07 --music midia/trilha.flac',
+  },
+  {
+    name: 'ledger',
+    kind: 'read',
+    summary: 'What the commands really made or changed lately, from TSRS’s own records: end a report with it instead of from memory.',
+    args: [{ name: 'minutes', type: 'number', help: 'how far back (default 120)' }],
+    example: 'tsrs ledger --minutes 60',
   },
   {
     name: 'jobs list',

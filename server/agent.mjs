@@ -14,6 +14,7 @@
 // itself uses on the server: project folders, the renderer, the board file,
 // the schedule, the local image servers and the design check.
 
+import { spawnSync } from 'node:child_process'
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { appendFile, chmod, mkdir, readFile, readdir, rename, stat, writeFile } from 'node:fs/promises'
@@ -21,6 +22,7 @@ import { basename, isAbsolute, join, relative, resolve } from 'node:path'
 import { checkArgs, findCommand } from './agent-commands.mjs'
 import { readBoard, saveBoard } from './board.mjs'
 import { extensionsRoot } from './extensions.mjs'
+import { checkFilm, describeFilm, FILM_FILE, filmShots } from './film.mjs'
 import { checkShot, composeShot, findNegations, framesFor, MAX_CHARS, secondsOf, STARTS } from './h3prompt.mjs'
 import { WAIT_MAX } from './jobs.mjs'
 import { edl, fcpxml, probe, resolveZip } from './nle.mjs'
@@ -159,6 +161,49 @@ export function createAgent(deps, root = projectsRoot()) {
   function queue() {
     if (!deps.jobs) throw new AgentError('failed', 'This TSRS has no GPU queue.')
     return deps.jobs
+  }
+
+  // ---- films ----
+  async function readFilm(folder, file = FILM_FILE) {
+    const text = await readText(folder, file).catch(() => {
+      throw invalid(`No ${file} in ${basename(folder)}. Write the film plan there first (see the tsrs skill: film.json).`)
+    })
+    try {
+      return { film: JSON.parse(text) }
+    } catch (error) {
+      throw invalid(`${file} is not valid JSON: ${error.message}`)
+    }
+  }
+  async function writeShots(folder, shots, yes) {
+    const theirs = []
+    for (const s of shots) {
+      const path = join(folder, s.file)
+      if (!existsSync(path)) continue
+      try {
+        if (JSON.parse(await readFile(path, 'utf8')).from !== FILM_FILE) theirs.push(s.file)
+      } catch {
+        theirs.push(s.file)
+      }
+    }
+    if (theirs.length && !yes) throw confirm(`Would replace shot files not made from the film: ${theirs.join(', ')}. Add --yes to replace them.`)
+    await writeFiles(folder, shots.map((s) => ({ name: s.file, content: JSON.stringify(s.shot, null, 2) + '\n' })))
+  }
+
+  // What the commands made, for `tsrs ledger`: a bot reports from this, not from memory.
+  const made = []
+  const remember = (command, args, out) => {
+    const r = out?.result ?? {}
+    const files = [r.file, ...(r.files ?? []), r.notes, r.path].filter(Boolean).map(String)
+    const what = [
+      args.project ? `[${args.project}]` : '',
+      files.length ? files.join(', ') : '',
+      r.id ? `job ${r.id}` : '',
+      r.jobs ? `jobs ${r.jobs.map((j) => j.job).join(', ')}` : '',
+      r.take ? `take ${r.take}${r.status ? ` → ${r.status}` : ''}` : '',
+      r.title && !r.id ? `"${r.title}"` : '',
+    ].filter(Boolean).join(' ')
+    made.push({ at: Date.now(), command, what: what || '(done)' })
+    if (made.length > 200) made.shift()
   }
 
   // ---- takes ----
@@ -382,8 +427,11 @@ export function createAgent(deps, root = projectsRoot()) {
       const refs = args.refs ?? shot.refs ?? []
       const first = args.image ?? shot.image
       const last = args.last ?? shot.last
+      // Opens on the last frame of the shot before: found when the take runs,
+      // so the one before (earlier in the queue) has been made by then.
+      const after = !first && !refs.length && shot.after ? String(shot.after) : null
       if (refs.length && (first || last)) throw invalid('Reference pictures do not combine with a first or last frame: give one or the other.')
-      const start = refs.length ? 'reference' : first && last ? 'first-last' : first ? 'first' : last ? 'last' : STARTS.includes(shot.start) && !['first', 'last', 'first-last', 'reference'].includes(shot.start) ? shot.start : 'text'
+      const start = refs.length ? 'reference' : (first || after) && last ? 'first-last' : first || after ? 'first' : last ? 'last' : STARTS.includes(shot.start) && !['first', 'last', 'first-last', 'reference'].includes(shot.start) ? shot.start : 'text'
       if (args.seconds !== undefined) shot.seconds = args.seconds
       let prompt
       let frames
@@ -418,9 +466,20 @@ export function createAgent(deps, root = projectsRoot()) {
       const reserved = new Set(queue().list().filter((j) => j.kind === 'take' && j.project === folder).map((j) => j.params?.name))
       let name = stem
       for (let n = 2; existsSync(join(folder, 'takes', `${name}.mp4`)) || reserved.has(name); n++) name = `${stem}-${n}`
-      const params = { name, frames, seconds: secondsOf(frames), start, resolution, aspect, shot: args.shot ?? null, pictures: pictures.map((p) => p.rel) }
+      const params = { name, frames, seconds: secondsOf(frames), start, resolution, aspect, shot: args.shot ?? null, pictures: pictures.map((p) => p.rel), after }
 
       const job = queue().submit({ kind: 'take', title: name, project: folder, params }, async (_job, { signal, progress }) => {
+        if (after) {
+          const before = bestTakes((await readTakes(folder)).filter((t) => t.shot === after))[0]?.take
+          if (!before) throw new Error(`The shot before (${after}) has no usable take: make it first, or give --image.`)
+          const rel = `midia/frames/${before.name}-last.png`
+          const out = projectFile(folder, rel)
+          await mkdir(join(folder, 'midia', 'frames'), { recursive: true })
+          const r = spawnSync(deps.ffmpeg ?? 'ffmpeg', ['-v', 'error', '-y', '-sseof', '-0.1', '-i', join(folder, before.video), '-frames:v', '1', '-update', '1', out])
+          if (r.status !== 0 || !existsSync(out)) throw new Error(`Could not take the last frame of ${before.video}.`)
+          pictures.unshift(await picture(folder, rel))
+          params.pictures = pictures.map((p) => p.rel)
+        }
         const made = await deps.comfy.makeTake({
           prompt, frames, mode: start === 'reference' ? 'reference' : 'image', role: start === 'last' ? 'last' : 'first',
           images: pictures, resolution, aspect, seed: args.seed ?? shot.seed, steps: args.steps ?? shot.steps, signal,
@@ -464,6 +523,50 @@ export function createAgent(deps, root = projectsRoot()) {
         return { text: `${head}${warns}\n${jobLine(after)}`, result: after }
       }
       return { text: `${head}${job.position > 1 ? ` #${job.position} in the queue.` : ''}${warns}\nFollow it with: tsrs jobs wait ${job.id}`, result: job }
+    },
+
+    async 'film check'(args) {
+      const folder = await project(args.project)
+      const { film } = await readFilm(folder, args.file)
+      const report = checkFilm(film, { exists: (rel) => { const f = projectFile(folder, rel); return !!f && existsSync(f) } })
+      return { text: describeFilm(report), result: report }
+    },
+
+    async 'film shots'(args, yes) {
+      const folder = await project(args.project)
+      const { film } = await readFilm(folder, args.file)
+      const shots = filmShots(film, { scenes: args.scenes, shots: args.shots })
+      if (!shots.length) throw invalid('No shots match. See: tsrs film check ' + basename(folder))
+      await writeShots(folder, shots, yes)
+      return { text: `Wrote ${shots.length} shot file(s): ${shots.map((s) => s.file).join(', ')}`, result: { files: shots.map((s) => s.file) } }
+    },
+
+    async 'film take'(args, yes) {
+      const folder = await project(args.project)
+      const { film } = await readFilm(folder, args.file)
+      const report = checkFilm(film, { exists: (rel) => { const f = projectFile(folder, rel); return !!f && existsSync(f) } })
+      if (!report.ok) throw invalid(`Fix film.json first:\n${describeFilm(report)}`)
+      const shots = filmShots(film, { scenes: args.scenes, shots: args.shots })
+      if (!shots.length) throw invalid('No shots match. See: tsrs film check ' + basename(folder))
+      await writeShots(folder, shots, yes)
+      const jobs = []
+      for (const s of shots) {
+        const queued = await run.take({ project: args.project, shot: s.file })
+        jobs.push({ shot: s.file, job: queued.result.id, name: queued.result.params?.name })
+      }
+      return {
+        text: `Queued ${jobs.length} take(s):\n${jobs.map((j) => `${j.job}  ${j.shot} → takes/${j.name}.mp4`).join('\n')}\nFollow them with: tsrs jobs wait ${jobs.map((j) => j.job).join(',')}`,
+        result: { jobs },
+      }
+    },
+
+    async ledger(args) {
+      const since = Date.now() - Math.max(1, Number(args.minutes ?? 120)) * 60_000
+      const rows = made.filter((m) => m.at >= since)
+      const text = rows.length
+        ? rows.map((m) => `${new Date(m.at).toISOString().slice(11, 19)}  ${m.command}  ${m.what}`).join('\n')
+        : 'Nothing was made or changed by the commands in that time.'
+      return { text: `What TSRS's records say was made:\n${text}`, result: rows }
     },
 
     async 'takes list'(args) {
@@ -691,14 +794,38 @@ export function createAgent(deps, root = projectsRoot()) {
     },
   }
 
+  // A call that was refused for its arguments is not sent again unchanged: a
+  // small model may repeat it forever. The same call is answered with the
+  // same refusal and what to do, for 2 minutes.
+  const refused = new Map()
+  const REFUSED_MS = 2 * 60_000
+
   // Runs one command; errors carry a code: invalid, confirm, busy or failed.
   return async function runCommand(name, args = {}, yes = false, progress) {
     const command = findCommand(name)
     if (!command) throw invalid(`No command "${name}". See: tsrs --help`)
     checkArgs(command, args)
+    const key = `${name} ${JSON.stringify(args)} ${yes}`
+    const before = refused.get(key)
+    if (before && Date.now() - before.at < REFUSED_MS) {
+      throw invalid(`This exact call was refused a moment ago: ${before.message}\nDo not repeat it: change what made it fail (the arguments, the files), or ask the user.`)
+    }
     // destructive and cost commands check `yes` themselves, after saying
     // exactly what they would do.
-    return run[name](args, yes, progress)
+    try {
+      const out = await run[name](args, yes, progress)
+      refused.delete(key)
+      if (command.kind !== 'read') {
+        remember(name, args, out)
+        // Something changed: a call refused before may be right now.
+        refused.clear()
+      }
+      return out
+    } catch (error) {
+      if (error?.code === 'invalid') refused.set(key, { at: Date.now(), message: error.message })
+      for (const [k, v] of refused) if (Date.now() - v.at > REFUSED_MS) refused.delete(k)
+      throw error
+    }
   }
 }
 

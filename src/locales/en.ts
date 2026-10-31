@@ -1234,6 +1234,9 @@ export const en: Record<string, string> = {
   'Acesso total': 'Full access',
   'Roda qualquer comando, sem perguntar. Use só em pastas e projetos em que você confia.':
     'Runs any command without asking. Use it only with folders and projects you trust.',
+  'Só o estúdio': 'Studio only',
+  'Para bots: usa só os comandos do TSRS (takes, filmes, quadro), mexe só nos arquivos da pasta, não roda comandos, não vê suas chaves e para em 2 horas.':
+    'For bots: uses only the TSRS commands (takes, films, the board), touches only the files in the folder, runs no commands, sees none of your keys and stops after 2 hours.',
   'Não encontrado.': 'Not found.',
   'Encontrado: {version}': 'Found: {version}',
   'Encontrado: {version} · {used}% do limite de uso': 'Found: {version} · {used}% of the usage limit',
