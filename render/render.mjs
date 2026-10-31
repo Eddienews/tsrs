@@ -19,7 +19,7 @@ import { spawn, spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
-import { availableParallelism, tmpdir } from 'node:os'
+import { availableParallelism, freemem, tmpdir } from 'node:os'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { writeManifest } from './manifest.mjs'
@@ -223,8 +223,10 @@ function write(stream, buffer) {
 
 // How many browsers capture frames side by side: about half the processor
 // threads, at most 8, and never more than one per two seconds of video.
-export function autoWorkers(frames, fps, cpus = availableParallelism()) {
-  return Math.max(1, Math.min(8, Math.floor(cpus / 2), Math.floor(frames / (fps * 2)) || 1))
+// Each browser and its encoder take about 700 MB at 1080p, so free memory
+// caps them too.
+export function autoWorkers(frames, fps, cpus = availableParallelism(), free = freemem()) {
+  return Math.max(1, Math.min(8, Math.floor(cpus / 2), Math.floor(frames / (fps * 2)) || 1, Math.floor(free / (700 * 1024 * 1024))))
 }
 
 // The frames [from, to) of the video, cut into `count` runs of nearly the same length.

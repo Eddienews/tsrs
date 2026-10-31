@@ -61,8 +61,11 @@ test('cuts captions at sentences, pauses and long lines, and lays scenes out', (
   })
   expect(mixArgs([{ file: 'a.wav', start: 0.5 }], 4, { file: 'm.flac', volume: -10 }, 'o.m4a').join(' ')).toContain('sidechaincompress')
   expect(splitFrames(10, 3)).toEqual([[0, 3], [3, 7], [7, 10]])
-  expect(autoWorkers(300, 30, 16)).toBe(5)
-  expect(autoWorkers(30, 30, 16)).toBe(1)
+  const GB = 1024 ** 3
+  expect(autoWorkers(300, 30, 16, 16 * GB)).toBe(5)
+  expect(autoWorkers(30, 30, 16, 16 * GB)).toBe(1)
+  // Little free memory, fewer browsers.
+  expect(autoWorkers(3000, 30, 16, 3.3 * GB)).toBe(4)
 })
 
 const PAGE = `<!doctype html><html><head><meta charset="utf-8">
