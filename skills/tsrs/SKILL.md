@@ -99,6 +99,50 @@ tsrs jobs cancel <job id>                               # also stops it in Comfy
 - One take at a time runs on the GPU; queue a scene's shots, then wait. Each
   take writes `takes/<name>.mp4` and `takes/<name>.json` (status `pending`).
   Report the job ids and files that really exist, not what you expect.
+- Each take is checked when made: the lines heard against the script, cuts
+  inside the shot, the frames. A failed take is marked `redo` with the reason;
+  read it (`tsrs takes list <project>`) and make another take (a new seed, or
+  fix the shot) instead of using it.
+- For the edit: `tsrs edit export <project> --music midia/<track>` writes the
+  best take of each shot, trimmed, as FCPXML/EDL for DaVinci Resolve.
+  `tsrs takes rate <project> <take> approved` pins the one the user chose.
+- A character with `elevenlabsVoice` (an ElevenLabs voice id) in film.json gets
+  their lines changed to that cloned voice after each take (timing kept; the
+  take's own sound stays in `takes/<take>.h3.mp4`). For an existing take:
+  `tsrs takes revoice <project> <take> --voice <id>` (uses ElevenLabs credits:
+  say so and wait for the user's yes before `--yes`). If the key is refused,
+  stop and tell the user; never ask for the key in chat.
+
+## Directing a film (film.json)
+
+For more than one shot, write the plan as `film.json` in the project (the bible
+and the scenes; see "A film planned and checked" in the TSRS README), then:
+
+```bash
+tsrs film check <project>     # fix every ✗ and check again until it says Ready
+tsrs film take <project>      # writes shots/ and queues every take, in order
+tsrs jobs wait <ids> --seconds 300
+tsrs takes list <project>     # redo the ones the checks failed
+```
+
+- Describe each character and place once, in the bible; it is repeated in
+  every shot for you. Cast everyone who appears; give lines a speaker who is cast.
+- `start: "cast"` when the cast has pictures (faces stay the same);
+  `"previous"` for a continuous move from the shot before.
+- Do only what was asked. When a call is refused, change what made it fail;
+  never send it again unchanged.
+- End your report with `tsrs ledger`: name only the files and takes it lists.
+
+## Overnight, faces, phone
+
+- `tsrs night plan <project> --start 23:00` queues the film's takes for the
+  night; `tsrs night status` shows them; the dailies (a reel with slates and
+  notes) land in `dailies/`. Plan it instead of queuing many takes by day.
+- `tsrs turnaround <project> midia/<character>.png --name <id>` makes five views
+  of a character; add the good ones to that character's `pictures` in
+  film.json and use `start: "cast"` so the face stays the same.
+- `tsrs access` prints the link for the user's phone (a secret: give it only to
+  the user who asked).
 
 ## As MCP tools
 
