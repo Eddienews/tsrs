@@ -146,6 +146,32 @@ const FUNCTION_WORDS = new Set(
 )
 
 // `script`: [{ text, language }] the lines; `heard`: [{ text, t, end }] from Whisper.
+// The names in the lines: capitalised words that do not start a sentence
+// ("Bom dia, Seu Silva!" → seu, silva). Their indices in the words of the lines.
+// A name has to be heard as it is: "Sila" for "Silva" is a near word, but the
+// wrong name.
+export function nameIndices(script, lang = 'en') {
+  const out = new Set()
+  let at = 0
+  for (const line of script) {
+    const words = wordsOf(line.text, line.language ?? lang)
+    const tokens = String(line.text ?? '').split(/[\s\-–—/]+/).filter(Boolean)
+    const parts = tokens.map((t) => wordsOf(t, line.language ?? lang))
+    if (parts.flat().length === words.length) {
+      let start = true
+      let k = at
+      for (const [n, t] of tokens.entries()) {
+        const bare = t.replace(/^[^\p{L}\d]+/u, '')
+        if (!start && /^\p{Lu}/u.test(bare)) parts[n].forEach((_, j) => out.add(k + j))
+        k += parts[n].length
+        if (parts[n].length) start = /[.!?…:]["'”»)]*$/.test(t)
+      }
+    }
+    at += words.length
+  }
+  return out
+}
+
 export function wordCheck(script, heard, policy = POLICY) {
   const lang = script.find((l) => l.language)?.language ?? 'en'
   const ref = script.flatMap((l) => wordsOf(l.text, l.language ?? lang))
@@ -167,13 +193,19 @@ export function wordCheck(script, heard, policy = POLICY) {
     }
   }
   const path = align(ref, hyp, policy.matchSimilarity)
+  const names = nameIndices(script, lang)
   const matched = new Set()
+  const misheard = []
   let lastHyp = -1
   for (const [ri, hj] of path) {
     if (!ri.length || !hj.length) continue
-    if (similarity(ri.map((i) => ref[i]).join(''), hj.map((j) => hyp[j]).join('')) >= policy.matchSimilarity) {
-      ri.forEach((i) => matched.add(i))
+    const want = ri.map((i) => ref[i]).join('')
+    const got = hj.map((j) => hyp[j]).join('')
+    const s = similarity(want, got)
+    if (s >= policy.matchSimilarity) {
       lastHyp = Math.max(lastHyp, ...hj)
+      if (s < 1 && ri.some((i) => names.has(i))) misheard.push({ name: ri.map((i) => ref[i]).join(' '), heard: hj.map((j) => hyp[j]).join(' ') })
+      else ri.forEach((i) => matched.add(i))
     }
   }
   const missingIdx = ref.map((_, i) => i).filter((i) => !matched.has(i))
@@ -197,10 +229,13 @@ export function wordCheck(script, heard, policy = POLICY) {
     tail,
     lastWordEnd: lastHyp >= 0 ? Math.round(hypWords[lastHyp].end * 100) / 100 : null,
     heard: heardText,
+    names: [...names].map((i) => ref[i]),
+    misheard,
     passed: true,
     reason: '',
   }
-  if (coverage < policy.minCoverage) Object.assign(out, { passed: false, reason: `${Math.round(coverage * 100)} % of the words heard (under ${policy.minCoverage * 100} %)` })
+  if (misheard.length) Object.assign(out, { passed: false, reason: misheard.map((m) => `the name "${m.name}" was heard as "${m.heard}"`).join('; ') })
+  else if (coverage < policy.minCoverage) Object.assign(out, { passed: false, reason: `${Math.round(coverage * 100)} % of the words heard (under ${policy.minCoverage * 100} %)` })
   else if (longest > policy.maxMissingRun) Object.assign(out, { passed: false, reason: `${longest} words in a row missing` })
   else if (lastTwo || lastContent) Object.assign(out, { passed: false, reason: lastTwo ? 'the ending is missing' : 'the last word is missing' })
   else if (tail.filter((w) => !FUNCTION_WORDS.has(w)).length >= 2) out.reason = `words after the lines: ${tail.join(' ')} (the mouth may keep going)`

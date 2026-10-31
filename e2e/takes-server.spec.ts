@@ -7,7 +7,7 @@ import { unzipSync } from 'fflate'
 import { createAgent } from '../server/agent.mjs'
 import { createQueue } from '../server/jobs.mjs'
 import { edl, fcpxml, probe } from '../server/nle.mjs'
-import { checkTake, findCuts, shotCheck, trimWindow, whisperLanguage, wordCheck, wordsOf } from '../server/takecheck.mjs'
+import { checkTake, findCuts, nameIndices, shotCheck, trimWindow, whisperLanguage, wordCheck, wordsOf } from '../server/takecheck.mjs'
 
 const w = (pairs: [string, number, number][]) => pairs.map(([text, t, end]) => ({ text, t, end }))
 
@@ -45,6 +45,18 @@ test('the word check: heard lines pass, missing words and endings fail, voices i
   expect(babble.reason).toContain('the mouth may keep going')
   expect(wordCheck([], w([['hello', 0, 0.5], ['there', 0.5, 1]]))).toMatchObject({ passed: false })
   expect(wordCheck([], w([['uh', 0, 0.5]]))).toMatchObject({ passed: true })
+})
+
+test('a name has to be heard as it is: "Sila" for "Silva" fails, though it is a near word', () => {
+  const script = [{ text: 'Bom dia, Seu Silva! Quer um café, Nori?', language: 'Portuguese' }]
+  expect([...nameIndices(script, 'pt')]).toEqual([2, 3, 7])
+  // Sentence starts are not names.
+  expect([...nameIndices([{ text: 'Robô não toma café. Mas adoro o cheiro.' }], 'pt')]).toEqual([])
+  const said = (silva: string) => w([['Bom', 0, 0.2], ['dia', 0.2, 0.4], ['seu', 0.4, 0.6], [silva, 0.6, 0.9], ['quer', 1.2, 1.4], ['um', 1.4, 1.5], ['café', 1.5, 1.8], ['Nori', 1.8, 2.1]])
+  expect(wordCheck(script, said('Silva'))).toMatchObject({ passed: true, misheard: [] })
+  expect(wordCheck(script, said('sila'))).toMatchObject({ passed: false, reason: 'the name "silva" was heard as "sila"' })
+  // An ordinary near word still counts.
+  expect(wordCheck(script, said('Silva').map((x) => (x.text === 'café' ? { ...x, text: 'cafe' } : x))).passed).toBe(true)
 })
 
 test('finds a hard cut, the stretch to trim to, and whether the first frame held its picture', async () => {
