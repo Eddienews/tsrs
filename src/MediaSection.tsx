@@ -190,7 +190,7 @@ function KindChoice(props: Props & { kind: MediaKind }) {
       {choice.source === COMFY && kind === 'image' && (
         <p className={hint}>
           {t(
-            'Imagens feitas neste computador pelo ComfyUI (porta 8188, ou TSRS_COMFYUI), sem chave e sem custo. Só com texto, usa o Z-Image Turbo; com até 3 imagens anexadas ao pedido, usa o Qwen-Image-Edit-2511 para editar a partir delas. Precisa dos modelos desses modelos de fluxo no ComfyUI. Opções: width, height, seed. A imagem vai para a pasta midia/ do projeto. Precisa do TSRS aberto pelo npm run dev.',
+            'Imagens feitas neste computador pelo ComfyUI (porta 8188, ou TSRS_COMFYUI), sem chave e sem custo. Só com texto, usa o Z-Image Turbo; quando o pedido traz um texto entre aspas para aparecer na imagem (cartaz, encarte, capa), usa o MOSS-Image, que escreve letras sem erro; com até 3 imagens anexadas ao pedido, usa o Qwen-Image-Edit-2511 para editar a partir delas. Precisa dos modelos desses modelos de fluxo no ComfyUI. Opções: width, height, seed, model ("z-image" ou "moss", para escolher). A imagem vai para a pasta midia/ do projeto. Precisa do TSRS aberto pelo npm run dev.',
           )}
         </p>
       )}

@@ -244,7 +244,8 @@ export const PIPER = 'piper'
 
 // Media from ComfyUI on this computer, asked through the TSRS server; no key
 // and no cost per file. Music and sound with Stable Audio 3 Medium; images
-// with Z-Image Turbo, or Qwen-Image-Edit-2511 when images are attached.
+// with Z-Image Turbo (MOSS-Image for text in quotes), or Qwen-Image-Edit-2511
+// when images are attached.
 export const COMFY = 'comfyui'
 export const COMFY_AUDIO_MODEL = 'stable_audio_3_medium'
 export const COMFY_IMAGE_MODEL = 'z-image-turbo'
@@ -269,7 +270,7 @@ export function readerSource(settings: Settings, locked: boolean): MediaTarget |
 
 export function sourceName(source: string, kind?: MediaKind): string {
   if (source === PIPER) return t('Piper (local, grátis)')
-  if (source === COMFY) return kind === 'image' ? t('ComfyUI local (Z-Image / Qwen Edit)') : kind === 'audio' ? t('ComfyUI local (Stable Audio 3)') : t('ComfyUI local')
+  if (source === COMFY) return kind === 'image' ? t('ComfyUI local (Z-Image / MOSS / Qwen Edit)') : kind === 'audio' ? t('ComfyUI local (Stable Audio 3)') : t('ComfyUI local')
   if (source === SDCPP) return t('stable-diffusion.cpp local (sd-server)')
   return mediaService(source)?.name ?? PROVIDERS.find((p) => p.id === source)?.name ?? source
 }

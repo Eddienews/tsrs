@@ -405,11 +405,12 @@ export const COMMANDS = [
       { name: 'prompt', at: 0, required: true, help: 'what the image shows' },
       { name: 'project', required: true, help: 'project folder' },
       { name: 'engine', help: 'comfy or sdcpp (default: the one running)' },
+      { name: 'model', help: 'for comfy: z-image or moss (MOSS-Image, best for text in the picture; default: moss when the prompt has text in quotes and it is installed, else z-image)' },
       { name: 'width', type: 'number', help: 'pixels' },
       { name: 'height', type: 'number', help: 'pixels' },
       { name: 'name', help: 'file name (without .png)' },
     ],
-    example: 'tsrs image local "a cup of coffee by a window at dawn" --project cafe-aurora-ad',
+    example: 'tsrs image local \'poster with the headline "LISBOA" in navy serif\' --project voo-lisboa --model moss',
   },
 ]
 
