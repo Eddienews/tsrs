@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { audioGraph, audioPrompt, comfyStatus, makeAudio, makeImage } from '../server/comfy.mjs'
+import { audioGraph, audioPrompt, comfyStatus, makeAudio, makeImage, wantsText } from '../server/comfy.mjs'
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
@@ -73,12 +73,12 @@ test('says which Stable Audio 3 files ComfyUI is missing', async () => {
 })
 
 // A fake ComfyUI with the image models, recording what it was sent.
-function imageComfy(files: { unets: string[]; loras?: string[] }) {
+function imageComfy(files: { unets: string[]; loras?: string[]; moss?: boolean }) {
   const sent: { graph?: any; uploads: string[] } = { uploads: [] }
   const lists: Record<string, [string, string[]]> = {
     UNETLoader: ['unet_name', files.unets],
-    CLIPLoader: ['clip_name', ['qwen_3_4b_fp8_mixed.safetensors', 'qwen_2.5_vl_7b_fp8_scaled.safetensors']],
-    VAELoader: ['vae_name', ['ae.safetensors', 'qwen_image_vae.safetensors']],
+    CLIPLoader: ['clip_name', ['qwen_3_4b_fp8_mixed.safetensors', 'qwen_2.5_vl_7b_fp8_scaled.safetensors', ...(files.moss ? ['qwen3.5_9b_int8_convrot.safetensors'] : [])]],
+    VAELoader: ['vae_name', ['ae.safetensors', 'qwen_image_vae.safetensors', ...(files.moss ? ['flux2-vae.safetensors'] : [])]],
     LoraLoaderModelOnly: ['lora_name', files.loras ?? []],
   }
   const fetchImpl = async (url: string, init: any) => {
@@ -143,4 +143,29 @@ test('says which image model ComfyUI lacks and refuses other reference formats',
   const qwen = imageComfy({ unets: ['qwen_image_edit_2511_bf16.safetensors'] })
   await expect(makeImage({ prompt: 'x', images: [{ mime: 'image/gif', data: 'AQ==' }] }, qwen.fetchImpl, async () => {})).rejects.toThrow('PNG')
   await expect(makeImage({ prompt: ' ' }, qwen.fetchImpl, async () => {})).rejects.toThrow('Describe')
+})
+
+test('draws text in quotes with MOSS-Image when it is installed, and lets the model be chosen', async () => {
+  const unets = ['z_image_turbo_bf16.safetensors', 'moss_image_base_bf16.safetensors', 'moss_image_sft_int8_convrot.safetensors']
+  const { fetchImpl, sent } = imageComfy({ unets, moss: true })
+  const poster = await makeImage({ prompt: 'travel poster, headline reading "LISBOA"', width: 896, height: 1152, seed: 3 }, fetchImpl, async () => {})
+  expect(poster.model).toBe('moss-image')
+  // The SFT checkpoint is preferred over the base one.
+  expect(sent.graph[1].inputs.unet_name).toBe('moss_image_sft_int8_convrot.safetensors')
+  expect(sent.graph[2].inputs).toMatchObject({ clip_name: 'qwen3.5_9b_int8_convrot.safetensors', type: 'moss_image' })
+  expect(sent.graph[3].inputs.vae_name).toBe('flux2-vae.safetensors')
+  expect(sent.graph[6]).toMatchObject({ class_type: 'EmptyFlux2LatentImage', inputs: { width: 896, height: 1152 } })
+  expect(sent.graph[7].inputs.single_layers).toBe('22')
+  expect(sent.graph[8].inputs).toMatchObject({ model: ['7', 0], steps: 25, cfg: 2.5, sampler_name: 'er_sde', seed: 3 })
+  // Without quoted text it stays on Z-Image; model chooses either way.
+  expect((await makeImage({ prompt: 'a red bicycle' }, fetchImpl, async () => {})).model).toBe('z-image-turbo')
+  expect((await makeImage({ prompt: 'a red bicycle', model: 'moss' }, fetchImpl, async () => {})).model).toBe('moss-image')
+  expect((await makeImage({ prompt: 'sign reading "OPEN"', model: 'z-image' }, fetchImpl, async () => {})).model).toBe('z-image-turbo')
+  await expect(makeImage({ prompt: 'x', model: 'flux' }, fetchImpl, async () => {})).rejects.toThrow('z-image or moss')
+  // Not installed: quoted text falls back to Z-Image, and asking for it says what is missing.
+  const plain = imageComfy({ unets: ['z_image_turbo_bf16.safetensors'] })
+  expect((await makeImage({ prompt: 'sign reading "OPEN"' }, plain.fetchImpl, async () => {})).model).toBe('z-image-turbo')
+  await expect(makeImage({ prompt: 'x', model: 'moss' }, plain.fetchImpl, async () => {})).rejects.toThrow('no MOSS-Image model')
+  expect(wantsText('a cafe sign reading “Bom dia”')).toBe(true)
+  expect(wantsText('a "x" mark')).toBe(false)
 })

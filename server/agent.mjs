@@ -936,7 +936,8 @@ export function createAgent(deps, root = projectsRoot()) {
       const engine = args.engine ?? (up(sdcpp) && sdcpp.ok ? 'sdcpp' : up(comfy) ? 'comfy' : null)
       if (!engine) throw invalid('Neither ComfyUI nor sd-server is running on this computer.')
       if (!['comfy', 'sdcpp'].includes(engine)) throw invalid('--engine is comfy or sdcpp.')
-      const made = await deps[engine].makeImage({ prompt: args.prompt, width: args.width, height: args.height })
+      if (args.model && engine !== 'comfy') throw invalid('--model is for --engine comfy.')
+      const made = await deps[engine].makeImage({ prompt: args.prompt, width: args.width, height: args.height, ...(args.model ? { model: args.model } : {}) })
       const stem = slug(args.name || args.prompt).slice(0, 40)
       let rel = `midia/${stem}.png`
       for (let n = 2; existsSync(join(folder, rel)); n++) rel = `midia/${stem}-${n}.png`

@@ -46,7 +46,14 @@ tsrs render motion cafe-aurora-ad ad.html --audio midia/track.mp3
 tsrs board add "Cafe Aurora ad" --kind ad --series "Cafe Aurora" --due 2026-11-07 --project cafe-aurora-ad
 tsrs board move "Cafe Aurora ad" render
 tsrs image local "a cup of coffee by a window at dawn" --project cafe-aurora-ad
+tsrs image local 'poster, headline reading "LISBOA"' --project voo-lisboa   # text in quotes: MOSS-Image
 ```
+
+`image local` on ComfyUI picks Z-Image Turbo, or MOSS-Image when the prompt
+has text in quotes to draw in the picture (posters, flyers, covers) and its
+files are installed; `--model z-image|moss` chooses. MOSS-Image gets short
+headlines and prices right, accents included; long small print can still slip,
+so put legal lines over the picture in the composition instead.
 
 ## Narrated videos
 

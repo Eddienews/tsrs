@@ -10,6 +10,9 @@
 //   Images from up to 3 attached images: Qwen-Image-Edit-2511
 //     diffusion_models/qwen_image_edit_2511*, text_encoders/qwen_2.5_vl_7b*, vae/qwen_image_vae*,
 //     and, for 4 steps instead of 40, loras/Qwen-Image-Edit-2511-Lightning-4steps*
+//   Images with text in them (posters, flyers, covers): MOSS-Image (Apache-2.0)
+//     diffusion_models/moss_image_sft*.safetensors (or moss_image_base*),
+//     text_encoders/qwen3.5_9b*, vae/flux2-vae*
 // Each model's own license applies to what it makes.
 
 export const CHECKPOINT = 'stable_audio_3_medium.safetensors'
@@ -193,6 +196,10 @@ const IMAGE_FILES = {
   qClip: /^qwen[-_]2\.5[-_]vl[-_]7b/i,
   qVae: /^qwen[-_]image[-_]vae/i,
   qLora: /^qwen[-_]image[-_]edit[-_]2511[-_]lightning[-_]4steps/i,
+  mUnet: /^moss[-_]image[-_]sft/i,
+  mUnetBase: /^moss[-_]image/i,
+  mClip: /^qwen3\.5[-_]9b/i,
+  mVae: /^flux2[-_]vae/i,
 }
 
 async function choices(fetchImpl, node, input) {
@@ -217,8 +224,38 @@ export async function imageModels(fetchImpl = fetch) {
     qClip: find(clips, IMAGE_FILES.qClip),
     qVae: find(vaes, IMAGE_FILES.qVae),
     qLora: find(loras, IMAGE_FILES.qLora),
+    mUnet: find(unets, IMAGE_FILES.mUnet) || find(unets, IMAGE_FILES.mUnetBase),
+    mClip: find(clips, IMAGE_FILES.mClip),
+    mVae: find(vaes, IMAGE_FILES.mVae),
   }
 }
+
+// MOSS-Image, from ComfyUI's "MOSS-Image: Text to Image" template (its prompt
+// rewriting off): 25 steps, CFG 2.5, er_sde, skip-layer guidance on layer 22.
+// It writes the text that is in quotes in the prompt.
+export const MOSS_NEGATIVE = 'nsfw, worst quality, bad anatomy, watermark, jpeg artifact'
+export function mossGraph(m, prompt, width, height, seed, prefix) {
+  return {
+    1: { class_type: 'UNETLoader', inputs: { unet_name: m.mUnet, weight_dtype: 'default' } },
+    2: { class_type: 'CLIPLoader', inputs: { clip_name: m.mClip, type: 'moss_image', device: 'default' } },
+    3: { class_type: 'VAELoader', inputs: { vae_name: m.mVae } },
+    4: { class_type: 'CLIPTextEncode', inputs: { clip: ['2', 0], text: prompt } },
+    5: { class_type: 'CLIPTextEncode', inputs: { clip: ['2', 0], text: MOSS_NEGATIVE } },
+    6: { class_type: 'EmptyFlux2LatentImage', inputs: { width, height, batch_size: 1 } },
+    7: { class_type: 'SkipLayerGuidanceDiTSimple', inputs: { model: ['1', 0], double_layers: '', single_layers: '22', start_percent: 0, end_percent: 0.5 } },
+    8: {
+      class_type: 'KSampler',
+      inputs: { model: ['7', 0], positive: ['4', 0], negative: ['5', 0], latent_image: ['6', 0], seed, steps: 25, cfg: 2.5, sampler_name: 'er_sde', scheduler: 'simple', denoise: 1 },
+    },
+    9: { class_type: 'VAEDecode', inputs: { samples: ['8', 0], vae: ['3', 0] } },
+    10: { class_type: 'SaveImage', inputs: { images: ['9', 0], filename_prefix: prefix } },
+  }
+}
+
+const IMAGE_MODELS = { 'z-image': 'z-image-turbo', 'z-image-turbo': 'z-image-turbo', moss: 'moss-image', 'moss-image': 'moss-image' }
+const hasMoss = (m) => !!(m.mUnet && m.mClip && m.mVae)
+// Text to draw in the picture: a quoted run of at least 2 characters.
+export const wantsText = (prompt) => /["“”][^"“”]{2,}["“”]/.test(prompt)
 
 // Z-Image Turbo, from its ComfyUI template: 8 steps, no negative prompt.
 export function zImageGraph(m, prompt, width, height, seed, prefix) {
@@ -293,17 +330,25 @@ async function upload(fetchImpl, image, index) {
 const missingModel = (what) =>
   new Error(`ComfyUI has no ${what} model. Install the files of its "${what}" workflow template.`)
 
-// One image: from text with Z-Image Turbo, or from 1 to 3 attached images
-// with Qwen-Image-Edit-2511. Returns base64 PNG and the seed.
+// One image: from text with Z-Image Turbo, or with MOSS-Image when the prompt
+// asks for text in quotes (or job.model is 'moss'); from 1 to 3 attached
+// images with Qwen-Image-Edit-2511. Returns base64 PNG, the seed and the model.
 export async function makeImage(job, fetchImpl = fetch, wait = sleep) {
   const prompt = String(job.prompt ?? '').trim()
   if (!prompt) throw new Error('Describe the image to make.')
   const images = Array.isArray(job.images) ? job.images.slice(0, 3) : []
   const seed = newSeed(job.seed)
   const prefix = `tsrs-image/${Date.now()}`
+  const asked = job.model ? IMAGE_MODELS[String(job.model).toLowerCase()] : undefined
+  if (job.model && !asked) throw new Error('The local image model is z-image or moss.')
   const m = await imageModels(fetchImpl)
   let graph
-  if (images.length) {
+  let model = images.length ? 'qwen-image-edit-2511' : 'z-image-turbo'
+  if (!images.length && (asked === 'moss-image' || (!asked && wantsText(prompt) && hasMoss(m)))) {
+    if (!hasMoss(m)) throw missingModel('MOSS-Image')
+    model = 'moss-image'
+    graph = mossGraph(m, prompt, ROUND(Number(job.width) || 1344), ROUND(Number(job.height) || 768), seed, prefix)
+  } else if (images.length) {
     if (!m.qUnet || !m.qClip || !m.qVae) throw missingModel('Qwen-Image-Edit-2511')
     const names = []
     for (const [i, image] of images.entries()) names.push(await upload(fetchImpl, image, i))
@@ -313,7 +358,7 @@ export async function makeImage(job, fetchImpl = fetch, wait = sleep) {
     graph = zImageGraph(m, prompt, ROUND(Number(job.width) || 1344), ROUND(Number(job.height) || 768), seed, prefix)
   }
   const bytes = await run(graph, 'images', fetchImpl, wait, { signal: job.signal })
-  return { mime: 'image/png', data: bytes.toString('base64'), seed, model: images.length ? 'qwen-image-edit-2511' : 'z-image-turbo' }
+  return { mime: 'image/png', data: bytes.toString('base64'), seed, model }
 }
 
 // ---- MiniMax H3 takes -------------------------------------------------------
